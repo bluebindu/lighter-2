@@ -1,0 +1,137 @@
+#!/usr/bin/make -f
+#
+# Copyright (C) 2018 inbitcoin s.r.l.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+NAME        = lighter
+VERSION    ?= 0.1.0
+
+DOCKER     ?= 1
+DOCKER_NS  ?= inbitcoin
+DOCKER_REPO = $(DOCKER_NS)/$(NAME)
+DOCKER_TAG  = $(DOCKER_REPO):$(VERSION)
+
+COM_DEPS    = virtualenv
+ECL_DEPS    = curl jq
+LND_DEPS    = curl unzip
+
+COM_PIPS    = grpcio==1.15.0 grpcio-tools==1.15.0
+DEV_PIPS    = pytest-cov pylint pycodestyle
+LND_PIPS    = googleapis-common-protos==1.5.3
+
+SCRIPT      = ./unix_make.sh
+
+TAGS_ARCH   = amd64 arm32v7
+
+CONFIG_FILE = lighter-data/config
+
+ifeq ($(shell test -r $(CONFIG_FILE) && echo -n yes), yes)
+	include $(CONFIG_FILE)
+endif
+
+
+# User targets
+
+default: help
+
+all: check setup build
+
+clightning: common
+
+eclair: common check_eclair setup_eclair
+
+lnd: common check_lnd setup_lnd build_lnd
+
+docker:
+	@ $(SCRIPT) create_dockerfiles $(VERSION) $(TAGS_ARCH)
+	@ $(SCRIPT) docker_build $(DOCKER_REPO) $(VERSION)
+
+run:
+	@ $(SCRIPT) run $(DOCKER) $(CONFIG_FILE) $(VERSION)
+
+logs:
+	@ $(SCRIPT) logs
+
+stop:
+	@ $(SCRIPT) stop
+
+clean:
+	@ $(SCRIPT) clean_venv
+
+help:
+	@ echo "Usage: make [target]\n"
+	@ echo "Targets:"
+	@ echo " - all:          gets Lighter ready for all implementations"
+	@ echo " - clightning:   gets Lighter ready for clightning"
+	@ echo " - eclair:       gets Lighter ready for eclair"
+	@ echo " - lnd:          gets Lighter ready for lnd"
+	@ echo " - docker:       builds Lighter docker image"
+	@ echo " - run:          runs Lighter (in docker or locally)"
+	@ echo " - logs:         shows Lighter logs (in docker)"
+	@ echo " - stop:         stops Lighter (in docker), removing all anonymous volumes attached to it"
+	@ echo " - clean:        removes Lighter virtualenv"
+	@ echo " - test:         tests Lighter code"
+	@ echo " - lint:         lints Lighter code"
+	@ echo " - help:         shows this message"
+	@ echo "\nDefault: help"
+	@ echo "\nNote: Uncommented targets are not meant to be called manually"
+
+
+# Development targets
+
+lint: setup build
+	@ $(SCRIPT) lint_code $(DOCKER_TAG)
+
+test: setup build
+	@ $(SCRIPT) test_code $(DOCKER_TAG)
+
+
+# Support targets (should not be called directly)
+
+common: check_common setup_common build_common
+
+check: check_common check_eclair check_lnd
+
+check_common:
+	@ $(SCRIPT) check_deps $(COM_DEPS)
+
+check_eclair:
+	@ $(SCRIPT) check_deps $(ECL_DEPS)
+
+check_lnd:
+	@ $(SCRIPT) check_deps $(LND_DEPS)
+
+setup: setup_common setup_eclair setup_lnd
+
+setup_common:
+	@ $(SCRIPT) setup_common $(COM_PIPS)
+	@ $(SCRIPT) setup_common $(DEV_PIPS)
+
+setup_eclair:
+	@ $(SCRIPT) setup_eclair
+
+setup_lnd:
+	@ $(SCRIPT) setup_lnd $(LND_PIPS)
+
+build: build_common build_lnd
+
+build_common:
+	@ $(SCRIPT) build_common
+
+build_lnd:
+	@ $(SCRIPT) build_lnd
+
+
+.PHONY: all clightning eclair lnd docker run logs stop clean test lint help

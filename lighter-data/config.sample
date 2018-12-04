@@ -1,0 +1,93 @@
+# Commented variables which are set, hold default value
+
+
+
+### Lighter settings ##########################################################
+
+# Set which implementation to use
+# Possible values: clightning, eclair, lnd (case-insensitive)
+# IMPLEMENTATION=""
+
+# If set to 1, Lighter listens to port 17080 in cleartext
+# Possible values: 0, 1
+# ALLOW_INSECURE_CONNECTION="0"
+
+# If set to 1, Lighter listens to port 17443 with TLSv1.2
+# Possible values: 0, 1
+# ALLOW_SECURE_CONNECTION="0"
+
+# Specifies the private key path
+# SERVER_KEY="./lighter-data/certs/server.key"
+
+# Specifies the certificate (chain) path
+# SERVER_CRT="./lighter-data/certs/server.crt"
+
+# Specifies the location which will contain logs
+# LOGS_DIR="./lighter-data/logs"
+
+# If set to 1, make run executes Lighter in docker
+# If set to 0, make run executes Lighter locally
+# Possible values: 0, 1
+# DOCKER="1"
+
+# Specifies the namespace for the docker image
+# DOCKER_NS="inbitcoin"
+
+# External docker network for Lighter to connect to
+# DOCKER_NET=""
+
+###############################################################################
+
+
+
+### Implementation settings ###################################################
+
+
+### c-lightning ###
+
+# Specifies the location containing the CLI binary
+# CL_CLI_DIR=""
+
+# Specifies the c-lightning CLI binary, relative to CL_CLI_DIR
+# CL_CLI="lightning-cli"
+
+# Specifies the location containing the RPC file
+# CL_RPC_DIR=""
+
+# Specifies the c-lightning JSON-RPC socket file, relative to CL_RPC_DIR
+# CL_RPC="lightning-rpc"
+
+
+### eclair ###
+
+# Specifies eclair host
+# ECL_HOST="localhost"
+
+# Specifies eclair port
+# ECL_PORT="8080"
+
+# Specifies eclair password
+# ECL_PASS=""
+
+
+### lnd ###
+
+# Specifies lnd host
+# LND_HOST="localhost"
+
+# Specifies lnd port
+# LND_PORT="10009"
+
+# Specifies the location containing the lnd certificate file
+# LND_CERT_DIR=""
+
+# Specifies the lnd certificate file, relative to LND_CERT_DIR
+# LND_CERT="tls.cert"
+
+# Specifies the location containing the macaroon file
+# LND_MACAROON_DIR=""
+
+# Specifies the macaroon file, relative to LND_MACAROON_DIR
+# LND_MACAROON="admin.macaroon"
+
+###############################################################################

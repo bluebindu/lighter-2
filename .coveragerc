@@ -1,0 +1,2 @@
+[run]
+omit = lighter/*_pb2*.py

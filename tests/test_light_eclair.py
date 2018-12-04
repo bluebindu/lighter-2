@@ -1,0 +1,672 @@
+# Copyright (C) 2018 inbitcoin s.r.l.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+""" Tests for light_eclair module """
+
+from importlib import import_module
+from unittest import mock, TestCase
+from unittest.mock import call, patch
+
+from lighter import lighter_pb2 as pb
+from lighter import light_eclair, settings
+from lighter.light_eclair import ERRORS
+from lighter.utils import Enforcer as Enf
+from tests import fixtures_eclair as fix
+
+MOD = import_module('lighter.light_eclair')
+
+
+class LightEclairTests(TestCase):
+    """ Tests for light_eclair module """
+
+    @patch('lighter.light_eclair._set_credentials', autospec=True)
+    def test_update_settings(self, mocked_set_creds):
+        # Correct case
+        reset_mocks(vars())
+        values = {
+            'ECL_HOST': 'eclair',
+            'ECL_PORT': '8080',
+            'ECL_PASS': 'sette'
+        }
+        with patch.dict('os.environ', values):
+            MOD.update_settings()
+        ecl_cli_path = '/srv/app/lighter/eclair-cli'
+        mocked_set_creds.assert_called_once_with(
+            ecl_cli_path, values['ECL_HOST'], values['ECL_PORT'],
+            values['ECL_PASS'])
+        self.assertEqual(settings.CMD_BASE, [ecl_cli_path])
+        # Missing variable case
+        reset_mocks(vars())
+        settings.CMD_BASE = ''
+        values = {}
+        with patch.dict('os.environ', values):
+            with self.assertRaises(KeyError):
+                MOD.update_settings()
+        assert not mocked_set_creds.called
+        self.assertEqual(settings.CMD_BASE, '')
+
+    @patch('lighter.light_eclair.FileInput', autospec=True)
+    def test_set_credentials(self, mocked_fileinput):
+        # Correct case
+        file = ["lorem", "URL='localhost'", "PASSWORD='secret'", "ipsum"]
+        mocked_fileinput.return_value.__enter__.return_value = file
+        calls = [
+            call("lorem"),
+            call("URL='ip:port'"),
+            call("PASSWORD='psw'"),
+            call("ipsum")
+        ]
+        with mock.patch('lighter.light_eclair.print') as mocked_print:
+            MOD._set_credentials('cli', 'ip', 'port', 'psw')
+            mocked_print.assert_has_calls(calls)
+
+    @patch('lighter.light_eclair._handle_error', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
+    def test_GetInfo(self, mocked_command, mocked_check_err):
+        # Testnet case
+        mocked_command.return_value = fix.getinfo_testnet
+        res = MOD.GetInfo('request', 'context')
+        mocked_command.assert_called_once_with('context', 'getinfo')
+        mocked_check_err.assert_called_once_with(
+            'context', fix.getinfo_testnet, always_abort=False)
+        self.assertEqual(res.network, 'testnet')
+        # Mainnet case
+        reset_mocks(vars())
+        mocked_command.return_value = fix.getinfo_mainnet
+        res = MOD.GetInfo('request', 'context')
+        mocked_command.assert_called_once_with('context', 'getinfo')
+        mocked_check_err.assert_called_once_with(
+            'context', fix.getinfo_mainnet, always_abort=False)
+        self.assertEqual(res.network, 'mainnet')
+        # Unknown network case
+        reset_mocks(vars())
+        mocked_command.return_value = fix.getinfo_unknown
+        res = MOD.GetInfo('request', 'context')
+        mocked_command.assert_called_once_with('context', 'getinfo')
+        mocked_check_err.assert_called_once_with(
+            'context', fix.getinfo_unknown, always_abort=False)
+        self.assertEqual(res.network, 'unknown')
+        # Filled case
+        reset_mocks(vars())
+        mocked_command.return_value = fix.getinfo
+        res = MOD.GetInfo('request', 'context')
+        mocked_command.assert_called_once_with('context', 'getinfo')
+        self.assertEqual(res.network, 'testnet')
+        self.assertEqual(res.identity_pubkey, 'id')
+        self.assertEqual(res.alias, 'pie')
+        self.assertEqual(res.blockheight, 7777)
+        # Strange error case
+        reset_mocks(vars())
+        mocked_command.return_value = fix.strangeresponse
+        res = MOD.GetInfo('request', 'context')
+        mocked_command.assert_called_once_with('context', 'getinfo')
+        mocked_check_err.assert_called_once_with(
+            'context', fix.strangeresponse, always_abort=False)
+        self.assertEqual(res, pb.GetInfoResponse())
+        # Error case
+        reset_mocks(vars())
+        mocked_command.return_value = fix.badresponse
+        mocked_check_err.side_effect = Exception()
+        res = 'not set'
+        with self.assertRaises(Exception):
+            res = MOD.GetInfo('request', 'context')
+        mocked_command.assert_called_once_with('context', 'getinfo')
+        mocked_check_err.assert_called_once_with(
+            'context', fix.badresponse, always_abort=False)
+        self.assertEqual(res, 'not set')
+
+    @patch('lighter.light_eclair.convert', autospec=True)
+    @patch('lighter.light_eclair._handle_error', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
+    def test_ChannelBalance(self, mocked_command, mocked_check_err,
+                            mocked_conv):
+        # Filled
+        mocked_command.side_effect = [fix.channels_one, fix.channel_normal]
+        mocked_conv.return_value = 0.0
+        res = MOD.ChannelBalance('request', 'context')
+        mocked_command.assert_called_with('context', 'channel',
+                                          fix.channels_one[0]['channelId'])
+        mocked_check_err.assert_called_once_with(
+            'context', fix.channels_one, always_abort=False)
+        mocked_conv.assert_called_once_with('context', Enf.MSATS, 0.0)
+        self.assertEqual(res.balance, 0.0)
+        # Empty
+        reset_mocks(vars())
+        mocked_command.side_effect = None
+        mocked_command.return_value = []
+        mocked_conv.return_value = 0.0
+        res = MOD.ChannelBalance('request', 'context')
+        mocked_command.assert_called_once_with('context', 'channels')
+        mocked_check_err.assert_called_once_with(
+            'context', mocked_command.return_value, always_abort=False)
+        mocked_conv.assert_called_once_with('context', Enf.MSATS, 0.0)
+        self.assertEqual(res.balance, 0.0)
+
+    @patch('lighter.light_eclair._handle_error', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
+    def test_ListPeers(self, mocked_command, mocked_check_err):
+        mocked_command.return_value = fix.peers2
+        res = MOD.ListPeers('request', 'context')
+        mocked_command.assert_called_once_with('context', 'peers')
+        mocked_check_err.assert_called_once_with(
+            'context', mocked_command.return_value, always_abort=False)
+        self.assertEqual(res.peers[0].pubkey, 'pubkey_2')
+        # Empty case
+        reset_mocks(vars())
+        mocked_command.return_value = []
+        res = MOD.ListPeers('request', 'context')
+        mocked_command.assert_called_once_with('context', 'peers')
+        mocked_check_err.assert_called_once_with(
+            'context', mocked_command.return_value, always_abort=False)
+        self.assertEqual(res, pb.ListPeersResponse())
+
+    @patch('lighter.light_eclair._handle_error', autospec=True)
+    @patch('lighter.light_eclair._add_channel', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
+    def test_ListChannels(self, mocked_command, mocked_add, mocked_check_err):
+        # Active only
+        mocked_command.side_effect = [fix.channels_one, fix.channel_normal]
+        request = pb.ListChannelsRequest(active_only=True)
+        res = MOD.ListChannels(request, 'context')
+        calls = [
+            call('context', 'channels'),
+            call('context', 'channel', fix.channels_one[0]['channelId'])
+        ]
+        mocked_command.assert_has_calls(calls)
+        mocked_add.assert_called_once_with(
+            'context', pb.ListChannelsResponse(), fix.channel_normal)
+        mocked_check_err.assert_called_once_with(
+            'context', fix.channel_normal, always_abort=False)
+        self.assertEqual(res, pb.ListChannelsResponse())
+        # List all channels
+        reset_mocks(vars())
+        mocked_command.side_effect = [fix.channels_one, fix.channel_waiting]
+        request = pb.ListChannelsRequest(active_only=False)
+        res = MOD.ListChannels(request, 'context')
+        calls = [
+            call('context', 'channels'),
+            call('context', 'channel', fix.channels_one[0]['channelId'])
+        ]
+        mocked_command.assert_has_calls(calls)
+        mocked_add.assert_called_once_with(
+            'context', pb.ListChannelsResponse(), fix.channel_waiting)
+        mocked_check_err.assert_called_once_with(
+            'context', fix.channel_waiting, always_abort=False)
+        self.assertEqual(res, pb.ListChannelsResponse())
+        # Error case
+        reset_mocks(vars())
+        mocked_command.return_value = 'badresponse'
+        mocked_check_err.side_effect = Exception()
+        with self.assertRaises(Exception):
+            res = MOD.ListChannels('request', 'context')
+        mocked_command.assert_called_once_with('context', 'channels')
+        assert not mocked_add.called
+
+    @patch('lighter.light_eclair._handle_error', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
+    @patch('lighter.light_eclair.convert', autospec=True)
+    @patch('lighter.light_eclair.Err')
+    def test_CreateInvoice(self, mocked_err, mocked_conv, mocked_command,
+                           mocked_check_err):
+        # Correct case
+        reset_mocks(vars())
+        request = pb.CreateInvoiceRequest(
+            description="aaa zzz", amount_bits=777, expiry_time=1666)
+        mocked_conv.return_value = 77700000
+        mocked_command.side_effect = ['lntb1pdkq', fix.details]
+        res = MOD.CreateInvoice(request, 'context')
+        mocked_conv.assert_called_once_with(
+            'context', Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
+        calls = [
+            call('context', 'receive', '77700000', 'aaa zzz', '1666'),
+            call('context', 'checkinvoice', 'lntb1pdkq')
+        ]
+        mocked_command.assert_has_calls(calls)
+        mocked_check_err.assert_called_with(
+            'context', fix.details, always_abort=False)
+        self.assertEqual(mocked_check_err.call_count, 2)
+        self.assertEqual(res.payment_request, 'lntb1pdkq')
+        self.assertEqual(res.payment_hash, 'a3af1a3caef9370b3d75a49f35425c')
+        self.assertEqual(res.expires_at, 1533041362 + 3600)
+        # Empty request case
+        reset_mocks(vars())
+        request = pb.CreateInvoiceRequest()
+        mocked_command.side_effect = ['lntb1pdkq', fix.details]
+        res = MOD.CreateInvoice(request, 'context')
+        assert not mocked_err().unsettable.called
+        calls = [
+            call('context', 'receive', settings.DEFAULT_DESCRIPTION),
+            call('context', 'checkinvoice', 'lntb1pdkq')
+        ]
+        mocked_command.assert_has_calls(calls)
+        mocked_check_err.assert_called_with(
+            'context', fix.details, always_abort=False)
+        self.assertEqual(mocked_check_err.call_count, 2)
+        self.assertEqual(res.payment_request, 'lntb1pdkq')
+        self.assertEqual(res.payment_hash, 'a3af1a3caef9370b3d75a49f35425c')
+        self.assertEqual(res.expires_at, 1533041362 + 3600)
+        # Unsettable parameter min_final_cltv_expiry case
+        reset_mocks(vars())
+        request = pb.CreateInvoiceRequest(min_final_cltv_expiry=7)
+        mocked_err().unsettable.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD.CreateInvoice(request, 'context')
+        mocked_err().unsettable.assert_called_once_with(
+            'context', 'min_final_cltv_expiry')
+        assert not mocked_command.called
+        assert not mocked_check_err.called
+        # Unsettable parameter expiry_time case
+        reset_mocks(vars())
+        request = pb.CreateInvoiceRequest(expiry_time=7)
+        mocked_err().unsettable.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD.CreateInvoice(request, 'context')
+        mocked_err().unsettable.assert_called_once_with(
+            'context', 'expiry_time (amount necessary)')
+        assert not mocked_command.called
+        assert not mocked_check_err.called
+        # Error case
+        request = pb.CreateInvoiceRequest(description='aaa zzz')
+        mocked_command.side_effect = ['', 'badresponse']
+        MOD.CreateInvoice(request, 'context')
+        mocked_command.assert_called_with('context', 'checkinvoice', '')
+        mocked_check_err.assert_called_with(
+            'context', 'badresponse', always_abort=False)
+
+    @patch('lighter.light_eclair.command', autospec=True)
+    @patch('lighter.light_eclair.Err')
+    def test_CheckInvoice(self, mocked_err, mocked_command):
+        # Correct case
+        request = pb.CheckInvoiceRequest(payment_hash='random')
+        mocked_command.return_value = True
+        res = MOD.CheckInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        mocked_command.assert_called_once_with('context', 'checkpayment',
+                                               'random')
+        assert not mocked_err().incorrect_payment_hash.called
+        self.assertEqual(res.settled, True)
+        # Missing parameter payment_hash
+        reset_mocks(vars())
+        request = pb.CheckInvoiceRequest()
+        MOD.CheckInvoice(request, 'context')
+        mocked_err().missing_parameter.assert_called_once_with(
+            'context', 'payment_hash')
+        # Error case
+        reset_mocks(vars())
+        request = pb.CheckInvoiceRequest(payment_hash='incorrect')
+        mocked_command.return_value = 'Error'
+        mocked_err.return_value.incorrect_payment_hash.side_effect = Exception(
+        )
+        res = 'not set'
+        with self.assertRaises(Exception):
+            res = MOD.CheckInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        mocked_command.assert_called_once_with('context', 'checkpayment',
+                                               'incorrect')
+        mocked_err().incorrect_payment_hash.assert_called_once_with('context')
+        self.assertEqual(res, 'not set')
+
+    @patch('lighter.light_eclair._handle_error', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
+    @patch('lighter.light_eclair.convert', autospec=True)
+    @patch('lighter.light_eclair.DecodeInvoice', autospec=True)
+    @patch('lighter.light_eclair.Err')
+    def test_PayInvoice(self, mocked_err, mocked_decode, mocked_conv,
+                        mocked_command, mocked_check_err):
+        # Correct case: with amount requested
+        request = pb.PayInvoiceRequest(
+            payment_request='random', amount_bits=77.7)
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_conv.return_value = 7770000
+        mocked_command.return_value = fix.send
+        res = MOD.PayInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        dec_req = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_decode.assert_called_once_with(dec_req, 'context')
+        assert not mocked_err().unsettable.called
+        mocked_conv.assert_called_once_with(
+            'context', Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)
+        mocked_command.assert_called_once_with('context', 'send', 'random',
+                                               '7770000')
+        assert not mocked_err().incorrect_invoice.called
+        mocked_check_err.assert_called_once_with(
+            'context', fix.send, always_abort=False)
+        self.assertEqual(res.payment_preimage, fix.send['paymentPreimage'])
+        # Correct case: no amount requested
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest(payment_request='random')
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_command.return_value = fix.send
+        res = MOD.PayInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        dec_req = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_decode.assert_called_once_with(dec_req, 'context')
+        assert not mocked_err().unsettable.called
+        assert not mocked_conv.called
+        mocked_command.assert_called_once_with('context', 'send', 'random')
+        assert not mocked_err().incorrect_invoice.called
+        mocked_check_err.assert_called_once_with(
+            'context', fix.send, always_abort=False)
+        self.assertEqual(res.payment_preimage, fix.send['paymentPreimage'])
+        # Missing parameter payment_request case
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest()
+        mocked_err().missing_parameter.side_effect = Exception()
+        with self.assertRaises(Exception):
+            res = MOD.PayInvoice(request, 'context')
+        mocked_err().missing_parameter.assert_called_once_with(
+            'context', 'payment_request')
+        assert not mocked_decode.called
+        assert not mocked_err().unsettable.called
+        assert not mocked_conv.called
+        assert not mocked_command.called
+        assert not mocked_err().incorrect_invoice.called
+        assert not mocked_check_err.called
+        # Unsettable parameter cltv_expiry_delta case
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest(cltv_expiry_delta=7)
+        mocked_err().unsettable.side_effect = Exception()
+        with self.assertRaises(Exception):
+            res = MOD.PayInvoice(request, 'context')
+        mocked_err().unsettable.assert_called_once_with(
+            'context', 'cltv_expiry_delta')
+        assert not mocked_err().missing_parameter.called
+        assert not mocked_decode.called
+        assert not mocked_conv.called
+        assert not mocked_command.called
+        assert not mocked_err().incorrect_invoice.called
+        assert not mocked_check_err.called
+        # Unsettable parameter amount_bits case
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest(
+            payment_request='random', amount_bits=77.7)
+        mocked_decode.return_value = pb.DecodeInvoiceResponse(amount_bits=7.7)
+        mocked_err().unsettable.side_effect = Exception()
+        with self.assertRaises(Exception):
+            res = MOD.PayInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        dec_req = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_decode.assert_called_once_with(dec_req, 'context')
+        mocked_err().unsettable.assert_called_once_with(
+            'context', 'amount_bits')
+        assert not mocked_conv.called
+        assert not mocked_command.called
+        assert not mocked_err().incorrect_invoice.called
+        assert not mocked_check_err.called
+        # Parameter payment_request not valid case
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest(payment_request='random')
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_command.return_value = fix.send_error
+        mocked_err().incorrect_invoice.side_effect = Exception()
+        with self.assertRaises(Exception):
+            res = MOD.PayInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        dec_req = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_decode.assert_called_once_with(dec_req, 'context')
+        assert not mocked_err().unsettable.called
+        assert not mocked_conv.called
+        mocked_command.assert_called_once_with('context', 'send',
+                                               request.payment_request)
+        mocked_err().incorrect_invoice.assert_called_once_with('context')
+        assert not mocked_check_err.called
+        # Strange error case
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest(payment_request='something')
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_command.return_value = fix.strangeresponse
+        res = MOD.PayInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        dec_req = pb.DecodeInvoiceRequest(payment_request='something')
+        mocked_decode.assert_called_once_with(dec_req, 'context')
+        assert not mocked_err().unsettable.called
+        assert not mocked_conv.called
+        mocked_command.assert_called_once_with('context', 'send',
+                                               request.payment_request)
+        assert not mocked_err().incorrect_invoice.called
+        mocked_check_err.assert_called_once_with(
+            'context', fix.strangeresponse, always_abort=False)
+        self.assertEqual(res, pb.PayInvoiceResponse())
+        # Unexpected error case
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest(payment_request='something')
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_command.return_value = fix.badresponse
+        mocked_check_err.side_effect = Exception()
+        res = 'not set'
+        with self.assertRaises(Exception):
+            res = MOD.PayInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        dec_req = pb.DecodeInvoiceRequest(payment_request='something')
+        mocked_decode.assert_called_once_with(dec_req, 'context')
+        assert not mocked_err().unsettable.called
+        assert not mocked_conv.called
+        mocked_command.assert_called_once_with('context', 'send',
+                                               request.payment_request)
+        assert not mocked_err().incorrect_invoice.called
+        mocked_check_err.assert_called_once_with(
+            'context', fix.badresponse, always_abort=False)
+        self.assertEqual(res, 'not set')
+
+    @patch('lighter.light_eclair._handle_error', autospec=True)
+    @patch('lighter.light_eclair._add_route_hint', autospec=True)
+    @patch('lighter.light_eclair.convert', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
+    @patch('lighter.light_eclair.Err')
+    def test_DecodeInvoice(self, mocked_err, mocked_command, mocked_conv,
+                           mocked_add, mocked_check_err):
+        # Correct case: with description hash
+        request = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_command.return_value = fix.checkinvoice_hash
+        mocked_conv.return_value = 7.77
+        res = MOD.DecodeInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        mocked_command.assert_called_once_with('context', 'checkinvoice',
+                                               'random')
+        assert not mocked_err().invoice_incorrect.called
+        mocked_conv.assert_called_once_with('context', Enf.MSATS,
+                                            fix.checkinvoice_hash['amount'])
+        assert mocked_add.called
+        mocked_check_err.assert_called_once_with(
+            'context', fix.checkinvoice_hash, always_abort=False)
+        self.assertEqual(res.amount_bits, 7.77)
+        self.assertEqual(res.timestamp, fix.checkinvoice_hash['timestamp'])
+        self.assertEqual(res.destination_pubkey,
+                         fix.checkinvoice_hash['nodeId'])
+        self.assertEqual(res.payment_hash,
+                         fix.checkinvoice_hash['tags'][0]['hash'])
+        self.assertEqual(res.description, '')
+        self.assertEqual(res.description_hash,
+                         fix.checkinvoice_hash['tags'][1]['hash'])
+        self.assertEqual(res.expiry_time, 0)
+        self.assertEqual(res.min_final_cltv_expiry, 0)
+        # Correct case: with simple description
+        reset_mocks(vars())
+        request = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_command.return_value = fix.checkinvoice_desc
+        mocked_conv.return_value = 20000
+        res = MOD.DecodeInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        mocked_command.assert_called_once_with('context', 'checkinvoice',
+                                               'random')
+        assert not mocked_err().invoice_incorrect.called
+        mocked_conv.assert_called_once_with('context', Enf.MSATS,
+                                            fix.checkinvoice_desc['amount'])
+        assert not mocked_add.called
+        mocked_check_err.assert_called_once_with(
+            'context', fix.checkinvoice_desc, always_abort=False)
+        self.assertEqual(res.amount_bits, 20000)
+        self.assertEqual(res.timestamp, fix.checkinvoice_desc['timestamp'])
+        self.assertEqual(res.destination_pubkey,
+                         fix.checkinvoice_desc['nodeId'])
+        self.assertEqual(res.payment_hash,
+                         fix.checkinvoice_desc['tags'][0]['hash'])
+        self.assertEqual(res.description,
+                         fix.checkinvoice_desc['tags'][1]['description'])
+        self.assertEqual(res.description_hash, '')
+        # Missing parameter payment_request case
+        reset_mocks(vars())
+        request = pb.DecodeInvoiceRequest()
+        mocked_err().missing_parameter.side_effect = Exception()
+        with self.assertRaises(Exception):
+            res = MOD.DecodeInvoice(request, 'context')
+        mocked_err().missing_parameter.assert_called_once_with(
+            'context', 'payment_request')
+        assert not mocked_command.called
+        assert not mocked_err().incorrect_invoice.called
+        assert not mocked_conv.called
+        assert not mocked_add.called
+        assert not mocked_check_err.called
+        # Incorrect invoice case
+        reset_mocks(vars())
+        request = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_command.return_value = 'aaa invalid payment request zzz'
+        mocked_err().incorrect_invoice.side_effect = Exception()
+        with self.assertRaises(Exception):
+            res = MOD.DecodeInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        mocked_command.assert_called_once_with('context', 'checkinvoice',
+                                               'random')
+        mocked_err().incorrect_invoice.assert_called_once_with('context')
+        assert not mocked_conv.called
+        assert not mocked_add.called
+        assert not mocked_check_err.called
+        # Error case
+        reset_mocks(vars())
+        request = pb.DecodeInvoiceRequest(payment_request='something')
+        mocked_command.return_value = fix.badresponse
+        mocked_check_err.side_effect = Exception()
+        res = 'not set'
+        with self.assertRaises(Exception):
+            res = MOD.DecodeInvoice(request, 'context')
+        assert not mocked_err().missing_parameter.called
+        mocked_command.assert_called_once_with('context', 'checkinvoice',
+                                               'something')
+        assert not mocked_err().incorrect_invoice.called
+        assert not mocked_conv.called
+        assert not mocked_add.called
+        mocked_check_err.assert_called_once_with(
+            'context', fix.badresponse, always_abort=False)
+        self.assertEqual(res, 'not set')
+
+    def test_defined(self):
+        """
+        This method is so simple that it will not be mocked in other tests
+        """
+        # Correct case
+        data = {'key': 'value'}
+        res = MOD._defined(data, 'key')
+        self.assertEqual(res, True)
+        # None case
+        data = {'key': None}
+        res = MOD._defined(data, 'key')
+        self.assertEqual(res, False)
+        # Unexistent key case
+        res = MOD._defined(data, 'not a key')
+        self.assertEqual(res, False)
+
+    @patch('lighter.light_eclair.convert', autospec=True)
+    def test_add_channel(self, mocked_conv):
+        response = pb.ListChannelsResponse()
+        mocked_conv.side_effect = [0, 20000]
+        res = MOD._add_channel('context', response, fix.channel_normal)
+        calls = [
+            call('context', Enf.MSATS, 0),
+            call('context', Enf.MSATS, 2000000000)
+        ]
+        mocked_conv.assert_has_calls(calls)
+        self.assertEqual(res, None)
+        self.assertEqual(response.channels[0].remote_pubkey,
+                         fix.channel_normal['nodeId'])
+        self.assertEqual(response.channels[0].channel_id,
+                         fix.channel_normal['channelId'])
+        self.assertEqual(response.channels[0].short_channel_id,
+                         fix.channel_normal['data']['shortChannelId'])
+        self.assertEqual(response.channels[0].local_balance, 0)
+        self.assertEqual(response.channels[0].remote_balance, 20000)
+        self.assertEqual(response.channels[0].capacity, 20000)
+
+    @patch('lighter.light_eclair.convert', autospec=True)
+    def test_add_route_hint(self, mocked_conv):
+        response = pb.DecodeInvoiceResponse()
+        ecl_route = fix.checkinvoice_hash['tags'][3]['path']
+        mocked_conv.side_effect = [0.00001, 0.00002]
+        res = MOD._add_route_hint('context', response, ecl_route)
+        calls = [call('context', Enf.MSATS, 1), call('context', Enf.MSATS, 2)]
+        mocked_conv.assert_has_calls(calls)
+        self.assertEqual(res, None)
+        self.assertEqual(response.route_hints[0].hop_hints[0].pubkey,
+                         ecl_route[0]['nodeId'])
+        self.assertEqual(response.route_hints[0].hop_hints[0].short_channel_id,
+                         ecl_route[0]['shortChannelId'])
+        self.assertEqual(response.route_hints[0].hop_hints[0].fee_base_bits,
+                         0.00001)
+        self.assertEqual(
+            response.route_hints[0].hop_hints[0].fee_proportional_millionths,
+            ecl_route[0]['feeProportionalMillionths'])
+        self.assertEqual(
+            response.route_hints[0].hop_hints[0].cltv_expiry_delta,
+            ecl_route[0]['cltvExpiryDelta'])
+        self.assertEqual(response.route_hints[0].hop_hints[1].pubkey,
+                         ecl_route[1]['nodeId'])
+        self.assertEqual(response.route_hints[0].hop_hints[1].short_channel_id,
+                         ecl_route[1]['shortChannelId'])
+        self.assertEqual(response.route_hints[0].hop_hints[1].fee_base_bits,
+                         0.00002)
+        self.assertEqual(
+            response.route_hints[0].hop_hints[1].fee_proportional_millionths,
+            ecl_route[1]['feeProportionalMillionths'])
+        self.assertEqual(
+            response.route_hints[0].hop_hints[1].cltv_expiry_delta,
+            ecl_route[1]['cltvExpiryDelta'])
+
+    @patch('lighter.light_eclair.Err')
+    def test_handle_error(self, mocked_err):
+        mocked_err().report_error.side_effect = Exception()
+        mocked_err().unexpected_error.side_effect = Exception()
+        # Key 'failures' in ecl_res
+        reset_mocks(vars())
+        with self.assertRaises(Exception):
+            MOD._handle_error('context', fix.badresponse)
+        error = 'unmapped error + extra error'
+        mocked_err().report_error.assert_called_once_with('context', error)
+        assert not mocked_err().unexpected_error.called
+        # No key 'failures', report_error finds error, always_abort=False
+        reset_mocks(vars())
+        ecl_res = 'strange error'
+        with self.assertRaises(Exception):
+            MOD._handle_error('context', ecl_res, always_abort=False)
+        mocked_err().report_error.assert_called_once_with(
+            'context', ecl_res, always_abort=False)
+        assert not mocked_err().unexpected_error.called
+        # No key 'failures', report_error doesn't find error, always_abort=True
+        reset_mocks(vars())
+        ecl_res = {'no failures': 'in ecl_res'}
+        mocked_err().report_error.side_effect = None
+        mocked_err().unexpected_error.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD._handle_error('context', ecl_res)
+        mocked_err().report_error.assert_called_once_with(
+            'context', ecl_res, always_abort=False)
+        mocked_err().unexpected_error.assert_called_once_with(
+            'context', ecl_res)
+
+
+def reset_mocks(params):
+    for _key, value in params.items():
+        try:
+            if type(value.call_count) is int:
+                value.reset_mock()
+        except:
+            pass
