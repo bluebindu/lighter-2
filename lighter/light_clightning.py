@@ -20,46 +20,44 @@ from os import environ, path
 
 from . import lighter_pb2 as pb
 from . import settings
-from .utils import command, convert, Enforcer as Enf
+from .utils import check_req_params, command, convert, Enforcer as Enf
 from .errors import Err
 
 ERRORS = {
     'Bad bech32 string': {
-        'fun': 'incorrect_invoice',
-        'params': None
+        'fun': 'invalid',
+        'params': 'payment_request'
     },
     'Connection refused': {
-        'fun': 'node_error',
-        'params': 'Connection refused (hint: check node connection)'
+        'fun': 'node_error'
     },
     'Could not find a route': {
-        'fun': 'route_not_found',
-        'params': None
+        'fun': 'route_not_found'
     },
     'does not match description': {
-        'fun': 'incorrect_description',
-        'params': None
+        'fun': 'incorrect_description'
+    },
+    'Exchanging init messages: Operation now in progress': {
+        'fun': 'connect_failed'
     },
     'Fallback address does not match our network': {
-        'fun': 'incorrect_fallback',
-        'params': None
+        'fun': 'invalid',
+        'params': 'fallback_addr'
     },
     'Fallback address not valid': {
-        'fun': 'incorrect_fallback',
-        'params': None
+        'fun': 'invalid',
+        'params': 'fallback_addr'
     },
     # this error happens when giving a short fallback address (e.g. "sd")
     'Incorrect \'id\' in response': {
-        'fun': 'incorrect_fallback',
-        'params': None
+        'fun': 'invalid',
+        'params': 'fallback_addr'
     },
     'Invoice expired': {
         'fun': 'invoice_expired',
-        'params': None
     },
     'msatoshi parameter required': {
-        'fun': 'amount_required',
-        'params': None
+        'fun': 'amount_required'
     },
     'no description to check': {
         'fun': 'missing_parameter',
@@ -150,6 +148,37 @@ def ChannelBalance(request, context):  # pylint: disable=unused-argument
     return pb.ChannelBalanceResponse(balance=convert(context, Enf.SATS, funds))
 
 
+def ListChannels(request, context):
+    """ Returns a list of channels of the running LN node """
+    cl_req = ['listpeers']
+    cl_res = command(context, *cl_req)
+    response = pb.ListChannelsResponse()
+    if 'peers' in cl_res:
+        for cl_peer in cl_res['peers']:
+            if 'channels' in cl_peer:
+                for cl_chan in cl_peer['channels']:
+                    # False if not specified in request
+                    if request.active_only and 'state' in cl_chan \
+                            and cl_chan['state'] == 'CHANNELD_NORMAL':
+                        _add_channel(context, response, cl_peer, cl_chan)
+                    elif not request.active_only:
+                        _add_channel(context, response, cl_peer, cl_chan)
+    _handle_error(context, cl_res, always_abort=False)
+    return response
+
+
+def ListPayments(request, context):  # pylint: disable=unused-argument
+    """ Returns a list of lightning invoices paid by the running LN node """
+    cl_req = ['listpayments']
+    cl_res = command(context, *cl_req)
+    response = pb.ListPaymentsResponse()
+    if 'payments' in cl_res:
+        for cl_payment in cl_res['payments']:
+            _add_payment(context, response, cl_payment)
+    _handle_error(context, cl_res, always_abort=False)
+    return response
+
+
 def ListPeers(request, context):  # pylint: disable=unused-argument
     """ Returns a list of peers connected to the running LN node """
     cl_req = ['listpeers']
@@ -174,30 +203,11 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
     return response
 
 
-def ListChannels(request, context):
-    """ Returns a list of channels of the running LN node """
-    cl_req = ['listpeers']
-    cl_res = command(context, *cl_req)
-    response = pb.ListChannelsResponse()
-    if 'peers' in cl_res:
-        for cl_peer in cl_res['peers']:
-            if 'channels' in cl_peer:
-                for cl_chan in cl_peer['channels']:
-                    # False if not specified in request
-                    if request.active_only and 'state' in cl_chan \
-                            and cl_chan['state'] == 'CHANNELD_NORMAL':
-                        _add_channel(context, response, cl_peer, cl_chan)
-                    elif not request.active_only:
-                        _add_channel(context, response, cl_peer, cl_chan)
-    _handle_error(context, cl_res, always_abort=False)
-    return response
-
-
 def CreateInvoice(request, context):
     """ Creates a LN invoice (bolt 11 standard) """
     cl_req = ['invoice']
     if request.min_final_cltv_expiry:
-        Err().unsettable(context, 'min_final_cltv_expiry')
+        Err().unimplemented_parameter(context, 'min_final_cltv_expiry')
     if request.amount_bits:
         cl_req.append('msatoshi="{}"'.format(
             convert(
@@ -230,8 +240,7 @@ def CreateInvoice(request, context):
 def CheckInvoice(request, context):
     """ Checks if a LN invoice has been paid """
     cl_req = ['listinvoices']
-    if not request.payment_hash:
-        Err().missing_parameter(context, 'payment_hash')
+    check_req_params(context, request, 'payment_hash')
     settled = False
     invoice = None
     cl_res = command(context, *cl_req)
@@ -259,8 +268,7 @@ def PayInvoice(request, context):
     included in the request
     """
     cl_req = ['pay']
-    if not request.payment_request:
-        Err().missing_parameter(context, 'payment_request')
+    check_req_params(context, request, 'payment_request')
     cl_req.append('bolt11="{}"'.format(request.payment_request))
     if request.amount_bits:
         dec_req = pb.DecodeInvoiceRequest(
@@ -275,13 +283,39 @@ def PayInvoice(request, context):
                     enforce=Enf.LN_TX)))
     if request.description:
         cl_req.append('description="{}"'.format(request.description))
-    if Enf.check_value(
-            context, request.cltv_expiry_delta, enforce=Enf.CLTV_EXPIRY_DELTA):
-        cl_req.append('maxdelay="{}"'.format(request.cltv_expiry_delta))
+    if request.cltv_expiry_delta:
+        if Enf.check_value(
+                context, request.cltv_expiry_delta,
+                enforce=Enf.CLTV_EXPIRY_DELTA):
+            cl_req.append('maxdelay="{}"'.format(request.cltv_expiry_delta))
+        else:
+            Err().out_of_range(context, 'cltv_expiry_delta')
     cl_res = command(context, *cl_req)
     response = pb.PayInvoiceResponse()
     if 'payment_preimage' in cl_res:
         response.payment_preimage = cl_res['payment_preimage']
+    _handle_error(context, cl_res, always_abort=False)
+    return response
+
+
+def PayOnChain(request, context):
+    """ Tries to pay a bitcoin address """
+    cl_req = ['withdraw']
+    check_req_params(context, request, 'address', 'amount_bits')
+    cl_req.append('destination="{}"'.format(request.address))
+    cl_req.append('satoshi="{}"'.format(
+        convert(context, Enf.SATS, request.amount_bits, enforce=Enf.OC_TX)))
+    if request.fee_sat_byte:
+        if Enf.check_value(
+                context, request.fee_sat_byte, enforce=Enf.OC_FEE):
+            cl_req.append(
+                'feerate="{}perkb"'.format(request.fee_sat_byte * 1000))
+        else:
+            Err().out_of_range(context, 'fee_sat_byte')
+    cl_res = command(context, *cl_req)
+    response = pb.PayOnChainResponse()
+    if 'txid' in cl_res:
+        response.txid = cl_res['txid']
     _handle_error(context, cl_res, always_abort=False)
     return response
 
@@ -293,10 +327,8 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
     """
     cl_req = ['decodepay']
     response = pb.DecodeInvoiceResponse()
-    if request.payment_request:
-        cl_req.append('bolt11="{}"'.format(request.payment_request))
-    else:
-        Err().missing_parameter(context, 'payment_request')
+    check_req_params(context, request, 'payment_request')
+    cl_req.append('bolt11="{}"'.format(request.payment_request))
     if request.description:
         cl_req.append('description="{}"'.format(request.description))
     cl_res = command(context, *cl_req)
@@ -326,6 +358,31 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
     return response
 
 
+def OpenChannel(request, context):
+    """ Tries to connect and open a channel with a peer """
+    cl_req = ['connect']
+    response = pb.OpenChannelResponse()
+    check_req_params(context, request, 'node_uri', 'funding_bits')
+    if request.push_bits:
+        Err().unimplemented_parameter(context)
+    pubkey, _host = request.node_uri.split("@")
+    cl_req.append('id="{}"'.format(request.node_uri))
+    cl_res = command(context, *cl_req)
+    if 'id' not in cl_res:
+        _handle_error(context, cl_res, always_abort=True)
+    cl_req = ['fundchannel']
+    cl_req.append('id="{}"'.format(pubkey))
+    cl_req.append('satoshi="{}"'.format(
+        convert(context, Enf.SATS, request.funding_bits,
+                enforce=Enf.FUNDING_SATOSHIS)))
+    cl_req.append('announce="{}"'.format(request.private))
+    cl_res = command(context, *cl_req)
+    if 'txid' in cl_res:
+        response.funding_txid = cl_res['txid']
+    _handle_error(context, cl_res, always_abort=False)
+    return response
+
+
 def _add_channel(context, response, cl_peer, cl_chan):
     """ Adds a channel to a ListChannelsResponse """
     grpc_chan = response.channels.add()
@@ -347,6 +404,23 @@ def _add_channel(context, response, cl_peer, cl_chan):
                                           cl_chan['msatoshi_to_us'])
     if grpc_chan.capacity and grpc_chan.local_balance:
         grpc_chan.remote_balance = grpc_chan.capacity - grpc_chan.local_balance
+
+
+def _add_payment(context, response, cl_payment):
+    """ Adds a payment to a ListPaymentsResponse """
+    grpc_payment = response.payments.add()
+    if 'payment_hash' in cl_payment:
+        grpc_payment.payment_hash = cl_payment['payment_hash']
+    if 'msatoshi_sent' in cl_payment:
+        grpc_payment.amount_bits = convert(
+            context, Enf.MSATS, cl_payment['msatoshi_sent'])
+    if 'created_at' in cl_payment:
+        grpc_payment.timestamp = cl_payment['created_at']
+    if 'msatoshi' in cl_payment and 'msatoshi_sent' in cl_payment:
+        grpc_payment.fee_base_msat = \
+            cl_payment['msatoshi_sent'] - cl_payment['msatoshi']
+    if 'payment_preimage' in cl_payment:
+        grpc_payment.payment_preimage = cl_payment['payment_preimage']
 
 
 def _add_route_hint(context, response, cl_route):

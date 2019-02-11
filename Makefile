@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 NAME        = lighter
-VERSION    ?= 0.1.0
+VERSION    ?= 0.2.0
 
 DOCKER     ?= 1
 DOCKER_NS  ?= inbitcoin
@@ -27,7 +27,7 @@ COM_DEPS    = virtualenv
 ECL_DEPS    = curl jq
 LND_DEPS    = curl unzip
 
-COM_PIPS    = grpcio==1.15.0 grpcio-tools==1.15.0
+COM_PIPS    = grpcio==1.18.0 grpcio-tools==1.18.0
 DEV_PIPS    = pytest-cov pylint pycodestyle
 LND_PIPS    = googleapis-common-protos==1.5.3
 
@@ -70,6 +70,9 @@ stop:
 clean:
 	@ $(SCRIPT) clean_venv
 
+version:
+	@ echo $(VERSION)
+
 help:
 	@ echo "Usage: make [target]\n"
 	@ echo "Targets:"
@@ -84,6 +87,7 @@ help:
 	@ echo " - clean:        removes Lighter virtualenv"
 	@ echo " - test:         tests Lighter code"
 	@ echo " - lint:         lints Lighter code"
+	@ echo " - version:      gets Lighter version"
 	@ echo " - help:         shows this message"
 	@ echo "\nDefault: help"
 	@ echo "\nNote: Uncommented targets are not meant to be called manually"
@@ -91,10 +95,10 @@ help:
 
 # Development targets
 
-lint: setup build
+lint: docker
 	@ $(SCRIPT) lint_code $(DOCKER_TAG)
 
-test: setup build
+test: docker
 	@ $(SCRIPT) test_code $(DOCKER_TAG)
 
 

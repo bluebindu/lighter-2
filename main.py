@@ -38,5 +38,5 @@ signal(SIGTERM, sigterm_handler)
 
 if __name__ == '__main__':
     utils.update_logger()
-    utils.log_intro()
+    utils.log_intro(sys.argv[1])
     lighter.start()

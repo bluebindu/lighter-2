@@ -29,18 +29,18 @@ def _create_dockerfile(version, tag_arch):
     copyfile('Dockerfile.cross', new_file)
     envs = 'ENV APP_DIR="{}" ENV="{}" VERSION="{}"'.format(
         env['APP_DIR'], env['ENV_DIR'], env['version'])
-    install_cmd = 'apt-get update && apt-get -y install gcc python3-dev &&'
+    install_cmd = 'apt-get update && apt-get -y install g++ python3-dev &&'
     clean_cmd = '&& apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*'
     with FileInput(files=(new_file), inplace=True) as file:
         for line in file:
             line = sub('%%BASEIMAGE_ARCH%%', tag_arch, line.rstrip())
             line = sub('%%ENVS%%', envs, line.rstrip())
             if tag_arch == 'arm32v7':
-                line = sub('%%BEFORE_SETUP%% ', install_cmd, line.rstrip())
-                line = sub(' %%AFTER_SETUP%%', clean_cmd, line.rstrip())
+                line = sub('%%BEFORE_SETUP%%', install_cmd, line.rstrip())
+                line = sub('%%AFTER_SETUP%%', clean_cmd, line.rstrip())
             else:
                 line = sub('%%BEFORE_SETUP%% ', '', line.rstrip())
-                line = sub('%%AFTER_SETUP%%', '', line.rstrip())
+                line = sub(' %%AFTER_SETUP%%', '', line.rstrip())
             print(line)
     print('{} created'.format(new_file))
 

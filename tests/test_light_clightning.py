@@ -26,6 +26,7 @@ from lighter.utils import Enforcer as Enf
 from tests import fixtures_clightning as fix
 
 MOD = import_module('lighter.light_clightning')
+CTX = 'context'
 
 
 class LightClightningTests(TestCase):
@@ -57,13 +58,13 @@ class LightClightningTests(TestCase):
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
-    def test_GetInfo(self, mocked_command, mocked_check_err):
+    def test_GetInfo(self, mocked_command, mocked_handle):
         # Correct case
-        mocked_command.return_value = fix.getinfo
-        res = MOD.GetInfo('request', 'context')
-        mocked_command.assert_called_once_with('context', 'getinfo')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.getinfo, always_abort=False)
+        mocked_command.return_value = fix.GETINFO
+        res = MOD.GetInfo('request', CTX)
+        mocked_command.assert_called_once_with(CTX, 'getinfo')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.GETINFO, always_abort=False)
         self.assertEqual(res.identity_pubkey, '022d558f74f2ab2a78d29ebf')
         self.assertEqual(res.alias, 'pie')
         self.assertEqual(res.color, '#DCDCDC')
@@ -72,182 +73,204 @@ class LightClightningTests(TestCase):
         self.assertEqual(res.network, 'testnet')
         # Error case
         reset_mocks(vars())
-        mocked_command.return_value = fix.badresponse
-        mocked_check_err.side_effect = Exception()
+        mocked_command.return_value = fix.BADRESPONSE
+        mocked_handle.side_effect = Exception()
         res = 'not set'
         with self.assertRaises(Exception):
-            res = MOD.GetInfo('request', 'context')
-        mocked_command.assert_called_once_with('context', 'getinfo')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
+            res = MOD.GetInfo('request', CTX)
+        mocked_command.assert_called_once_with(CTX, 'getinfo')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
-    def test_NewAddress(self, mocked_command, mocked_check_err):
+    def test_NewAddress(self, mocked_command, mocked_handle):
         # Default case: request.type = 0 = NP2WKH = P2SH_SEGWIT
         request = pb.NewAddressRequest()
-        mocked_command.return_value = fix.newaddress[pb.NP2WKH]
-        res = MOD.NewAddress(request, 'context')
-        mocked_command.assert_called_once_with('context', 'newaddr',
+        mocked_command.return_value = fix.NEWADDRESS[pb.NP2WKH]
+        res = MOD.NewAddress(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'newaddr',
                                                'addresstype=p2sh-segwit')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.newaddress[pb.NP2WKH], always_abort=False)
-        self.assertEqual(res.address, fix.newaddress[pb.NP2WKH]['address'])
+        mocked_handle.assert_called_once_with(
+            CTX, fix.NEWADDRESS[pb.NP2WKH], always_abort=False)
+        self.assertEqual(res.address, fix.NEWADDRESS[pb.NP2WKH]['address'])
         # Legacy case: request.type = 0 = NP2WKH = P2SH_SEGWIT
         reset_mocks(vars())
         request = pb.NewAddressRequest(type=pb.NP2WKH)
-        mocked_command.return_value = fix.newaddress[pb.NP2WKH]
-        res = MOD.NewAddress(request, 'context')
-        mocked_command.assert_called_once_with('context', 'newaddr',
+        mocked_command.return_value = fix.NEWADDRESS[pb.NP2WKH]
+        res = MOD.NewAddress(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'newaddr',
                                                'addresstype=p2sh-segwit')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.newaddress[pb.NP2WKH], always_abort=False)
-        self.assertEqual(res.address, fix.newaddress[pb.NP2WKH]['address'])
+        mocked_handle.assert_called_once_with(
+            CTX, fix.NEWADDRESS[pb.NP2WKH], always_abort=False)
+        self.assertEqual(res.address, fix.NEWADDRESS[pb.NP2WKH]['address'])
         # Segwit case: request.type = 1 = P2WKH = BECH32
         reset_mocks(vars())
         request = pb.NewAddressRequest(type=pb.P2WKH)
-        mocked_command.return_value = fix.newaddress[pb.P2WKH]
-        res = MOD.NewAddress(request, 'context')
-        mocked_command.assert_called_once_with('context', 'newaddr',
+        mocked_command.return_value = fix.NEWADDRESS[pb.P2WKH]
+        res = MOD.NewAddress(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'newaddr',
                                                'addresstype=bech32')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.newaddress[pb.P2WKH], always_abort=False)
-        self.assertEqual(res.address, fix.newaddress[pb.P2WKH]['address'])
+        mocked_handle.assert_called_once_with(
+            CTX, fix.NEWADDRESS[pb.P2WKH], always_abort=False)
+        self.assertEqual(res.address, fix.NEWADDRESS[pb.P2WKH]['address'])
         # Error case
         reset_mocks(vars())
         request = pb.NewAddressRequest()
         res = 'not set'
-        mocked_command.return_value = fix.badresponse
-        mocked_check_err.side_effect = Exception()
+        mocked_command.return_value = fix.BADRESPONSE
+        mocked_handle.side_effect = Exception()
         with self.assertRaises(Exception):
-            res = MOD.NewAddress(request, 'context')
-        mocked_command.assert_called_once_with('context', 'newaddr',
+            res = MOD.NewAddress(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'newaddr',
                                                'addresstype=p2sh-segwit')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
     @patch('lighter.light_clightning.convert', autospec=True)
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
-    def test_WalletBalance(self, mocked_command, mocked_check_err,
+    def test_WalletBalance(self, mocked_command, mocked_handle,
                            mocked_conv):
         # Correct case
-        mocked_command.return_value = fix.listfunds
+        mocked_command.return_value = fix.LISTFUNDS
         mocked_conv.return_value = 0.14
-        res = MOD.WalletBalance('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listfunds')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.listfunds, always_abort=False)
-        mocked_conv.assert_called_once_with('context', Enf.SATS, 14)
+        res = MOD.WalletBalance('request', CTX)
+        mocked_command.assert_called_once_with(CTX, 'listfunds')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTFUNDS, always_abort=False)
+        mocked_conv.assert_called_once_with(CTX, Enf.SATS, 14)
         self.assertEqual(res.balance, 0.14)
         # No funds case
         reset_mocks(vars())
-        mocked_command.return_value = fix.listfunds_empty
+        mocked_command.return_value = fix.LISTFUNDS_EMPTY
         mocked_conv.return_value = 0.0
-        res = MOD.WalletBalance('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listfunds')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.listfunds_empty, always_abort=False)
-        mocked_conv.assert_called_once_with('context', Enf.SATS, 0.0)
+        res = MOD.WalletBalance('request', CTX)
+        mocked_command.assert_called_once_with(CTX, 'listfunds')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTFUNDS_EMPTY, always_abort=False)
+        mocked_conv.assert_called_once_with(CTX, Enf.SATS, 0.0)
         self.assertEqual(res.balance, 0.0)
         # Error case
         reset_mocks(vars())
-        mocked_command.return_value = fix.badresponse
-        mocked_check_err.side_effect = Exception()
+        mocked_command.return_value = fix.BADRESPONSE
+        mocked_handle.side_effect = Exception()
         with self.assertRaises(Exception):
-            res = MOD.WalletBalance('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listfunds')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
+            res = MOD.WalletBalance('request', CTX)
+        mocked_command.assert_called_once_with(CTX, 'listfunds')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
 
     @patch('lighter.light_clightning.convert', autospec=True)
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
-    def test_ChannelBalance(self, mocked_command, mocked_check_err,
+    def test_ChannelBalance(self, mocked_command, mocked_handle,
                             mocked_conv):
         # Correct case
-        mocked_command.return_value = fix.listfunds
+        mocked_command.return_value = fix.LISTFUNDS
         mocked_conv.return_value = 10
-        res = MOD.ChannelBalance('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listfunds')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.listfunds, always_abort=False)
-        mocked_conv.assert_called_once_with('context', Enf.SATS, 1000)
+        res = MOD.ChannelBalance('request', CTX)
+        mocked_command.assert_called_once_with(CTX, 'listfunds')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTFUNDS, always_abort=False)
+        mocked_conv.assert_called_once_with(CTX, Enf.SATS, 1000)
         # Error case
         reset_mocks(vars())
-        mocked_command.return_value = fix.badresponse
-        res = MOD.ChannelBalance('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listfunds')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
+        mocked_command.return_value = fix.BADRESPONSE
+        res = MOD.ChannelBalance('request', CTX)
+        mocked_command.assert_called_once_with(CTX, 'listfunds')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
+
+    @patch('lighter.light_clightning._handle_error', autospec=True)
+    @patch('lighter.light_clightning._add_channel', autospec=True)
+    @patch('lighter.light_clightning.command', autospec=True)
+    def test_ListChannels(self, mocked_command, mocked_add, mocked_handle):
+        api = 'listpeers'
+        # Correct case: request.active_only = False
+        request = pb.ListChannelsRequest()
+        mocked_command.return_value = fix.LISTPEERS
+        res = MOD.ListChannels(request, CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        assert mocked_add.called
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTPEERS, always_abort=False)
+        # Correct case: request.active_only = True
+        reset_mocks(vars())
+        request = pb.ListChannelsRequest(active_only=True)
+        mocked_command.return_value = fix.LISTPEERS
+        res = MOD.ListChannels(request, CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTPEERS, always_abort=False)
+        # No channels case
+        reset_mocks(vars())
+        mocked_command.return_value = fix.LISTPEERS_EMPTY
+        res = MOD.ListChannels('request', CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        assert not mocked_add.called
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTPEERS_EMPTY, always_abort=False)
+        self.assertEqual(res, pb.ListChannelsResponse())
+        # Error case
+        reset_mocks(vars())
+        mocked_command.return_value = fix.BADRESPONSE
+        res = MOD.ListChannels('request', CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        assert not mocked_add.called
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
+
+    @patch('lighter.light_clightning._handle_error', autospec=True)
+    @patch('lighter.light_clightning._add_payment', autospec=True)
+    @patch('lighter.light_clightning.command', autospec=True)
+    def test_ListPayments(self, mocked_command, mocked_add, mocked_handle):
+        api = 'listpayments'
+        # Correct case
+        request = pb.ListPaymentsRequest()
+        mocked_command.return_value = fix.PAYMENTS
+        res = MOD.ListPayments(request, CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        assert mocked_add.called
+        # Error case
+        reset_mocks(vars())
+        mocked_command.return_value = fix.BADRESPONSE
+        res = MOD.ListPayments('request', CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        assert not mocked_add.called
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
-    def test_ListPeers(self, mocked_command, mocked_check_err):
+    def test_ListPeers(self, mocked_command, mocked_handle):
+        api = 'listpeers'
         # Correct case
-        mocked_command.return_value = fix.listpeers
-        res = MOD.ListPeers('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listpeers')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.listpeers, always_abort=False)
+        mocked_command.return_value = fix.LISTPEERS
+        res = MOD.ListPeers('request', CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTPEERS, always_abort=False)
         self.assertEqual(res.peers[0].pubkey, '02212d3ec887188b284dbb7b222d2e')
         self.assertEqual(res.peers[0].alias, 'yalls.org')
         self.assertEqual(res.peers[0].address, '54.236.55.50:9735')
         # No peers case
         reset_mocks(vars())
-        mocked_command.return_value = fix.listpeers_empty
-        res = MOD.ListPeers('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listpeers')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.listpeers_empty, always_abort=False)
+        mocked_command.return_value = fix.LISTPEERS_EMPTY
+        res = MOD.ListPeers('request', CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTPEERS_EMPTY, always_abort=False)
         self.assertEqual(res, pb.ListPeersResponse())
         # Error case
         reset_mocks(vars())
-        mocked_command.return_value = fix.badresponse
-        res = MOD.ListPeers('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listpeers')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
-
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning._add_channel', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
-    def test_ListChannels(self, mocked_command, mocked_add, mocked_check_err):
-        # Correct case: request.active_only = False
-        request = pb.ListChannelsRequest()
-        mocked_command.return_value = fix.listpeers
-        res = MOD.ListChannels(request, 'context')
-        mocked_command.assert_called_once_with('context', 'listpeers')
-        assert mocked_add.called
-        mocked_check_err.assert_called_once_with(
-            'context', fix.listpeers, always_abort=False)
-        # Correct case: request.active_only = True
-        reset_mocks(vars())
-        request = pb.ListChannelsRequest(active_only=True)
-        mocked_command.return_value = fix.listpeers
-        res = MOD.ListChannels(request, 'context')
-        mocked_command.assert_called_once_with('context', 'listpeers')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.listpeers, always_abort=False)
-        # No channels case
-        reset_mocks(vars())
-        mocked_command.return_value = fix.listpeers_empty
-        res = MOD.ListChannels('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listpeers')
-        assert not mocked_add.called
-        mocked_check_err.assert_called_once_with(
-            'context', fix.listpeers_empty, always_abort=False)
-        self.assertEqual(res, pb.ListChannelsResponse())
-        # Error case
-        reset_mocks(vars())
-        mocked_command.return_value = fix.badresponse
-        res = MOD.ListChannels('request', 'context')
-        mocked_command.assert_called_once_with('context', 'listpeers')
-        assert not mocked_add.called
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
+        mocked_command.return_value = fix.BADRESPONSE
+        res = MOD.ListPeers('request', CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
@@ -255,7 +278,7 @@ class LightClightningTests(TestCase):
     @patch('lighter.light_clightning.convert', autospec=True)
     @patch('lighter.light_clightning.Err')
     def test_CreateInvoice(self, mocked_err, mocked_conv, mocked_label,
-                           mocked_command, mocked_check_err):
+                           mocked_command, mocked_handle):
         # Correct case
         request = pb.CreateInvoiceRequest(
             amount_bits=7,
@@ -264,101 +287,96 @@ class LightClightningTests(TestCase):
             fallback_addr='2Mwfzt2fAqRSDUaMLFwjtkTukVUBJB4kDqv')
         mocked_conv.return_value = 700000
         mocked_label.return_value = 'label'
-        mocked_command.return_value = fix.invoice
-        res = MOD.CreateInvoice(request, 'context')
-        assert not mocked_err().unsettable.called
+        mocked_command.return_value = fix.INVOICE
+        res = MOD.CreateInvoice(request, CTX)
         mocked_conv.assert_called_once_with(
-            'context', Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
+            CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
         mocked_label.assert_called_once_with()
         mocked_command.assert_called_once_with(
-            'context', 'invoice', 'msatoshi="700000"', 'description="funny"',
+            CTX, 'invoice', 'msatoshi="700000"', 'description="funny"',
             'label="label"', 'expiry="1800"',
             'fallbacks=["2Mwfzt2fAqRSDUaMLFwjtkTukVUBJB4kDqv"]')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.invoice, always_abort=False)
-        self.assertEqual(res.payment_hash, fix.invoice['payment_hash'])
-        self.assertEqual(res.payment_request, fix.invoice['bolt11'])
-        self.assertEqual(res.expires_at, fix.invoice['expires_at'])
+        mocked_handle.assert_called_once_with(
+            CTX, fix.INVOICE, always_abort=False)
+        self.assertEqual(res.payment_hash, fix.INVOICE['payment_hash'])
+        self.assertEqual(res.payment_request, fix.INVOICE['bolt11'])
+        self.assertEqual(res.expires_at, fix.INVOICE['expires_at'])
         # Correct case: donation invoice (missing amount_bits)
         reset_mocks(vars())
         request = pb.CreateInvoiceRequest(description='funny')
         mocked_label.return_value = 'label'
-        mocked_command.return_value = fix.invoice
-        res = MOD.CreateInvoice(request, 'context')
-        assert not mocked_err().unsettable.called
+        mocked_command.return_value = fix.INVOICE
+        res = MOD.CreateInvoice(request, CTX)
         assert not mocked_conv.called
         mocked_label.assert_called_once_with()
         mocked_command.assert_called_once_with(
-            'context', 'invoice', 'msatoshi="any"', 'description="funny"',
+            CTX, 'invoice', 'msatoshi="any"', 'description="funny"',
             'label="label"')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.invoice, always_abort=False)
-        self.assertEqual(res.payment_hash, fix.invoice['payment_hash'])
-        self.assertEqual(res.payment_request, fix.invoice['bolt11'])
-        self.assertEqual(res.expires_at, fix.invoice['expires_at'])
+        mocked_handle.assert_called_once_with(
+            CTX, fix.INVOICE, always_abort=False)
+        self.assertEqual(res.payment_hash, fix.INVOICE['payment_hash'])
+        self.assertEqual(res.payment_request, fix.INVOICE['bolt11'])
+        self.assertEqual(res.expires_at, fix.INVOICE['expires_at'])
         # Correct case: description default if missing in request
         reset_mocks(vars())
         request = pb.CreateInvoiceRequest(amount_bits=7)
         mocked_label.return_value = 'label'
-        mocked_command.return_value = fix.invoice
-        res = MOD.CreateInvoice(request, 'context')
-        assert not mocked_err().unsettable.called
+        mocked_command.return_value = fix.INVOICE
+        res = MOD.CreateInvoice(request, CTX)
         mocked_conv.assert_called_once_with(
-            'context', Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
+            CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
         mocked_label.assert_called_once_with()
         mocked_command.assert_called_once_with(
-            'context', 'invoice', 'msatoshi="700000"',
-            'description="{}"'.format(settings.DEFAULT_DESCRIPTION),
-            'label="label"')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.invoice, always_abort=False)
-        self.assertEqual(res.payment_hash, fix.invoice['payment_hash'])
-        self.assertEqual(res.payment_request, fix.invoice['bolt11'])
-        self.assertEqual(res.expires_at, fix.invoice['expires_at'])
-        # Unsettable parameter min_final_cltv_expiry case
+            CTX, 'invoice', 'msatoshi="700000"', 'description="{}"'.format(
+                settings.DEFAULT_DESCRIPTION), 'label="label"')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.INVOICE, always_abort=False)
+        self.assertEqual(res.payment_hash, fix.INVOICE['payment_hash'])
+        self.assertEqual(res.payment_request, fix.INVOICE['bolt11'])
+        self.assertEqual(res.expires_at, fix.INVOICE['expires_at'])
+        # Unimplemented parameter case
         reset_mocks(vars())
         request = pb.CreateInvoiceRequest(min_final_cltv_expiry=7)
-        mocked_err().unsettable.side_effect = Exception()
+        mocked_err().unimplemented_parameter.side_effect = Exception()
         with self.assertRaises(Exception):
-            MOD.CreateInvoice(request, 'context')
-        mocked_err().unsettable.assert_called_once_with(
-            'context', 'min_final_cltv_expiry')
+            MOD.CreateInvoice(request, CTX)
         assert not mocked_conv.called
         assert not mocked_label.called
         assert not mocked_command.called
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
         # Error case
         reset_mocks(vars())
+        mocked_err().unimplemented_parameter.side_effect = None
         request = pb.CreateInvoiceRequest(amount_bits=7, description='funny')
-        mocked_command.return_value = fix.badresponse
-        mocked_check_err.side_effect = Exception()
+        mocked_command.return_value = fix.BADRESPONSE
+        mocked_handle.side_effect = Exception()
         res = 'not set'
         with self.assertRaises(Exception):
-            res = MOD.CreateInvoice(request, 'context')
+            res = MOD.CreateInvoice(request, CTX)
         assert not mocked_err().unsettable.called
         mocked_conv.assert_called_once_with(
-            'context', Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
+            CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
         mocked_label.assert_called_once_with()
         mocked_command.assert_called_once_with(
-            'context', 'invoice', 'msatoshi="700000"', 'description="funny"',
+            CTX, 'invoice', 'msatoshi="700000"', 'description="funny"',
             'label="label"')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.Err')
     @patch('lighter.light_clightning.command', autospec=True)
-    def test_CheckInvoice(self, mocked_command, mocked_err, mocked_check_err):
+    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    def test_CheckInvoice(self, mocked_check_par, mocked_command, mocked_err, mocked_handle):
         # Correct case: paid invoice
         request = pb.CheckInvoiceRequest(
             payment_hash=
             '302cd6bc8dd20437172f48d8693c7099fd4cb6d08e3f8519b406b21880677b28')
-        mocked_command.return_value = fix.listinvoices
-        res = MOD.CheckInvoice(request, 'context')
-        mocked_command.assert_called_once_with('context', 'listinvoices')
-        assert not mocked_err().missing_parameter.called
-        assert not mocked_check_err.called
+        mocked_command.return_value = fix.LISTINVOICES
+        res = MOD.CheckInvoice(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'listinvoices')
+        assert not mocked_handle.called
         assert not mocked_err().invoice_not_found.called
         self.assertEqual(res.settled, True)
         # Correct case: unpaid invoice
@@ -366,60 +384,56 @@ class LightClightningTests(TestCase):
         request = pb.CheckInvoiceRequest(
             payment_hash=
             '2229b24c728326e2adb2c6166d3ba432fba8867678c6d2bca08b04ca09227a97')
-        mocked_command.return_value = fix.listinvoices
-        res = MOD.CheckInvoice(request, 'context')
-        mocked_command.assert_called_once_with('context', 'listinvoices')
-        assert not mocked_err().missing_parameter.called
-        assert not mocked_check_err.called
+        mocked_command.return_value = fix.LISTINVOICES
+        res = MOD.CheckInvoice(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'listinvoices')
+        assert not mocked_handle.called
         assert not mocked_err().invoice_not_found.called
         self.assertEqual(res.settled, False)
-        # Missing parameter payment_hash case
+        # Missing parameter case
         reset_mocks(vars())
         request = pb.CheckInvoiceRequest()
-        mocked_err().missing_parameter.side_effect = Exception()
+        mocked_check_par.side_effect = Exception()
         with self.assertRaises(Exception):
-            res = MOD.CheckInvoice(request, 'context')
+            res = MOD.CheckInvoice(request, CTX)
         assert not mocked_command.called
-        mocked_err().missing_parameter.assert_called_once_with(
-            'context', 'payment_hash')
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
         assert not mocked_err().invoice_not_found.called
         # Invoice not found case
         reset_mocks(vars())
+        mocked_check_par.side_effect = None
         request = pb.CheckInvoiceRequest(payment_hash='unexistent')
-        mocked_command.return_value = fix.listinvoices
+        mocked_command.return_value = fix.LISTINVOICES
         mocked_err().invoice_not_found.side_effect = Exception()
         res = 'not set'
         with self.assertRaises(Exception):
-            res = MOD.CheckInvoice(request, 'context')
-        mocked_command.assert_called_once_with('context', 'listinvoices')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.listinvoices, always_abort=False)
-        mocked_err().invoice_not_found.assert_called_once_with('context')
+            res = MOD.CheckInvoice(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'listinvoices')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTINVOICES, always_abort=False)
+        mocked_err().invoice_not_found.assert_called_once_with(CTX)
         self.assertEqual(res, 'not set')
         # Invoice found with no status case
         reset_mocks(vars())
         request = pb.CheckInvoiceRequest(
             payment_hash=
             '6c6466e514c26db149d8801b910e2201390cfa7112bf4f42ce01897b5ff83058')
-        mocked_command.return_value = fix.listinvoices
-        res = MOD.CheckInvoice(request, 'context')
-        mocked_command.assert_called_once_with('context', 'listinvoices')
-        assert not mocked_err().missing_parameter.called
+        mocked_command.return_value = fix.LISTINVOICES
+        res = MOD.CheckInvoice(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'listinvoices')
         assert not mocked_err().invoice_not_found.called
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
         self.assertEqual(res, pb.CheckInvoiceResponse())
         # Error case
         reset_mocks(vars())
         request = pb.CheckInvoiceRequest(payment_hash='random')
-        mocked_command.return_value = fix.badresponse
-        mocked_check_err.side_effect = Exception()
+        mocked_command.return_value = fix.BADRESPONSE
+        mocked_handle.side_effect = Exception()
         with self.assertRaises(Exception):
-            res = MOD.CheckInvoice(request, 'context')
-        mocked_command.assert_called_once_with('context', 'listinvoices')
-        assert not mocked_err().missing_parameter.called
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
+            res = MOD.CheckInvoice(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'listinvoices')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
         assert not mocked_err().invoice_not_found.called
         # Sette
         assert 7
@@ -430,8 +444,10 @@ class LightClightningTests(TestCase):
     @patch('lighter.light_clightning.convert', autospec=True)
     @patch('lighter.light_clightning.DecodeInvoice', autospec=True)
     @patch('lighter.light_clightning.Err')
-    def test_PayInvoice(self, mocked_err, mocked_decode, mocked_conv,
-                        mocked_check_val, mocked_command, mocked_check_err):
+    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    def test_PayInvoice(self, mocked_check_par, mocked_err, mocked_decode,
+                        mocked_conv, mocked_check_val, mocked_command,
+                        mocked_handle):
         # Correct case
         request = pb.PayInvoiceRequest(
             payment_request='lntb77u1something',
@@ -440,92 +456,137 @@ class LightClightningTests(TestCase):
             cltv_expiry_delta=7)
         mocked_decode.return_value = pb.DecodeInvoiceResponse()
         mocked_conv.return_value = 77700000
-        mocked_command.return_value = fix.pay
-        res = MOD.PayInvoice(request, 'context')
-        assert not mocked_err().missing_parameter.called
+        mocked_command.return_value = fix.PAY
+        res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='lntb77u1something')
-        mocked_decode.assert_called_once_with(dec_req, 'context')
+        mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         mocked_conv.assert_called_once_with(
-            'context', Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)
+            CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)
         mocked_command.assert_called_once_with(
-            'context', 'pay', 'bolt11="lntb77u1something"',
-            'msatoshi="77700000"', 'description="funny"', 'maxdelay="7"')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.pay, always_abort=False)
+            CTX, 'pay', 'bolt11="lntb77u1something"', 'msatoshi="77700000"',
+            'description="funny"', 'maxdelay="7"')
+        mocked_handle.assert_called_once_with(
+            CTX, fix.PAY, always_abort=False)
         self.assertEqual(
             res.payment_preimage,
             'd628d988a3a33fde1db8c1b800d16a1135ee030e21866ae24ae9269d7cd41632')
-        # Missing parameter payment_request case
+        # Missing parameter case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest()
-        mocked_err().missing_parameter.side_effect = Exception()
+        mocked_check_par.side_effect = Exception()
         with self.assertRaises(Exception):
-            res = MOD.PayInvoice(request, 'context')
-        mocked_err().missing_parameter.assert_called_once_with(
-            'context', 'payment_request')
+            res = MOD.PayInvoice(request, CTX)
         assert not mocked_decode.called
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         assert not mocked_command.called
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
         # Unsettable parameter amount_bits case
         reset_mocks(vars())
+        mocked_check_par.side_effect = None
         request = pb.PayInvoiceRequest(
             payment_request='something', amount_bits=777)
         mocked_decode.return_value = pb.DecodeInvoiceResponse(amount_bits=7)
         mocked_err().unsettable.side_effect = Exception()
         with self.assertRaises(Exception):
-            res = MOD.PayInvoice(request, 'context')
-        assert not mocked_err().missing_parameter.called
+            res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='something')
-        mocked_decode.assert_called_once_with(dec_req, 'context')
-        mocked_err().unsettable.assert_called_once_with(
-            'context', 'amount_bits')
+        mocked_decode.assert_called_once_with(dec_req, CTX)
+        mocked_err().unsettable.assert_called_once_with(CTX, 'amount_bits')
         assert not mocked_conv.called
         assert not mocked_command.called
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
+        # Incorrect cltv_expiry_delta case
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest(payment_request='something',
+                                       cltv_expiry_delta=65537)
+        mocked_check_val.return_value = False
+        mocked_err().out_of_range.side_effect = Exception()
+        with self.assertRaises(Exception):
+            res = MOD.PayInvoice(request, CTX)
+        assert not mocked_command.called
         # Error response case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(payment_request='something')
         mocked_check_val.return_value = 0
-        mocked_command.return_value = fix.badresponse
-        mocked_check_err.side_effect = Exception()
+        mocked_command.return_value = fix.BADRESPONSE
+        mocked_handle.side_effect = Exception()
         res = 'not set'
         with self.assertRaises(Exception):
-            res = MOD.PayInvoice(request, 'context')
-        assert not mocked_err().missing_parameter.called
+            res = MOD.PayInvoice(request, CTX)
         assert not mocked_decode.called
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
-        mocked_command.assert_called_once_with('context', 'pay',
+        mocked_command.assert_called_once_with(CTX, 'pay',
                                                'bolt11="something"')
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
+
+    @patch('lighter.light_clightning._handle_error', autospec=True)
+    @patch('lighter.light_clightning.command', autospec=True)
+    @patch('lighter.light_clightning.Enf.check_value')
+    @patch('lighter.light_clightning.convert', autospec=True)
+    @patch('lighter.light_clightning.Err')
+    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    def test_PayOnChain(self, mocked_check_par, mocked_err, mocked_conv,
+                        mocked_check_val, mocked_command, mocked_handle):
+        api = 'withdraw'
+        amt = 7
+        fee_sat_byte = 1
+        # Missing parameter case
+        request = pb.PayOnChainRequest()
+        mocked_check_par.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD.PayOnChain(request, CTX)
+        # Incorrect fee case
+        reset_mocks(vars())
+        mocked_check_par.side_effect = None
+        request = pb.PayOnChainRequest(
+            amount_bits=amt, address=fix.ADDRESS, fee_sat_byte=fee_sat_byte)
+        mocked_check_val.return_value = False
+        mocked_err().out_of_range.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD.PayOnChain(request, CTX)
+        assert not mocked_command.called
+        # Correct case
+        reset_mocks(vars())
+        request = pb.PayOnChainRequest(
+            amount_bits=amt, address=fix.ADDRESS, fee_sat_byte=fee_sat_byte)
+        mocked_conv.return_value = amt
+        mocked_check_val.return_value = True
+        mocked_command.return_value = fix.WITHDRAW
+        MOD.PayOnChain(request, CTX)
+        # Error case
+        reset_mocks(vars())
+        request = pb.PayOnChainRequest(address=fix.ADDRESS, amount_bits=amt)
+        mocked_command.return_value = fix.BADRESPONSE
+        res = MOD.PayOnChain(request, CTX)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning._add_route_hint', autospec=True)
     @patch('lighter.light_clightning.convert', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
     @patch('lighter.light_clightning.Err')
-    def test_DecodeInvoice(self, mocked_err, mocked_command, mocked_conv,
-                           mocked_add, mocked_check_err):
+    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    def test_DecodeInvoice(self, mocked_check_par, mocked_err, mocked_command,
+                           mocked_conv, mocked_add, mocked_handle):
         # Correct case: simple description, fallback and routes
         request = pb.DecodeInvoiceRequest(
-            payment_request='lntb77u1something', description='funny')
-        mocked_command.return_value = fix.decodepay
+            payment_request='lntb77u1s', description='funny')
+        mocked_command.return_value = fix.DECODEPAY
         mocked_conv.return_value = 7
-        res = MOD.DecodeInvoice(request, 'context')
-        assert not mocked_err().missing_parameter.called
-        mocked_command.assert_called_once_with('context', 'decodepay',
-                                               'bolt11="lntb77u1something"',
-                                               'description="funny"')
-        mocked_conv.assert_called_once_with('context', Enf.MSATS, 700000)
+        res = MOD.DecodeInvoice(request, CTX)
+        mocked_command.assert_called_once_with(
+            CTX, 'decodepay', 'bolt11="lntb77u1s"', 'description="funny"')
+        mocked_conv.assert_called_once_with(CTX, Enf.MSATS, 700000)
         assert mocked_add.called
         self.assertEqual(mocked_add.call_count, 2)
-        mocked_check_err.assert_called_once_with(
-            'context', fix.decodepay, always_abort=False)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.DECODEPAY, always_abort=False)
         self.assertEqual(res.amount_bits, 7)
         self.assertEqual(res.timestamp, 1533127505)
         self.assertEqual(
@@ -543,17 +604,15 @@ class LightClightningTests(TestCase):
                          '2NENXARsztTVBv1ZyJMMVF1YPGfgS5eejgC')
         # Correct case: hashed description, fallback, no routes
         reset_mocks(vars())
-        mocked_command.return_value = fix.decodepay_hash
+        mocked_command.return_value = fix.DECODEPAY_HASH
         mocked_conv.return_value = 1.5
-        res = MOD.DecodeInvoice(request, 'context')
-        assert not mocked_err().missing_parameter.called
-        mocked_command.assert_called_once_with('context', 'decodepay',
-                                               'bolt11="lntb77u1something"',
-                                               'description="funny"')
-        mocked_conv.assert_called_once_with('context', Enf.MSATS, 150000)
+        res = MOD.DecodeInvoice(request, CTX)
+        mocked_command.assert_called_once_with(
+            CTX, 'decodepay', 'bolt11="lntb77u1s"', 'description="funny"')
+        mocked_conv.assert_called_once_with(CTX, Enf.MSATS, 150000)
         assert not mocked_add.called
-        mocked_check_err.assert_called_once_with(
-            'context', fix.decodepay_hash, always_abort=False)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.DECODEPAY_HASH, always_abort=False)
         self.assertEqual(res.amount_bits, 1.5)
         self.assertEqual(res.timestamp, 1496314658)
         self.assertEqual(
@@ -571,45 +630,86 @@ class LightClightningTests(TestCase):
         self.assertEqual(res.min_final_cltv_expiry, 9)
         self.assertEqual(res.fallback_addr,
                          'mk2QpYatsKicvFVuTAQLBryyccRXMUaGHP')
-        # Missing parameter payment_request
+        # Missing parameter case
         reset_mocks(vars())
         request = pb.DecodeInvoiceRequest()
-        mocked_err().missing_parameter.side_effect = Exception()
+        mocked_check_par.side_effect = Exception()
         with self.assertRaises(Exception):
-            res = MOD.DecodeInvoice(request, 'context')
-        mocked_err().missing_parameter.assert_called_once_with(
-            'context', 'payment_request')
+            res = MOD.DecodeInvoice(request, CTX)
         assert not mocked_command.called
         assert not mocked_conv.called
         assert not mocked_add.called
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
         # Error response case
         reset_mocks(vars())
-        request = pb.DecodeInvoiceRequest(payment_request='lntb77u1something')
-        mocked_command.return_value = fix.badresponse
-        mocked_check_err.side_effect = Exception()
+        mocked_check_par.side_effect = None
+        request = pb.DecodeInvoiceRequest(payment_request='lntb77u1s')
+        mocked_command.return_value = fix.BADRESPONSE
+        mocked_handle.side_effect = Exception()
         res = 'not set'
         with self.assertRaises(Exception):
-            res = MOD.DecodeInvoice(request, 'context')
-        assert not mocked_err().missing_parameter.called
-        mocked_command.assert_called_once_with('context', 'decodepay',
-                                               'bolt11="lntb77u1something"')
+            res = MOD.DecodeInvoice(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'decodepay',
+                                               'bolt11="lntb77u1s"')
         assert not mocked_conv.called
         assert not mocked_add.called
-        mocked_check_err.assert_called_once_with(
-            'context', fix.badresponse, always_abort=False)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
+
+    @patch('lighter.light_clightning.convert', autospec=True)
+    @patch('lighter.light_clightning._handle_error', autospec=True)
+    @patch('lighter.light_clightning.command', autospec=True)
+    @patch('lighter.light_clightning.Err')
+    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    def test_OpenChannel(self, mocked_check_par, mocked_err, mocked_command,
+                         mocked_handle, mocked_conv):
+        amt = 7
+        # Filled
+        request = pb.OpenChannelRequest(
+            funding_bits=amt, node_uri=fix.NODE_URI,
+            private=True)
+        mocked_command.side_effect = [fix.CONNECT, fix.FUNDCHANNEL]
+        MOD.OpenChannel(request, CTX)
+        assert not mocked_err().unimplemented_parameter.called
+        # Missing parameter case
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest()
+        mocked_check_par.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        assert not mocked_command.called
+        # Unimplemented push_bits case
+        reset_mocks(vars())
+        mocked_check_par.side_effect = None
+        request = pb.OpenChannelRequest(
+            node_uri=fix.NODE_URI, funding_bits=amt, push_bits=amt)
+        mocked_err().unimplemented_parameter.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        assert not mocked_command.called
+        # Error case
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest(
+            funding_bits=amt, node_uri=fix.NODE_URI,
+            private=True)
+        mocked_command.side_effect = [fix.BADRESPONSE, None]
+        mocked_handle.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.BADRESPONSE, always_abort=True)
 
     @patch('lighter.light_clightning.convert', autospec=True)
     def test_add_channel(self, mocked_conv):
         response = pb.ListChannelsResponse()
-        cl_peer = fix.listpeers['peers'][0]
+        cl_peer = fix.LISTPEERS['peers'][0]
         cl_chan = cl_peer['channels'][0]
         mocked_conv.side_effect = [50000.0, 48.0]
-        res = MOD._add_channel('context', response, cl_peer, cl_chan)
+        res = MOD._add_channel(CTX, response, cl_peer, cl_chan)
         calls = [
-            call('context', Enf.MSATS, 5000000000),
-            call('context', Enf.MSATS, 4800000)
+            call(CTX, Enf.MSATS, 5000000000),
+            call(CTX, Enf.MSATS, 4800000)
         ]
         mocked_conv.assert_has_calls(calls)
         self.assertEqual(res, None)
@@ -629,12 +729,23 @@ class LightClightningTests(TestCase):
         self.assertEqual(response.channels[0].remote_balance, 50000 - 48)
 
     @patch('lighter.light_clightning.convert', autospec=True)
+    def test_add_payment(self, mocked_conv):
+        # Full response
+        response = pb.ListPaymentsResponse()
+        cl_payment = fix.PAYMENTS['payments'][0]
+        MOD._add_payment(CTX, response, cl_payment)
+        self.assertEqual(response.payments[0].payment_hash,
+                         cl_payment['payment_hash'])
+        mocked_conv.assert_called_once_with(CTX, Enf.MSATS,
+                                            cl_payment['msatoshi_sent'])
+
+    @patch('lighter.light_clightning.convert', autospec=True)
     def test_add_route_hint(self, mocked_conv):
         response = pb.DecodeInvoiceResponse()
-        cl_route = fix.decodepay['routes'][0]
+        cl_route = fix.DECODEPAY['routes'][0]
         mocked_conv.side_effect = [0.00001, 0.00002]
-        res = MOD._add_route_hint('context', response, cl_route)
-        calls = [call('context', Enf.MSATS, 1), call('context', Enf.MSATS, 2)]
+        res = MOD._add_route_hint(CTX, response, cl_route)
+        calls = [call(CTX, Enf.MSATS, 1), call(CTX, Enf.MSATS, 2)]
         mocked_conv.assert_has_calls(calls)
         self.assertEqual(res, None)
         self.assertEqual(
@@ -678,23 +789,21 @@ class LightClightningTests(TestCase):
         reset_mocks(vars())
         cl_res = {'code': 7, 'message': 'an error'}
         with self.assertRaises(Exception):
-            MOD._handle_error('context', cl_res)
+            MOD._handle_error(CTX, cl_res)
         mocked_err().report_error.assert_called_once_with(
-            'context', cl_res['message'])
+            CTX, cl_res['message'])
         assert not mocked_err().unexpected_error.called
         # Keys code and message not in cl_res, always_abort=True
         reset_mocks(vars())
         cl_res = {'no code': 'in cl_res'}
         with self.assertRaises(Exception):
-            MOD._handle_error('context', cl_res)
+            MOD._handle_error(CTX, cl_res)
         assert not mocked_err().report_error.called
-        mocked_err().unexpected_error.assert_called_once_with(
-            'context', cl_res)
+        mocked_err().unexpected_error.assert_called_once_with(CTX, cl_res)
         # Keys code and message not in cl_res, always_abort=False
         reset_mocks(vars())
         cl_res = {'no code': 'in cl_res'}
-        light_clightning._handle_error(
-            'context', cl_res, always_abort=False)
+        light_clightning._handle_error(CTX, cl_res, always_abort=False)
         assert not mocked_err().report_error.called
         assert not mocked_err().unexpected_error.called
 

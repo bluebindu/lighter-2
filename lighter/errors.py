@@ -30,21 +30,13 @@ ERRORS = {
         'code': 'INVALID_ARGUMENT',
         'msg': 'A positive amount is required for empty invoices'
     },
+    'connect_failed': {
+        'code': 'CANCELLED',
+        'msg': 'Connection to peer failed'
+    },
     'incorrect_description': {
         'code': 'INVALID_ARGUMENT',
         'msg': 'Provided description doesn\'t match the payment request one'
-    },
-    'incorrect_fallback': {
-        'code': 'INVALID_ARGUMENT',
-        'msg': 'Invalid fallback address'
-    },
-    'incorrect_invoice': {
-        'code': 'INVALID_ARGUMENT',
-        'msg': 'Incorrect invoice'
-    },
-    'incorrect_payment_hash': {
-        'code': 'INVALID_ARGUMENT',
-        'msg': 'Incorrect payment hash'
     },
     'insufficient_fee': {
         'code': 'OUT_OF_RANGE',
@@ -53,6 +45,10 @@ ERRORS = {
     'insufficient_funds': {
         'code': 'OUT_OF_RANGE',
         'msg': 'Funds are insufficient'
+    },
+    'invalid': {
+        'code': 'INVALID_ARGUMENT',
+        'msg': 'Invalid parameter "%PARAM%"'
     },
     'invoice_expired': {
         'code': 'OUT_OF_RANGE',
@@ -68,7 +64,11 @@ ERRORS = {
     },
     'node_error': {
         'code': 'UNAVAILABLE',
-        'msg': 'Connection error: %PARAM%'
+        'msg': '[node error] %PARAM%'
+    },
+    'out_of_range': {
+        'code': 'OUT_OF_RANGE',
+        'msg': 'Parameter "%PARAM%" out of range'
     },
     'route_not_found': {
         'code': 'NOT_FOUND',
@@ -77,6 +77,10 @@ ERRORS = {
     'unimplemented_method': {
         'code': 'UNIMPLEMENTED',
         'msg': 'This gRPC method is not supported for this implementation'
+    },
+    'unimplemented_parameter': {
+        'code': 'UNIMPLEMENTED',
+        'msg': 'This gRPC parameter is not supported for this implementation'
     },
     'unsettable': {
         'code': 'INVALID_ARGUMENT',
@@ -96,8 +100,7 @@ ERRORS = {
     },
     # Fallback
     'unexpected_error': {
-        'code': 'UNKNOWN',
-        'msg': 'Unexpected error, please report'
+        'code': 'UNKNOWN'
     }
 }
 
@@ -109,11 +112,14 @@ class Err():  # pylint: disable=too-few-public-methods
         def error_dispatcher(context, param=None):
             if name in ERRORS.keys():
                 scode = getattr(StatusCode, ERRORS[name]['code'])
-                msg = ERRORS[name]['msg']
+                msg = ''
+                if 'msg' in ERRORS[name]:
+                    msg = ERRORS[name]['msg']
                 if param:
                     msg = sub('%PARAM%', str(param), msg)
                 if name == 'unexpected_error':
-                    LOGGER.error('Unexpected error: %s', param)
+                    msg = param
+                    LOGGER.error('Unexpected error: %s', msg)
                 context.abort(scode, msg)
             else:
                 LOGGER.error('Unmapped error key')
@@ -128,7 +134,10 @@ class Err():  # pylint: disable=too-few-public-methods
             settings.IMPLEMENTATION))
         for msg, act in module.ERRORS.items():
             if msg in error:
-                args = [context, act['params']] if act['params'] else [context]
+                args = [context, act['params']] if 'params' in act \
+                    else [context]
+                if act['fun'] == 'node_error':
+                    args = [context, error]
                 getattr(self, act['fun'])(*args)
         if always_abort:
             self.unexpected_error(context, error)

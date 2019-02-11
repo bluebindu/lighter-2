@@ -39,7 +39,10 @@ class ErrorsTests(TestCase):
             func = eval('errors.Err().{}'.format(key))
             res = func(context, 'param')
             sc = getattr(StatusCode, ERRORS[key]['code'])
-            msg = sub('%PARAM%', 'param', ERRORS[key]['msg'])
+            if 'msg' in ERRORS[key]:
+                msg = sub('%PARAM%', 'param', ERRORS[key]['msg'])
+            else:
+                msg = 'param'
             context.abort.assert_called_once_with(sc, msg)
         # Error case
         reset_mocks(vars())
@@ -63,7 +66,8 @@ class ErrorsTests(TestCase):
                 err_self = MOD.Err()
                 with self.assertRaises(Exception):
                     err_self.report_error(context, error)
-                args = [context, act['params']] if act['params'] else [context]
+                args = [context, act['params']] if 'params' in act \
+                    else [context]
                 mocked_getattr.assert_called_once_with(err_self, act['fun'])
             # Unmapped error
             reset_mocks(vars())

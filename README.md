@@ -260,7 +260,8 @@ and Go, can be found at our
 
 #### Notes
 
-1. _some operations may not be supported for some implementations_
+1. _some operations may not be supported for some implementations, see
+    [Supported APIs](/doc/supported_apis.md) for details_
 2. _please note there are
    [options](https://developers.google.com/protocol-buffers/docs/proto3#options)
    that can be added to the proto file_

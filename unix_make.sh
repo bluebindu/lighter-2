@@ -196,12 +196,12 @@ run() {
 		# Local building
 		mkdir -p "$LOGS_DIR" || _die "Cannot create $LOGS_DIR"
 		[ -w "$LOGS_DIR" ] || _die "Cannot write to $LOGS_DIR"
-		python3 main.py
+		python3 main.py $VERSION
 	else
 		# Docker building
 		_check_compose
 		python3 docker/generate_compose.py
-		docker-compose -f compose.yml up -d $NAME
+		VERSION=$VERSION docker-compose -f compose.yml up -d $NAME
 	fi
 }
 
@@ -259,7 +259,13 @@ set_defaults() {
 lint_code() {
 	export dock_tag="$1"
 	docker run --rm \
-		-v `pwd`/$L_DIR:$APP_DIR/$L_DIR:ro \
+		-v `pwd`/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro \
+		-v `pwd`/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro \
+		-v `pwd`/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro \
+		-v `pwd`/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro \
+		-v `pwd`/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro \
+		-v `pwd`/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro \
+		-v `pwd`/$L_DIR/settings.py:$APP_DIR/$L_DIR/settings.py:ro \
 		-v `pwd`/tests:$APP_DIR/tests:ro \
 		-v `pwd`/reports:$APP_DIR/reports:rw \
 		-v `pwd`/.pylintrc:$APP_DIR/.pylintrc:ro \
@@ -272,7 +278,13 @@ test_code() {
 	export dock_tag="$1"
 	rm -rf tests/__pycache__ $L_DIR/__pycache__
 	docker run --rm \
-		-v `pwd`/$L_DIR:$APP_DIR/$L_DIR:ro \
+		-v `pwd`/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro \
+		-v `pwd`/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro \
+		-v `pwd`/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro \
+		-v `pwd`/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro \
+		-v `pwd`/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro \
+		-v `pwd`/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro \
+		-v `pwd`/$L_DIR/settings.py:$APP_DIR/$L_DIR/settings.py:ro \
 		-v `pwd`/tests:$APP_DIR/tests:ro \
 		-v `pwd`/.coveragerc:$APP_DIR/.coveragerc:ro \
 		--entrypoint $ENV_DIR/bin/pytest \

@@ -41,4 +41,4 @@ set +a
 chown -R --silent $USER "$APP_DIR"
 
 # Starts lighter
-exec gosu $USER python3 -u main.py
+exec gosu $USER python3 -u main.py $VERSION

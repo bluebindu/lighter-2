@@ -6,8 +6,36 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.0 - 2018-09-15
+
+## 0.2.0 - 2019-02-12
+
 ### Added
+
+- New APIs (see support table):
+  * ListInvoices
+  * ListPayments
+  * ListTransactions
+  * OpenChannel
+  * PayOnChain
+- Supported APIs table
+- gRPC version update (1.18.0)
+- Node.js proto compilation example
+- New error mappings
+- lnd connection handling decorator
+- Checks for required parameters
+
+### Fixed
+
+- Makefile: targets lint and test work on first run
+- Dockerfile generation on arm
+- c-lightning invoice creation (`check_value` usage)
+- lighter.proto reordering (alphabetical sort)
+
+
+## 0.1.0 - 2018-12-04
+
+### Added
+
 - Protobuf definitions
 - Lighter dispatcher
 - Support for c-lightning node

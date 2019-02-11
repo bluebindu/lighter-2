@@ -53,3 +53,14 @@ $ python \
     --go_out=plugins=grpc:"compiled/proto/dir/" \
     path/to/lighter.proto
 ```
+
+## Node.js
+
+```javascript
+$ npm install -g grpc-tools
+$ grpc_tools_node_protoc \
+    --js_out=import_style=commonjs,binary:"compiled/proto/dir/" \
+    --grpc_out="compiled/proto/dir/" \
+    --plugin=protoc-gen-grpc=`which grpc_tools_node_protoc_plugin` \
+    path/to/lighter.proto
+```

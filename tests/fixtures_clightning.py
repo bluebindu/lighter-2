@@ -16,13 +16,24 @@
 """ Fixtures for test_light_clightning module """
 
 
-badresponse = {
+TXID = "3cd3ffcbe695e53f92b057baec9a6fff3f936702512769129eb1053b0350e351"
+ADDRESS = "n1ER93kV9ox9ccrA4fxGZa9JXEGnhLDGnF"
+
+NODE_ID = "021f7b8bbfbca12b6520683fe39aa80316b729b49db6735a164ad019f81485a684"
+HOST = "snoopy"
+PORT = 9735
+NODE_URI = '{}@{}:{}'.format(NODE_ID, HOST, PORT)
+
+BADRESPONSE = {
     "code" : -32601,
     "message" : "A strange error occurred"
 }
 
+CONNECT = {
+    "id": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7"
+}
 
-decodepay = {
+DECODEPAY = {
     "currency": "tb",
     "timestamp": 1533127505,
     "created_at": 1533127505,
@@ -82,7 +93,7 @@ decodepay = {
 }
 
 
-decodepay_hash = {
+DECODEPAY_HASH = {
     "currency": "tb",
     "timestamp": 1496314658,
     "created_at": 1496314658,
@@ -107,8 +118,14 @@ decodepay_hash = {
     "signature": "3045022100b6c42b8a61e0dc5823ea63e76ff148ab5f6c86f45f9722af0069c7934daff70d02205e315893300774c897995e3a7476c8193693d144a36e2645a0851e6ebafc9d0a"
 }
 
+FUNDCHANNEL = {
+    "tx": "02000000010101fe262d44dd800ac48ae705cfb9bd1fe530b65a943cmc3a485b45n45d9c78897a0100000000ffffffff028813000000000000220020a7e840446feec8abbd6fd46ab00f6bb9e4d31e3ef9a4a838baa49f2dc285be32455f1b0000000000160014d94011695c18dc960f623e1a3d4d5d9addee736a02473044022036dcbac2e037d008b43817a4c0042483d9b5d8c0b69f5994b5ab7aa4a227684702201c315db296ae3477f5e0d0a55b06fc003bd9ffbb1cadc0ab00a9d9e70125a26e0121038f216727e40648c1b1fcc740d8b98883ae120d66ea607abdd75f9f05d5058cb000000000",
+    "txid": "87b91526fea6ca52fe3cb8b569d4406a2d62alyd5cb9ceb63d2a96p11573040f",
+    "channel_id": "0f047315e1962a3db6mib95cbdae622d6a40d488b5b83cfe5k8aa6fe2615b987"
+}
 
-getinfo = {
+
+GETINFO = {
     "id": "022d558f74f2ab2a78d29ebf",
     "port": 9735,
     "alias": "pie",
@@ -133,7 +150,7 @@ getinfo = {
 }
 
 
-invoice = {
+INVOICE = {
     "payment_hash": "0a0d9938df88a1c54bfdf254df8eee4b89952f88c5a8321769887f4a4a187997",
     "expiry_time": 1533236108,
     "expires_at": 1533236108,
@@ -141,7 +158,7 @@ invoice = {
 }
 
 
-listfunds =  {
+LISTFUNDS =  {
     "outputs": [
         {
         "txid": "f1279a0ab804d5cd1da4fc49eaf76d66931a07fe59e40793a6920ec116fca544",
@@ -177,13 +194,13 @@ listfunds =  {
 }
 
 
-listfunds_empty =  {
+LISTFUNDS_EMPTY =  {
     "outputs": [],
     "channels": []
 }
 
 
-listinvoices = {
+LISTINVOICES = {
     "invoices": [
         {
         "label": "1530107849998017",
@@ -232,7 +249,7 @@ listinvoices = {
 }
 
 
-listpeers = {
+LISTPEERS = {
     "peers": [
         {
         "id": "0322deb288d430d3165af3d7456432111ff6cff3f431c9ae1",
@@ -336,12 +353,12 @@ listpeers = {
 }
 
 
-listpeers_empty = {
+LISTPEERS_EMPTY = {
     "peers": []
 }
 
 
-newaddress = [
+NEWADDRESS = [
     {
     "address": "2N875sa6BA9LwVTUviFisQZk"
     },
@@ -351,7 +368,7 @@ newaddress = [
 ]
 
 
-pay = {
+PAY = {
     "id": 6,
     "payment_hash": "90cf883e6c00a5e9071765dde5ffa19ce2746532b8ef3b6c939ac83ff038372f",
     "destination": "02212d3ec887188b284dbb7b2e6eb40629a6e14fb049673f22d2a0aa05f902090e",
@@ -372,4 +389,47 @@ pay = {
         }
     ],
     "failures": []
+}
+
+PAYMENTS = {
+    "payments": [
+        {
+          "id": 1,
+          "payment_hash": "f7ce87ebee5e5n20641ef17db847224220a8d446c1cf6491a35cde7b27503f3fe",
+          "destination": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
+          "msatoshi": 77000,
+          "msatoshi_sent": 77033,
+          "created_at": 1548680924,
+          "status": "complete",
+          "payment_preimage": "e333b05b94aaecdadd03aa65b47df296f6a312aaaa7b334aeb5abe0e6a40e19a",
+          "description": "pizza"
+        },
+        {
+          "id": 2,
+          "payment_hash": "4a8e28d38fcc9f572807df876249715g31f962aaeb76741658db6c0e5d700a92",
+          "destination": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
+          "msatoshi": 100000,
+          "msatoshi_sent": 100048,
+          "created_at": 1548680969,
+          "status": "complete",
+          "payment_preimage": "cb791daf001a8f180d5964b2bd7e79e1a7bd8940g071775855f1015cdb8385ae",
+          "description": "lightning fast"
+        },
+        {
+          "id": 3,
+          "payment_hash": "b97349je9ed477e45btbd773725e1c3f64bkj0153667y85f06da4d3dd1b18910",
+          "destination": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
+          "msatoshi": 1000000,
+          "msatoshi_sent": 1002354,
+          "created_at": 1548681049,
+          "status": "complete",
+          "payment_preimage": "6438421aaba463ada45jb6168ccbd07da68e0f87je5771cb5c1bd71f8c569c0c",
+          "description": "lighter"
+        }
+    ]
+}
+
+WITHDRAW = {
+  "tx": "020000000001019eebc4c33036914b54fdc8a12e5443e4141208b84ecf456a29dba5c3736937f80100000000ffffffff0270110100000000001600140abe948e5b8c01a952c516969d52976157bb670c54628b01000000001600140d4dbfbf6377ff675dbc0a3354507965dede613a02483045022100a2939e98697c608fdc0607087a9bf4d8132374a0f63f07dc74ede9f808daf8020220529b25ed9a19a1cfdc8c8e7c80ddbf84fa11f7862a0800e47030dd8d4e1e6d9f0121021f86a5179c1309b091d8c6d6a4793de3ce764823f10f32747a0697f55c11a49200000000",
+  "txid": "c6c5c15ba4e701e18c7e9d9eae9f87befab9a2d2bc126cd493fe7f9160e49947"
 }

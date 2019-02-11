@@ -22,32 +22,26 @@ from re import sub
 from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
-from .utils import command, convert, Enforcer as Enf
+from .utils import check_req_params, command, convert, Enforcer as Enf
 
 ERRORS = {
     'cannot route to self': {
-        'fun': 'route_not_found',
-        'params': None
+        'fun': 'route_not_found'
     },
     'Connection refused': {
-        'fun': 'node_error',
-        'params': 'Connection refused (hint: check node connection)'
+        'fun': 'node_error'
     },
     'Could not resolve host': {
-        'fun': 'node_error',
-        'params': 'Could not resolve host (hint: check node host name)'
+        'fun': 'node_error'
     },
     'insufficient funds': {
-        'fun': 'insufficient_funds',
-        'params': None
+        'fun': 'insufficient_funds'
     },
     'manually specify an amount': {
-        'fun': 'amount_required',
-        'params': None
+        'fun': 'amount_required'
     },
     'route not found': {
-        'fun': 'route_not_found',
-        'params': None
+        'fun': 'route_not_found'
     }
 }
 
@@ -166,7 +160,7 @@ def CreateInvoice(request, context):
     # [description] or [amount, description] or
     # [amount, description, expiryDuration]
     if request.min_final_cltv_expiry:
-        Err().unsettable(context, 'min_final_cltv_expiry')
+        Err().unimplemented_parameter(context, 'min_final_cltv_expiry')
     description = settings.DEFAULT_DESCRIPTION
     if request.description:
         description = request.description
@@ -203,12 +197,11 @@ def CheckInvoice(request, context):
     """ Checks if a LN invoice has been paid """
     # eclair-cli checkinvoice [payment_request] | checkinvoice [payment_hash]
     ecl_req = ['checkpayment']
-    if not request.payment_hash:
-        Err().missing_parameter(context, 'payment_hash')
+    check_req_params(context, request, 'payment_hash')
     ecl_req.append(request.payment_hash)
     ecl_res = command(context, *ecl_req)
     if not isinstance(ecl_res, bool):
-        Err().incorrect_payment_hash(context)
+        Err().invalid(context, 'payment_hash')
     return pb.CheckInvoiceResponse(settled=ecl_res)
 
 
@@ -220,10 +213,9 @@ def PayInvoice(request, context):
     included in the request
     """
     ecl_req = ['send']
+    check_req_params(context, request, 'payment_request')
     if request.cltv_expiry_delta:
-        Err().unsettable(context, 'cltv_expiry_delta')
-    if not request.payment_request:
-        Err().missing_parameter(context, 'payment_request')
+        Err().unimplemented_parameter(context, 'cltv_expiry_delta')
     ecl_req.append('{}'.format(request.payment_request))
     dec_req = pb.DecodeInvoiceRequest(payment_request=request.payment_request)
     invoice = DecodeInvoice(dec_req, context)
@@ -240,7 +232,8 @@ def PayInvoice(request, context):
     if _defined(ecl_res, 'paymentPreimage'):
         response.payment_preimage = ecl_res['paymentPreimage']
     elif 'payment request is not valid' in ecl_res:
-        Err().incorrect_invoice(context)
+        # checking manually as error is not in json
+        Err().invalid(context, 'payment_request')
     _handle_error(context, ecl_res, always_abort=False)
     return response
 
@@ -249,13 +242,12 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
     """ Tries to return information of a LN invoice from its payment request
         (bolt 11 standard) """
     ecl_req = ['checkinvoice']
-    if request.payment_request:
-        ecl_req.append('{}'.format(request.payment_request))
-    else:
-        Err().missing_parameter(context, 'payment_request')
+    check_req_params(context, request, 'payment_request')
+    ecl_req.append('{}'.format(request.payment_request))
     ecl_res = command(context, *ecl_req)
     if 'invalid payment request' in ecl_res:
-        Err().incorrect_invoice(context)
+        # checking manually as error is not in json
+        Err().invalid(context, 'payment_request')
     response = pb.DecodeInvoiceResponse()
     if _defined(ecl_res, 'amount'):
         response.amount_bits = convert(context, Enf.MSATS, ecl_res['amount'])

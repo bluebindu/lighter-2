@@ -16,7 +16,7 @@
 """ Fixtures for test_light_eclair module """
 
 
-badresponse = {
+BADRESPONSE = {
     "failures": [
         {
             "t": "unmapped error"
@@ -28,9 +28,9 @@ badresponse = {
 }
 
 
-channels_empty = []
+CHANNELS_EMPTY = []
 
-channels_one = [{
+CHANNELS_ONE = [{
     "nodeId":
         "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
     "channelId":
@@ -38,7 +38,7 @@ channels_one = [{
     "state": "WAIT_FOR_ACCEPT_CHANNEL"
 }]
 
-channels = [
+CHANNELS = [
     {
     "nodeId":
         "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
@@ -97,7 +97,7 @@ channels = [
     }
 ]
 
-channel_closing = {
+CHANNEL_CLOSING = {
     "nodeId":
         "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
     "channelId":
@@ -233,10 +233,10 @@ aa70e20e0ba8c9a55b97a4c31b889167c471204ef95ac630147522102109051e36ef9a776d603ed9
     }
 }
 
-channel_error = 'command failed: channel 14be56f323eb36e3d295e5fe040db45a01e7213f5a0f88763752c00a0fd6132d not found'
+CHANNEL_ERROR = 'command failed: channel 14be56f323eb36e3d295e5fe040db45a01e7213f5a0f88763752c00a0fd6132d not found'
 
 
-channel_funding = {
+CHANNEL_FUNDING = {
     "nodeId":
         "0322deb288d430d3165a261d1e1bb11833a36f3d7456432111ff6cff3f431c9ae1",
     "channelId":
@@ -351,7 +351,7 @@ e8d8df198e7ca2c5c68b2c01"
 }
 
 
-channel_waiting = {
+CHANNEL_WAITING = {
     "nodeId":
         "0322deb288d430d3165a261d1e1bb11833a36f3d7456432111ff6cff3f431c9ae1",
     "channelId":
@@ -463,7 +463,7 @@ channel_waiting = {
 }
 
 
-channel_waiting_for_accept = {
+CHANNEL_WAITING_FOR_ACCEPT = {
     "nodeId":
         "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
     "channelId":
@@ -555,7 +555,7 @@ channel_waiting_for_accept = {
     }
 }
 
-channel_normal = {
+CHANNEL_NORMAL = {
     "nodeId":
     "0322deb288d430d3165a261d1e1bb11833a36f3d7456432111ff6cff3f431c9ae1",
     "channelId":
@@ -680,7 +680,7 @@ channel_normal = {
 }
 
 
-checkinvoice_desc = {
+CHECKINVOICE_DESC = {
     "prefix": "lntb",
     "amount": 777000,
     "timestamp": 1542813782,
@@ -704,7 +704,7 @@ checkinvoice_desc = {
 
 
 # invoice: lnbc20m1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqhp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqsfpp3qjmp7lwpagxun9pygexvgpjdc4jdj85fr$yq20q82gphp2nflc7jtzrcazrra7wwgzxqc8u7754cdlpfrmccae92qgzqvzq2ps8pqqqqqqpqqqqq9qqqvpeuqafqxu92d8lr6fvg0r5gv0heeeqgcrqlnm6jhphu9y00rrhy4grqszsvpcgpy9qqqqqqgqqqqq7qqzqj9n4evl6mr5aj9f58zp6fyjzup6ywn3x6sk8akg5v4tgn$q8g4fhx05wf6juaxu9760yp46454gpg5mtzgerlzezqcqvjnhjh8z3g2qqdhhwkj
-checkinvoice_hash = {
+CHECKINVOICE_HASH = {
     "prefix": "lnbc",
     "amount": 2000000000,
     "timestamp": 1496314658,
@@ -744,7 +744,7 @@ checkinvoice_hash = {
 
 
 
-details = {
+DETAILS = {
     "prefix": "lntb",
     "timestamp": 1533041362,
     "nodeId": "022237417f8a9b4fcf4b6525c575af2800eb330e48c",
@@ -763,7 +763,7 @@ details = {
 }
 
 
-getinfo = {
+GETINFO = {
     "chainHash":
         "43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000",
     "nodeId": "id",
@@ -772,24 +772,24 @@ getinfo = {
 }
 
 
-getinfo_mainnet = {
+GETINFO_MAINNET = {
     "chainHash":
         "6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000"
 }
 
 
-getinfo_testnet = {
+GETINFO_TESTNET = {
     "chainHash":
         "43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000"
 }
 
 
-getinfo_unknown = {
+GETINFO_UNKNOWN = {
     "chainHash": "aaazzz"
 }
 
 
-peers = [
+PEERS = [
     {
     "nodeId":
         "0322deb288d430d3165a261d1e1bb11833a36f3d7456432111ff6cff3f431c9ae1",
@@ -819,7 +819,7 @@ peers = [
 ]
 
 
-peers2 = [
+PEERS2 = [
     {
     "nodeId": "pubkey_1",
     "state": "DISCONNECTED"
@@ -833,7 +833,7 @@ peers2 = [
 ]
 
 
-send = {
+SEND = {
     "amountMsat": 345000,
     "paymentHash":
         "8cfa048e6fc9ac961e60f3f779e4f0e0a082c8f74a0fcb523fa04bbb7af16fbd",
@@ -861,10 +861,10 @@ send = {
 }
 
 
-send_error = 'payment request is not valid'
+SEND_ERROR = 'payment request is not valid'
 
 
-send_error_funds = {
+SEND_ERROR_FUNDS = {
     "paymentHash":
         "18d102a78b124d4a2155b0bf955b7096215be3fb4b99698c6f95fdf66d1d64a3",
     "failures": [
@@ -876,7 +876,7 @@ send_error_funds = {
 }
 
 
-send_route = {
+SEND_ROUTE = {
     "paymentHash":
         "a6b644b674184a8a9d5e5d9fc310bc80b2da72e6caf9d6a211cc472135b2a0f7",
     "failures": [
@@ -887,7 +887,7 @@ send_route = {
 }
 
 
-send_slow = 'request timed out'
+SEND_SLOW = 'request timed out'
 
 
-strangeresponse = 'i\'m a strange and never expected response'
+STRANGERESPONSE = 'i\'m a strange and never expected response'

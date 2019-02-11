@@ -41,7 +41,7 @@ def update_logger():
     dictConfig(settings.LOGGING)
 
 
-def log_intro():
+def log_intro(version):
     """ Prints a booting boilerplate to ease run distinction """
     LOGGER.info(' '*72)
     LOGGER.info(' '*72)
@@ -49,7 +49,7 @@ def log_intro():
     LOGGER.info('*'*72)
     LOGGER.info(' '*72)
     LOGGER.info('Lighter')
-    LOGGER.info('version 0.1.0')
+    LOGGER.info('version {}'.format(version))
     LOGGER.info(' '*72)
     LOGGER.info('booting up at %s', strftime(settings.LOG_TIMEFMT))
     LOGGER.info(' '*72)
@@ -142,13 +142,16 @@ class Enforcer():  # pylint: disable=too-few-public-methods
     DEFAULT = {'min_value': 0, 'unit': MSATS}
 
     FUNDING_SATOSHIS = {'max_value': 2**24, 'unit': SATS}
+    PUSH_MSAT = {'max_value': 2**24 * 1000, 'unit': MSATS}
     LN_PAYREQ = {'min_value': 0, 'max_value': 2**32, 'unit': MSATS}
     LN_TX = {'min_value': 1, 'max_value': 2**32, 'unit': MSATS}
 
     OC_TX = {'min_value': 1, 'max_value': 2.1e15, 'unit': SATS}
+    # assuming minimum 220 bytes tx and single 21M BTC input
+    OC_FEE = {'min_value': 1, 'max_value': 2.1e15 / 220, 'unit': SATS}
 
-    MIN_FINAL_CLTV_EXPIRY = {'min_value': 0, 'max_value': 500000000}
-    CLTV_EXPIRY_DELTA = {'min_value': 0, 'max_value': 65536}
+    MIN_FINAL_CLTV_EXPIRY = {'min_value': 1, 'max_value': 5e8}
+    CLTV_EXPIRY_DELTA = {'min_value': 1, 'max_value': 2**16}
 
     # pylint: disable=dangerous-default-value
     @staticmethod
@@ -159,6 +162,7 @@ class Enforcer():  # pylint: disable=too-few-public-methods
                 Err().value_too_low(context)
             if 'max_value' in enforce and value > enforce['max_value']:
                 Err().value_too_high(context)
+        return True
     # pylint: enable=dangerous-default-value
 
 
@@ -199,3 +203,13 @@ def _convert_value(context, source, target, amount, max_precision):
         return float(result)
     except InvalidOperation:
         Err().value_error(context)
+
+
+def check_req_params(context, request, *parameters):
+    """
+    Raises a missing_parameter error if one of parameters is not given in the
+    request
+    """
+    for param in parameters:
+        if not getattr(request, param):
+            Err().missing_parameter(context, param)

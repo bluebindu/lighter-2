@@ -27,7 +27,7 @@ from lighter import settings, utils
 from lighter.utils import Enforcer as Enf
 
 MOD = import_module('lighter.utils')
-
+CTX = 'context'
 
 class UtilsTests(TestCase):
     """ Tests for the utils module """
@@ -222,6 +222,14 @@ class UtilsTests(TestCase):
         assert not mocked_err().value_too_low.called
         assert not mocked_err().value_too_high.called
 
+    @patch('lighter.utils.Err')
+    def test_check_req_params(self, mocked_err):
+        # Raising error case
+        mocked_err().missing_parameter.side_effect = Exception()
+        request = pb.OpenChannelRequest()
+        with self.assertRaises(Exception):
+            MOD.check_req_params(CTX, request, 'node_uri', 'funding_bits')
+        mocked_err().missing_parameter.assert_called_once_with(CTX, 'node_uri')
 
 def reset_mocks(params):
     for _key, value in params.items():
