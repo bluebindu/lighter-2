@@ -49,7 +49,7 @@ def log_intro(version):
     LOGGER.info('*'*72)
     LOGGER.info(' '*72)
     LOGGER.info('Lighter')
-    LOGGER.info('version {}'.format(version))
+    LOGGER.info('version %s', version)
     LOGGER.info(' '*72)
     LOGGER.info('booting up at %s', strftime(settings.LOG_TIMEFMT))
     LOGGER.info(' '*72)

@@ -56,7 +56,7 @@ class UtilsTests(TestCase):
 
     @patch('lighter.utils.LOGGER', autospec=True)
     def test_log_intro(self, mocked_logger):
-        MOD.log_intro()
+        MOD.log_intro('7.7.7')
         self.assertEqual(mocked_logger.info.call_count, 11)
 
     @patch('lighter.utils.LOGGER', autospec=True)

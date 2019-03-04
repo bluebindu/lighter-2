@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 NAME        = lighter
-VERSION    ?= 0.2.0
+VERSION    ?= 0.2.1
 
 DOCKER     ?= 1
 DOCKER_NS  ?= inbitcoin

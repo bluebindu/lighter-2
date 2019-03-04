@@ -335,8 +335,8 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
     response = pb.DecodeInvoiceResponse()
     if 'msatoshi' in cl_res:
         response.amount_bits = convert(context, Enf.MSATS, cl_res['msatoshi'])
-    if 'timestamp' in cl_res:
-        response.timestamp = cl_res['timestamp']
+    if 'created_at' in cl_res:
+        response.timestamp = cl_res['created_at']
     if 'payment_hash' in cl_res:
         response.payment_hash = cl_res['payment_hash']
     if 'description' in cl_res:

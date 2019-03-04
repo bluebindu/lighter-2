@@ -6,6 +6,17 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.1 - 2019-03-04
+
+### Changed
+
+- Updated supported implementation versions
+
+### Fixed
+
+- Utils module tests (oops)
+- c-lightning: wrong parameter for timestamp
+
 
 ## 0.2.0 - 2019-02-12
 

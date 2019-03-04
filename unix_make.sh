@@ -38,11 +38,11 @@ OK_STRING='[OK]'
 ERROR_STRING='[ERROR]'
 
 # Eclair variables
-ECL_REF=${ECL_REF:-'v0.2-beta8'}
+ECL_REF=${ECL_REF:-'v0.2-beta9'}
 ECL_URL='https://raw.githubusercontent.com/ACINQ/eclair'
 
 # Lnd variables
-LND_REF=${LND_REF:-'v0.5.1-beta'}
+LND_REF=${LND_REF:-'v0.5.2-beta'}
 LND_URL='https://raw.githubusercontent.com/lightningnetwork/lnd'
 GOOGLEAPIS_URL='https://github.com/googleapis/googleapis/archive'
 GOOGLEAPIS_CMT=${GOOGLEAPIS_CMT:-'fe2e48159095b7a7dead65a8657b6c236b6b7548'}

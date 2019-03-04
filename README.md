@@ -30,10 +30,10 @@ This is an open project under the GNU AGPLv3 license.
 
 Currently, it supports the main LN implementations:
 
-- [c-lightning](https://github.com/ElementsProject/lightning) (v0.6.2) by
+- [c-lightning](https://github.com/ElementsProject/lightning) (v0.7.0) by
   Blockstream
-- [eclair](https://github.com/ACINQ/eclair) (v0.2-beta8) by Acinq
-- [lnd](https://github.com/lightningnetwork/lnd) (v0.5.1-beta) by Lightning Labs
+- [eclair](https://github.com/ACINQ/eclair) (v0.2-beta9) by Acinq
+- [lnd](https://github.com/lightningnetwork/lnd) (v0.5.2-beta) by Lightning Labs
 
 
 #### How it works
