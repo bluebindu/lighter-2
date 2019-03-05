@@ -82,7 +82,7 @@ service Lightning {
     /**
     OpenChannel tries to connect and open a channel with a peer.
     */
-    rpc OpenChannel (OpenChannelRequest) returns (OpenChannelRequest);
+    rpc OpenChannel (OpenChannelRequest) returns (OpenChannelResponse);
 
     /**
     PayInvoice tries to pay a LN invoice from its payment request (BOLT 11).

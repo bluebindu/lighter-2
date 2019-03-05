@@ -6,6 +6,14 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.2 - 2019-03-06
+
+### Fixed
+
+- proto: fixed OpenChannel rpc definition
+- lnd: fixed missing `max_precision` in `funding_bits` conversion of OpenChannel
+- `KeyboardInterrupt` was not triggering `_slow_exit`
+
 ## 0.2.1 - 2019-03-04
 
 ### Changed

@@ -455,7 +455,8 @@ def OpenChannel(request, context):
             node_pubkey_string=pubkey, private=request.private,
             local_funding_amount=convert(
                 context, Enf.SATS, request.funding_bits,
-                enforce=Enf.FUNDING_SATOSHIS))
+                enforce=Enf.FUNDING_SATOSHIS,
+                max_precision=Enf.SATS))
         if request.push_bits:
             lnd_req.push_sat = convert(context, Enf.SATS,
                                        request.push_bits,

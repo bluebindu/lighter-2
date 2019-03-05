@@ -98,8 +98,8 @@ def _serve(info):
         while True:
             sleep(settings.ONE_DAY_IN_SECONDS)
     except KeyboardInterrupt:
-        LOGGER.info('Keyboard interrupt detected. Exiting...')
         grpc_server.stop(settings.GRPC_GRACE_TIME)
+        _slow_exit('Keyboard interrupt detected. Exiting...')
 
 
 def _slow_exit(message):

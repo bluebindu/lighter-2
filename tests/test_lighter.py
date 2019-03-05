@@ -58,13 +58,14 @@ class LighterTests(TestCase):
         mocked_getattr.assert_called_once_with('module', 'unexistent')
         mocked_err().unimplemented_method.assert_called_once_with('context')
 
+    @patch('lighter.lighter._slow_exit', autospec=True)
     @patch('lighter.lighter.LOGGER', autospec=True)
     @patch('lighter.lighter.ssl_server_credentials', autospec=True)
     @patch('lighter.lighter.sleep', autospec=True)
     @patch('lighter.lighter.pb_grpc.add_LightningServicer_to_server')
     @patch('lighter.lighter.server', autospec=True)
     def test_serve(self, mocked_server, mocked_add_to_server, mocked_sleep,
-                   mocked_creds, mocked_logger):
+                   mocked_creds, mocked_logger, mocked_slow_exit):
         # Insecure connection case
         settings.INSECURE_CONN = 1
         info = pb.GetInfoResponse(identity_pubkey='abc', version='v7')
@@ -78,7 +79,8 @@ class LighterTests(TestCase):
         mocked_sleep.assert_called_once_with(settings.ONE_DAY_IN_SECONDS)
         mocked_server.return_value.stop.assert_called_with(
             settings.GRPC_GRACE_TIME)
-        self.assertEqual(mocked_logger.info.call_count, 3)
+        self.assertEqual(mocked_logger.info.call_count, 2)
+        mocked_slow_exit.assert_called_once_with('Keyboard interrupt detected. Exiting...')
         # Secure connection case
         reset_mocks(vars())
         settings.SECURE_CONN = 1
@@ -112,7 +114,8 @@ class LighterTests(TestCase):
         mocked_sleep.assert_called_once_with(settings.ONE_DAY_IN_SECONDS)
         mocked_server.return_value.stop.assert_called_with(
             settings.GRPC_GRACE_TIME)
-        self.assertEqual(mocked_logger.info.call_count, 3)
+        self.assertEqual(mocked_logger.info.call_count, 2)
+        mocked_slow_exit.assert_called_once_with('Keyboard interrupt detected. Exiting...')
 
     @patch('lighter.lighter.sleep', autospec=True)
     @patch('lighter.lighter.LOGGER', autospec=True)
