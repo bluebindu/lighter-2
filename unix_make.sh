@@ -18,7 +18,11 @@
 NAME='lighter'
 
 # Absolute script path
-PROG="$(readlink -f $0)"
+if [ "`uname`" = "Linux" ]; then
+    PROG="$(readlink -f "$0")"
+else
+    PROG="$(python -c "import os; print(os.path.realpath('"$0"'))")"
+fi
 
 # Environment path
 ENV=${ENV:-~/.virtualenvs/lighter-env}
@@ -174,7 +178,7 @@ create_dockerfiles() {
 
 docker_build() {
 	export dock_repo="$1" version="$2" tag_arch="$3"
-	[ "$tag_arch" == "" ] && _get_tag_arch
+	[ "$tag_arch" = "" ] && _get_tag_arch
 	dockerfile="docker/Dockerfile.$tag_arch" && tag="${dock_repo}:${version}"
 	echo "Building docker image for $tag_arch..."
 	CMD=$(echo docker build -f "$dockerfile" -t "$tag" .)
@@ -192,7 +196,7 @@ run() {
 	_parse_config
 	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
-	if [ "$mode" == "0" ]; then
+	if [ "$mode" = "0" ]; then
 		# Local building
 		mkdir -p "$LOGS_DIR" || _die "Cannot create $LOGS_DIR"
 		[ -w "$LOGS_DIR" ] || _die "Cannot write to $LOGS_DIR"
@@ -234,7 +238,7 @@ _parse_config() {
 	. "$config_file"
 	set +a
 	[ -z "$IMPLEMENTATION" ] && _die "'IMPLEMENTATION' variable is necessary"
-	export IMPLEMENTATION="${IMPLEMENTATION,,}"
+	export IMPLEMENTATION="$(echo $IMPLEMENTATION |tr '[:upper:]' '[:lower:]')"
 	case $IMPLEMENTATION in
 		clightning|eclair|lnd ) echo "You chose to use $IMPLEMENTATION" ;;
 		* ) _die "Unsupported implementation" ;;
