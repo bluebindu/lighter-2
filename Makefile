@@ -18,7 +18,6 @@
 NAME        = lighter
 VERSION    ?= 0.2.2
 
-DOCKER     ?= 1
 DOCKER_NS  ?= inbitcoin
 DOCKER_REPO = $(DOCKER_NS)/$(NAME)
 DOCKER_TAG  = $(DOCKER_REPO):$(VERSION)
@@ -59,7 +58,7 @@ docker:
 	@ $(SCRIPT) docker_build $(DOCKER_REPO) $(VERSION)
 
 run:
-	@ $(SCRIPT) run $(DOCKER) $(CONFIG_FILE) $(VERSION)
+	@ $(SCRIPT) run $(CONFIG_FILE) $(VERSION)
 
 logs:
 	@ $(SCRIPT) logs

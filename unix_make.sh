@@ -186,7 +186,7 @@ docker_build() {
 }
 
 run() {
-	export mode="$1" config_file="$2" VERSION="$3"
+	export config_file="$1" VERSION="$2"
 	if ! [ -r "$config_file" ]; then
 		echo "Cannot find config file"
 		cp $L_DATA/config.sample "$config_file" || \
@@ -196,7 +196,7 @@ run() {
 	_parse_config
 	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
-	if [ "$mode" = "0" ]; then
+	if [ "$DOCKER" = "0" ]; then
 		# Local building
 		mkdir -p "$LOGS_DIR" || _die "Cannot create $LOGS_DIR"
 		[ -w "$LOGS_DIR" ] || _die "Cannot write to $LOGS_DIR"
@@ -247,6 +247,7 @@ _parse_config() {
 }
 
 set_defaults() {
+	[ -z "$DOCKER" ] && export DOCKER="1"
 	[ -z "$SERVER_KEY" ] && export SERVER_KEY="./$L_DATA/certs/server.key"
 	[ -z "$SERVER_CRT" ] && export SERVER_CRT="./$L_DATA/certs/server.crt"
 	[ -z "$LOGS_DIR" ] && export LOGS_DIR="./$L_DATA/logs"
