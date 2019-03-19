@@ -170,8 +170,9 @@ _get_tag_arch() {
 create_dockerfiles() {
 	export version="$1"
 	shift && export tags_archs="$*"
-	cd docker
+	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
+	cd docker
 	python3 generate_dockerfiles.py
 	cd - > /dev/null
 }
