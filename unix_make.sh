@@ -19,9 +19,9 @@ NAME='lighter'
 
 # Absolute script path
 if [ "`uname`" = "Linux" ]; then
-    PROG="$(readlink -f "$0")"
+	PROG="$(readlink -f "$0")"
 else
-    PROG="$(python -c "import os; print(os.path.realpath('"$0"'))")"
+	PROG="$(python -c "import os; print(os.path.realpath('"$0"'))")"
 fi
 
 # Environment path
@@ -160,10 +160,28 @@ build_lnd() {
 }
 
 _get_tag_arch() {
+	case $(uname) in
+		Linux  ) _get_linux_arch ;;
+		Darwin ) _get_darwin_arch ;;
+		*      ) echo "Your OS may be unsupported" ;;
+	esac
+	if [ -z "$tag_arch" ]; then
+		echo "Your architecture may be unsupported"
+		export tag_arch="amd64"
+	fi
+}
+
+_get_linux_arch() {
 	case $(arch) in
 		x86_64 ) export tag_arch="amd64" ;;
 		armv7l ) export tag_arch="arm32v7" ;;
-		*      ) _die "Your architecture may be unsupported" ;;
+	esac
+}
+
+_get_darwin_arch() {
+	case $(arch) in
+		# "arch" command behaves differently on Mac OS
+		i386 ) export tag_arch="amd64" ;;
 	esac
 }
 
