@@ -41,7 +41,7 @@ class LightClightningTests(TestCase):
             'CL_RPC_DIR': '/path/'
         }
         with patch.dict('os.environ', values):
-            MOD.update_settings()
+            MOD.update_settings(None)
         self.assertEqual(settings.CMD_BASE, [
             '/path/lightning-cli', '--lightning-dir={}'.format(
                 values['CL_RPC_DIR']), '--rpc-file={}'.format(
@@ -53,7 +53,7 @@ class LightClightningTests(TestCase):
         values = {}
         with patch.dict('os.environ', values):
             with self.assertRaises(KeyError):
-                MOD.update_settings()
+                MOD.update_settings(None)
         self.assertEqual(settings.CMD_BASE, '')
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
@@ -70,7 +70,7 @@ class LightClightningTests(TestCase):
         self.assertEqual(res.color, '#DCDCDC')
         self.assertEqual(res.version, 'v0.6')
         self.assertEqual(res.blockheight, 7777)
-        self.assertEqual(res.network, 'testnet')
+        self.assertEqual(res.network, 'mainnet')
         # Error case
         reset_mocks(vars())
         mocked_command.return_value = fix.BADRESPONSE
@@ -672,6 +672,13 @@ class LightClightningTests(TestCase):
         mocked_command.side_effect = [fix.CONNECT, fix.FUNDCHANNEL]
         MOD.OpenChannel(request, CTX)
         assert not mocked_err().unimplemented_parameter.called
+        # invalid node_uri case
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest(funding_bits=amt, node_uri='wrong')
+        mocked_err().invalid.side_effect = Exception
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        mocked_err().invalid.assert_called_once_with(CTX, 'node_uri')
         # Missing parameter case
         reset_mocks(vars())
         request = pb.OpenChannelRequest()
@@ -739,14 +746,10 @@ class LightClightningTests(TestCase):
         mocked_conv.assert_called_once_with(CTX, Enf.MSATS,
                                             cl_payment['msatoshi_sent'])
 
-    @patch('lighter.light_clightning.convert', autospec=True)
-    def test_add_route_hint(self, mocked_conv):
+    def test_add_route_hint(self):
         response = pb.DecodeInvoiceResponse()
         cl_route = fix.DECODEPAY['routes'][0]
-        mocked_conv.side_effect = [0.00001, 0.00002]
-        res = MOD._add_route_hint(CTX, response, cl_route)
-        calls = [call(CTX, Enf.MSATS, 1), call(CTX, Enf.MSATS, 2)]
-        mocked_conv.assert_has_calls(calls)
+        res = MOD._add_route_hint(response, cl_route)
         self.assertEqual(res, None)
         self.assertEqual(
             response.route_hints[0].hop_hints[0].pubkey,
@@ -754,8 +757,7 @@ class LightClightningTests(TestCase):
         )
         self.assertEqual(response.route_hints[0].hop_hints[0].short_channel_id,
                          '66051:263430:1800')
-        self.assertEqual(response.route_hints[0].hop_hints[0].fee_base_bits,
-                         0.00001)
+        self.assertEqual(response.route_hints[0].hop_hints[0].fee_base_msat, 1)
         self.assertEqual(
             response.route_hints[0].hop_hints[0].fee_proportional_millionths,
             20)
@@ -767,8 +769,7 @@ class LightClightningTests(TestCase):
         )
         self.assertEqual(response.route_hints[0].hop_hints[1].short_channel_id,
                          '197637:395016:2314')
-        self.assertEqual(response.route_hints[0].hop_hints[1].fee_base_bits,
-                         0.00002)
+        self.assertEqual(response.route_hints[0].hop_hints[1].fee_base_msat, 2)
         self.assertEqual(
             response.route_hints[0].hop_hints[1].fee_proportional_millionths,
             30)
@@ -785,7 +786,7 @@ class LightClightningTests(TestCase):
     def test_handle_error(self, mocked_err):
         mocked_err().report_error.side_effect = Exception()
         mocked_err().unexpected_error.side_effect = Exception()
-        # Keys code and message in cl_res
+        # MacaroonKeys code and message in cl_res
         reset_mocks(vars())
         cl_res = {'code': 7, 'message': 'an error'}
         with self.assertRaises(Exception):
@@ -793,14 +794,14 @@ class LightClightningTests(TestCase):
         mocked_err().report_error.assert_called_once_with(
             CTX, cl_res['message'])
         assert not mocked_err().unexpected_error.called
-        # Keys code and message not in cl_res, always_abort=True
+        # MacaroonKeys code and message not in cl_res, always_abort=True
         reset_mocks(vars())
         cl_res = {'no code': 'in cl_res'}
         with self.assertRaises(Exception):
             MOD._handle_error(CTX, cl_res)
         assert not mocked_err().report_error.called
         mocked_err().unexpected_error.assert_called_once_with(CTX, cl_res)
-        # Keys code and message not in cl_res, always_abort=False
+        # MacaroonKeys code and message not in cl_res, always_abort=False
         reset_mocks(vars())
         cl_res = {'no code': 'in cl_res'}
         light_clightning._handle_error(CTX, cl_res, always_abort=False)

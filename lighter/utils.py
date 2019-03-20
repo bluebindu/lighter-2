@@ -15,17 +15,27 @@
 
 """ The utils module for Lighter """
 
+import sys
+
+from contextlib import suppress
 from decimal import Decimal, InvalidOperation
+from functools import wraps
 from importlib import import_module
 from json import dumps, loads, JSONDecodeError
 from logging import getLogger
 from logging.config import dictConfig
+from marshal import dumps as mdumps, loads as mloads
+from os import environ as env, path, urandom
+from sqlite3 import connect, Error
 from subprocess import PIPE, Popen, TimeoutExpired
-from os import environ, path
-from time import strftime
+from time import sleep, strftime
+
+from nacl.secret import SecretBox
+from nacl.exceptions import CryptoError
+from pylibscrypt import scrypt
 
 from . import lighter_pb2 as pb
-from . import settings
+from . import settings as sett
 from .errors import Err
 
 LOGGER = getLogger(__name__)
@@ -33,12 +43,12 @@ LOGGER = getLogger(__name__)
 
 def update_logger():
     """ Activate logs on file """
-    settings.LOGS_DIR = environ['LOGS_DIR']
-    log_path = path.join(path.abspath(settings.LOGS_DIR), 'lighter.log')
-    settings.LOGGING['handlers'].update(settings.FILE_LOGGING)
-    settings.LOGGING['loggers']['']['handlers'].append('file')
-    settings.LOGGING['handlers']['file']['filename'] = log_path
-    dictConfig(settings.LOGGING)
+    sett.LOGS_DIR = env.get('LOGS_DIR', sett.LOGS_DIR)
+    log_path = path.join(path.abspath(sett.LOGS_DIR), 'lighter.log')
+    sett.LOGGING['handlers'].update(sett.FILE_LOGGING)
+    sett.LOGGING['loggers']['']['handlers'].append('file')
+    sett.LOGGING['handlers']['file']['filename'] = log_path
+    dictConfig(sett.LOGGING)
 
 
 def log_intro(version):
@@ -51,14 +61,14 @@ def log_intro(version):
     LOGGER.info('Lighter')
     LOGGER.info('version %s', version)
     LOGGER.info(' '*72)
-    LOGGER.info('booting up at %s', strftime(settings.LOG_TIMEFMT))
+    LOGGER.info('booting up at %s', strftime(sett.LOG_TIMEFMT))
     LOGGER.info(' '*72)
     LOGGER.info('*'*72)
 
 
 def log_outro():
     """ Prints a quitting boilerplate to ease run distinction """
-    LOGGER.info('stopping at %s', strftime(settings.LOG_TIMEFMT))
+    LOGGER.info('stopping at %s', strftime(sett.LOG_TIMEFMT))
     LOGGER.info('*'*37)
 
 
@@ -67,25 +77,63 @@ def check_connection():
     Calls a GetInfo in order to check if connection to node is successful
     """
     request = pb.GetInfoRequest()
-    module = import_module('lighter.light_{}'.format(settings.IMPLEMENTATION))
-    # If connection is unsuccessful, a runtime error is raised
-    response = getattr(module, 'GetInfo')(request, FakeContext())
-    return response
-
-
-def get_connection_modes():
-    """ Sets the connection modes to open """
-    conn = {'insecure': environ.get('ALLOW_INSECURE_CONNECTION'),
-            'secure': environ.get('ALLOW_SECURE_CONNECTION')}
-    for mod, active in conn.items():
+    module = import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
+    info = None
+    LOGGER.info('Checking connection to %s node...', sett.IMPLEMENTATION)
+    while not info:
         try:
-            conn[mod] = int(active)
-        except Exception:  # pylint: disable=broad-except
-            conn[mod] = None
-    if not conn['insecure'] and not conn['secure']:
-        raise RuntimeError('Allow at least one connection (secure/insecure)')
-    settings.INSECURE_CONN = conn['insecure']
-    settings.SECURE_CONN = conn['secure']
+            info = getattr(module, 'GetInfo')(request, FakeContext())
+        except RuntimeError as err:
+            LOGGER.error('Connection to LN node failed: %s', err)
+        if not info:
+            sleep(3)
+            continue
+        if info.identity_pubkey:
+            LOGGER.info(
+                'Connection to node "%s" successful', info.identity_pubkey)
+        if info.version:
+            LOGGER.info(
+                'Using %s version %s', sett.IMPLEMENTATION, info.version)
+        else:
+            LOGGER.info('Using %s', sett.IMPLEMENTATION)
+
+
+def get_start_options():
+    """ Sets Lighter start options """
+    sett.IMPLEMENTATION = env['IMPLEMENTATION'].lower()
+    bool_opt = {
+        'INSECURE_CONNECTION': sett.INSECURE_CONNECTION,
+        'DISABLE_MACAROONS': sett.DISABLE_MACAROONS}
+    for opt, def_val in bool_opt.items():
+        setattr(sett, opt, str2bool(env.get(opt, def_val)))
+    sett.PORT = env.get('PORT', sett.PORT)
+    sett.LIGHTER_ADDR = '{}:{}'.format(sett.HOST, sett.PORT)
+    if sett.INSECURE_CONNECTION:
+        sett.DISABLE_MACAROONS = True
+    else:
+        sett.SERVER_KEY = env.get('SERVER_KEY', sett.SERVER_KEY)
+        sett.SERVER_CRT = env.get('SERVER_CRT', sett.SERVER_CRT)
+    if sett.DISABLE_MACAROONS:
+        LOGGER.warning('Disabling macaroons is not safe, '
+                       'do not disable them in production')
+    else:
+        sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
+        sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
+    if sett.DISABLE_MACAROONS and sett.IMPLEMENTATION == 'clightning':
+        sett.NO_SECRETS = True
+
+
+def str2bool(string, force_true=False):
+    """ Casts a string to boolean, forcing to a default value """
+    if isinstance(string, int):
+        string = str(string)
+    if not string and not force_true:
+        return False
+    if not string and force_true:
+        return True
+    if force_true:
+        return string.lower() not in ('no', 'false', 'n', '0')
+    return string.lower() in ('yes', 'true', 'y', '1')
 
 
 class FakeContext():  # pylint: disable=too-few-public-methods
@@ -102,16 +150,18 @@ class FakeContext():  # pylint: disable=too-few-public-methods
         raise RuntimeError(msg)
 
 
-def command(context, *args_cmd):
+def command(context, *args_cmd, **kwargs):
     """ Given a command, calls a cli interface """
-    if not settings.CMD_BASE:
+    if not sett.CMD_BASE:
         raise RuntimeError
-    cmd = settings.CMD_BASE + list(args_cmd)
+    cmd = sett.CMD_BASE + list(args_cmd)
+    envi = kwargs.get('env', None)
     # universal_newlines ensures bytes are returned
-    proc = Popen(cmd, stdout=PIPE, stderr=PIPE, universal_newlines=False)
+    proc = Popen(
+        cmd, env=envi, stdout=PIPE, stderr=PIPE, universal_newlines=False)
     out = err = b''
     try:
-        out, err = proc.communicate(timeout=settings.CMD_TIMEOUT)
+        out, err = proc.communicate(timeout=sett.IMPL_TIMEOUT)
     except TimeoutExpired:
         proc.kill()
     out = out.decode('utf-8')
@@ -157,7 +207,7 @@ class Enforcer():  # pylint: disable=too-few-public-methods
     @staticmethod
     def check_value(context, value, enforce=DEFAULT):
         """ Checks that value is between min_value and max_value """
-        if settings.ENFORCE:
+        if sett.ENFORCE:
             if 'min_value' in enforce and value < enforce['min_value']:
                 Err().value_too_low(context)
             if 'max_value' in enforce and value > enforce['max_value']:
@@ -213,3 +263,215 @@ def check_req_params(context, request, *parameters):
     for param in parameters:
         if not getattr(request, param):
             Err().missing_parameter(context, param)
+
+
+def slow_exit(message, wait=True):
+    """ Goes to sleep before exiting, useful when autorestarting (docker) """
+    LOGGER.error(message)
+    if wait:
+        LOGGER.info(
+            'Sleeping for %s secs before exiting...',
+            sett.RESTART_THROTTLE)
+        sleep(sett.RESTART_THROTTLE)
+    sys.exit(1)
+
+
+def handle_keyboardinterrupt(func):
+    """ Handles KeyboardInterrupt stopping the gRPC server and exiting """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+        except KeyboardInterrupt:
+            with suppress(IndexError):
+                args[0].stop(sett.GRPC_GRACE_TIME)
+            slow_exit('Keyboard interrupt detected. Exiting...', wait=False)
+
+    return wrapper
+
+
+def gen_random_data(key_len):
+    """ Generates random data of key_len length """
+    return urandom(key_len)
+
+
+class Crypter():  # pylint: disable=too-many-instance-attributes
+    """
+    Crypter provides methods to crypt and decrypt data.
+
+    When crypting, it returns the serialized data
+    cotaining a the crypted data and other data used to generate derived key
+    from password. A version string is attached to the serialized data in order
+    to allow migration.
+
+    When decrypting, it returns only the plain data that was crypted.
+    """
+
+    key_len = 32
+
+    default_block_size_factor = 8
+    default_cost_factor = 2**14
+    default_parallelization_factor = 1
+    default_version = b'v1'
+
+    v1_format = [
+        'crypt_data', 'salt', 'cost_factor', 'block_size_factor',
+        'parallelization_factor']
+
+    def __init__(self, password):
+        self.password = bytes(password, 'utf-8')
+        self.derived_key = None
+        self.plain_data = None
+        self.crypt_data = None
+        self.serialized_data = None
+        self.version = ''
+        self.salt = None
+        self.cost_factor = Crypter.default_block_size_factor
+        self.block_size_factor = Crypter.default_block_size_factor
+        self.parallelization_factor = Crypter.default_parallelization_factor
+
+    def gen_derived_key(self):
+        """ Derives a key from a password """
+        if not self.salt:
+            self.salt = gen_random_data(Crypter.key_len)
+        self.derived_key = scrypt(
+            self.password,
+            self.salt,
+            N=self.cost_factor,
+            r=self.block_size_factor,
+            p=self.parallelization_factor,
+            olen=self.key_len)
+
+    def crypt(self, data):
+        """
+        Crypts data with a newly generated key and returns serialized
+        data
+        """
+        self.gen_derived_key()
+        self.crypt_data = SecretBox(self.derived_key).encrypt(data)
+        self.serialized_data = self.serialize()
+        return self.serialized_data
+
+    def decrypt(self, context, data):
+        """
+        Decrypts serialized data, throwing an error when password is wrong
+        """
+        self.serialized_data = data
+        self.deserialize()
+        self.gen_derived_key()
+        box = SecretBox(self.derived_key)
+        try:
+            self.plain_data = box.decrypt(self.crypt_data)
+            return self.plain_data
+        except CryptoError:
+            Err().wrong_password(context)
+
+    def serialize(self):
+        """ Serializes data prepending the default version string """
+        keys_format = getattr(
+            self, '{}_format'.format(self.default_version.decode()))
+        keys_list = [getattr(self, key_name) for key_name in keys_format]
+        return self.default_version + mdumps(keys_list)
+
+    def deserialize(self):
+        """
+        Deserializes data checking version string and defferring operation to
+        the correct deserialize method
+        """
+        self.version = self.serialized_data[:2]
+        if self.version > self.default_version:
+            raise RuntimeError('Unsupported macaroon key version')
+        getattr(self, 'deserialize_{}'.format(self.version.decode()))()
+
+    def deserialize_v1(self):
+        """ Deserializes version 1 data """
+        keys_list = mloads(self.serialized_data[2:])
+        keys_format = getattr(self, '{}_format'.format(self.version.decode()))
+        for index, key_name in enumerate(keys_format):
+            setattr(self, key_name, keys_list[index])
+
+
+def _handle_db_errors(func):
+    """ Decorator to handle sqlite3 errors """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Error:
+            Err().db_error(args[0])
+
+    return wrapper
+
+
+class DbHandler():
+    """
+    DbHandler saves and retrieves data from a sqlite3 database.
+    """
+
+    DATABASE = path.join(sett.DB_DIR, sett.DB_NAME)
+
+    @staticmethod
+    @_handle_db_errors
+    # pylint: disable=unused-argument
+    def save_key_in_db(context, root_key):
+        # pylint: enable=unused-argument
+        """ Saves data in database to given table and index """
+        table = 'macrootkey'
+        with connect(DbHandler.DATABASE) as connection:
+            connection.execute('DROP TABLE IF EXISTS {}'.format(table))
+            connection.execute('CREATE TABLE {} (root_key BLOB)'.format(table))
+            connection.execute('INSERT INTO {} VALUES (?)'.format(table),
+                               (root_key,))
+
+    @staticmethod
+    @_handle_db_errors
+    # pylint: disable=unused-argument
+    def get_key_from_db(context):
+        # pylint: enable=unused-argument
+        """ Retrieves data from given table and index in database """
+        table = 'macrootkey'
+        with connect(DbHandler.DATABASE) as connection:
+            cursor = connection.cursor()
+            cursor.execute('''SELECT count(*) FROM sqlite_master
+                              WHERE type="table"
+                              AND name="{}"'''.format(table))
+            entry = cursor.fetchone()[0]
+            if not entry:
+                return None
+            cursor.execute('SELECT root_key FROM {}'.format(table))
+            return cursor.fetchone()[0]
+
+    @staticmethod
+    @_handle_db_errors
+    # pylint: disable=unused-argument
+    def save_secret_in_db(context, table, active, data):
+        """ Saves implementation's secret in database """
+        # pylint: enable=unused-argument
+        with connect(DbHandler.DATABASE) as connection:
+            connection.execute('DROP TABLE IF EXISTS {}'.format(table))
+            connection.execute('CREATE TABLE {} (active integer, secret BLOB)'
+                               .format(table))
+            connection.execute('INSERT INTO {} VALUES (?, ?)'
+                               .format(table), (active, data,))
+
+    @staticmethod
+    @_handle_db_errors
+    # pylint: disable=unused-argument
+    def get_secret_from_db(context, table):
+        """ Gets implementation's secret from database """
+        # pylint: enable=unused-argument
+        with connect(DbHandler.DATABASE) as connection:
+            cursor = connection.cursor()
+            cursor.execute('''SELECT count(*) FROM sqlite_master
+                              WHERE type="table"
+                              AND name="{}"'''.format(table))
+            entry = cursor.fetchone()[0]
+            if not entry:
+                return None, None
+            cursor.execute('SELECT active FROM {}'.format(table))
+            active = cursor.fetchone()[0]
+            cursor.execute('SELECT secret FROM {}'.format(table))
+            secret = cursor.fetchone()[0]
+            return secret, active

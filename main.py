@@ -20,7 +20,9 @@ import sys
 from os import environ
 from signal import signal, SIGTERM
 
-from lighter import lighter, utils
+from lighter.utils import handle_keyboardinterrupt, log_intro, log_outro, \
+    update_logger
+from lighter.lighter import start
 
 environ["GRPC_SSL_CIPHER_SUITES"] = (
     "HIGH+ECDSA:"
@@ -29,14 +31,19 @@ environ["GRPC_SSL_CIPHER_SUITES"] = (
 
 def sigterm_handler(_signo, _stack_frame):
     """ Raises SystemExit(0) """
-    utils.log_outro()
+    log_outro()
     sys.exit(0)
 
 
 signal(SIGTERM, sigterm_handler)
 
 
+@handle_keyboardinterrupt
+def main():
+    update_logger()
+    log_intro(sys.argv[1])
+    start()
+
+
 if __name__ == '__main__':
-    utils.update_logger()
-    utils.log_intro(sys.argv[1])
-    lighter.start()
+    main()

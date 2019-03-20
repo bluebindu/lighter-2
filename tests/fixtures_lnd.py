@@ -15,8 +15,6 @@
 
 """ Fixtures for test_light_lnd module """
 
-from datetime import datetime
-
 from lighter import rpc_pb2 as ln
 
 
@@ -57,11 +55,11 @@ PAYMENTS = [PAYMENT1, PAYMENT2, PAYMENT3]
 
 EXPIRY = 3600
 # paid invoice
-INVOICE0 = ln.Invoice(creation_date=NOW - 100000, expiry=EXPIRY, settled=True)
+INVOICE0 = ln.Invoice(creation_date=NOW - 100000, expiry=EXPIRY, state=1)
 # pending invoice
-INVOICE1 = ln.Invoice(creation_date=NOW - 1, expiry=EXPIRY, settled=False)
+INVOICE1 = ln.Invoice(creation_date=NOW - 1, expiry=EXPIRY, state=0)
 # expired invoice
-INVOICE2 = ln.Invoice(creation_date=NOW - 100000, expiry=EXPIRY, settled=False)
+INVOICE2 = ln.Invoice(creation_date=NOW - 100000, expiry=EXPIRY, state=0)
 INVOICES = [INVOICE0, INVOICE1, INVOICE2]
 
 def get_listpayments_response():

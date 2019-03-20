@@ -22,13 +22,13 @@ DOCKER_NS  ?= inbitcoin
 DOCKER_REPO = $(DOCKER_NS)/$(NAME)
 DOCKER_TAG  = $(DOCKER_REPO):$(VERSION)
 
-COM_DEPS    = virtualenv
+COM_DEPS    = id rm tr virtualenv
 ECL_DEPS    = curl jq
 LND_DEPS    = curl unzip
 
-COM_PIPS    = grpcio==1.18.0 grpcio-tools==1.18.0
+COM_PIPS    = grpcio==1.19.0 grpcio-tools==1.19.0 pymacaroons==0.13.0 macaroonbakery==1.2.1 pylibscrypt==1.7.1 pynacl==1.3.0
 DEV_PIPS    = pytest-cov pylint pycodestyle
-LND_PIPS    = googleapis-common-protos==1.5.3
+LND_PIPS    = googleapis-common-protos==1.5.8
 
 SCRIPT      = ./unix_make.sh
 
@@ -54,8 +54,10 @@ eclair: common check_eclair setup_eclair
 lnd: common check_lnd setup_lnd build_lnd
 
 docker:
-	@ $(SCRIPT) create_dockerfiles $(VERSION) $(TAGS_ARCH)
-	@ $(SCRIPT) docker_build $(DOCKER_REPO) $(VERSION)
+	@ $(SCRIPT) docker_build $(DOCKER_REPO) $(VERSION) $(TAGS_ARCH)
+
+secure:
+	@ $(SCRIPT) secure $(CONFIG_FILE) $(VERSION)
 
 run:
 	@ $(SCRIPT) run $(CONFIG_FILE) $(VERSION)
@@ -67,7 +69,7 @@ stop:
 	@ $(SCRIPT) stop
 
 clean:
-	@ $(SCRIPT) clean_venv
+	@ $(SCRIPT) clean
 
 version:
 	@ echo $(VERSION)
@@ -80,6 +82,7 @@ help:
 	@ echo " - eclair:       gets Lighter ready for eclair"
 	@ echo " - lnd:          gets Lighter ready for lnd"
 	@ echo " - docker:       builds Lighter docker image"
+	@ echo " - secure:       handles Lighter and implementation secrets"
 	@ echo " - run:          runs Lighter (in docker or locally)"
 	@ echo " - logs:         shows Lighter logs (in docker)"
 	@ echo " - stop:         stops Lighter (in docker), removing all anonymous volumes attached to it"
@@ -137,4 +140,4 @@ build_lnd:
 	@ $(SCRIPT) build_lnd
 
 
-.PHONY: all clightning eclair lnd docker run logs stop clean test lint help
+.PHONY: all clightning eclair lnd docker secure run logs stop clean test lint help

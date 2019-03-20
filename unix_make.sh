@@ -18,21 +18,24 @@
 NAME='lighter'
 
 # Absolute script path
-if [ "`uname`" = "Linux" ]; then
+if [ "$(uname)" = "Linux" ]; then
 	PROG="$(readlink -f "$0")"
 else
 	PROG="$(python -c "import os; print(os.path.realpath('"$0"'))")"
 fi
 
 # Environment path
-ENV=${ENV:-~/.virtualenvs/lighter-env}
+export ENV=${ENV:-~/.virtualenvs/lighter-env}
 
 # Server code and data directories
 L_DIR='lighter'
 L_DATA='lighter-data'
+LINT_DIR='reports'
 
 # Docker variables
 export APP_DIR='/srv/app' ENV_DIR='/srv/env'
+COMPOSE=compose.yml
+D_DIR='docker'
 
 # Highlighting colors
 NO_COLOR='\033[m'
@@ -44,12 +47,15 @@ ERROR_STRING='[ERROR]'
 # Eclair variables
 ECL_REF=${ECL_REF:-'v0.2-beta9'}
 ECL_URL='https://raw.githubusercontent.com/ACINQ/eclair'
+ECL_CLI='eclair-cli'
 
 # Lnd variables
-LND_REF=${LND_REF:-'v0.5.2-beta'}
+LND_REF=${LND_REF:-'v0.6-beta'}
 LND_URL='https://raw.githubusercontent.com/lightningnetwork/lnd'
+LND_PROTO='rpc.proto'
 GOOGLEAPIS_URL='https://github.com/googleapis/googleapis/archive'
 GOOGLEAPIS_CMT=${GOOGLEAPIS_CMT:-'fe2e48159095b7a7dead65a8657b6c236b6b7548'}
+GOOGLEAPIS_ZIP="$GOOGLEAPIS_CMT.zip"
 
 # Setting passed parameters
 called_function=$1
@@ -76,7 +82,7 @@ _check_result() {
 check_deps() {
 	# Checks if given dependencies are installed
 	for dep in $params; do
-		which $dep > /dev/null
+		which "$dep" > /dev/null
 		_check_result $? "Checking dependency $dep..."
 	done
 }
@@ -86,7 +92,7 @@ _init_venv() {
 	if [ ! -d "$ENV" ]; then
 		virtualenv -p python3 "$ENV"
 		if [ $? -ne 0 ]; then
-			clean_venv
+			_clean_venv
 			virtualenv -p python3 "$ENV"
 		fi
 		_check_result $? "Virtualenv creation in $ENV..."
@@ -94,9 +100,19 @@ _init_venv() {
 }
 
 _install_pips() {
+	pip install -q -U pip
 	pip install -q $params || \
 		_die "Installation of pips failed (hint: run 'make clean')"
 	_check_result $? "Pip requirements..."
+}
+
+_copy_config() {
+	if [ ! -r "$config_file" ]; then
+		echo "Cannot find config file"
+		cp $L_DATA/config.sample "$config_file" || \
+			_die "Cannot initialize config file"
+		echo "Starting with example config file"
+	fi
 }
 
 setup_common() {
@@ -107,33 +123,33 @@ setup_common() {
 }
 
 setup_eclair() {
-	# Downloads correct version of eclair-cli and makes it executable
-	cd "$L_DIR"
-	curl -s -o eclair-cli "$ECL_URL/$ECL_REF/eclair-core/eclair-cli"
-	chmod +x eclair-cli
-	cd - > /dev/null
+	# Downloads correct version of eclair's cli and makes it executable
+	cd "$L_DIR" || _die "Directory '$L_DIR' is missing"
+	curl -s -o "$ECL_CLI" "$ECL_URL/$ECL_REF/eclair-core/$ECL_CLI"
+	chmod +x "$ECL_CLI"
+	cd - > /dev/null || _die "Error, check project structure"
 }
 
 setup_lnd() {
 	# Downloads rpc.proto and googleapis, which are needed by lnd
 	. "$ENV/bin/activate"
 	$PROG _install_pips $params
-	cd $L_DIR
-	curl -s -o rpc.proto "$LND_URL/$LND_REF/lnrpc/rpc.proto"
-	_check_result $? "Lnd's rpc.proto download..."
-	curl -s -L -O "$GOOGLEAPIS_URL/$GOOGLEAPIS_CMT.zip"
+	cd "$L_DIR" || _die "Directory '$L_DIR' is missing"
+	curl -s -o "$LND_PROTO" "$LND_URL/$LND_REF/lnrpc/$LND_PROTO"
+	_check_result $? "Lnd's proto download..."
+	curl -s -L -O "$GOOGLEAPIS_URL/$GOOGLEAPIS_ZIP"
 	_check_result $? "Googleapis download..."
 	unzip -q \
-		"$GOOGLEAPIS_CMT.zip" \
-		"googleapis-$GOOGLEAPIS_CMT/google/*"
+		"$GOOGLEAPIS_ZIP" \
+		"googleapis-$GOOGLEAPIS_CMT/google/api/*"
 	_check_result $? "Googleapis unzip..."
 	rm -rf google; \
 		mv "googleapis-$GOOGLEAPIS_CMT/google" .; \
 		rm -r "googleapis-$GOOGLEAPIS_CMT"
 	_check_result $? "Googleapis renaming..."
-	rm "$GOOGLEAPIS_CMT.zip"
+	rm -f "$GOOGLEAPIS_ZIP"
 	_check_result $? "Googleapis zip removing..."
-	cd - > /dev/null
+	cd - > /dev/null || _die "Error, check project structure"
 }
 
 build_common() {
@@ -148,40 +164,40 @@ build_common() {
 }
 
 build_lnd() {
-	# Generates python modules from lnd's proto file (rpc.proto)
+	# Generates python modules from lnd's proto file
 	. "$ENV/bin/activate"
 	python -m grpc_tools.protoc \
 		--proto_path=. \
 		-I "$L_DIR" \
 		--python_out=. \
 		--grpc_python_out=. \
-		"$L_DIR/rpc.proto"
-	_check_result $? "Building rpc.proto..."
+		"$L_DIR/$LND_PROTO"
+	_check_result $? "Building lnd's proto..."
 }
 
-_get_tag_arch() {
+_get_host_tag_arch() {
 	case $(uname) in
 		Linux  ) _get_linux_arch ;;
 		Darwin ) _get_darwin_arch ;;
 		*      ) echo "Your OS may be unsupported" ;;
 	esac
-	if [ -z "$tag_arch" ]; then
+	if [ -z "$host_tag_arch" ]; then
 		echo "Your architecture may be unsupported"
-		export tag_arch="amd64"
+		export host_tag_arch="amd64"
 	fi
 }
 
 _get_linux_arch() {
 	case $(arch) in
-		x86_64 ) export tag_arch="amd64" ;;
-		armv7l ) export tag_arch="arm32v7" ;;
+		x86_64 ) export host_tag_arch="amd64" ;;
+		armv7l ) export host_tag_arch="arm32v7" ;;
 	esac
 }
 
 _get_darwin_arch() {
 	case $(arch) in
 		# "arch" command behaves differently on Mac OS
-		i386 ) export tag_arch="amd64" ;;
+		i386 ) export host_tag_arch="amd64" ;;
 	esac
 }
 
@@ -190,43 +206,64 @@ create_dockerfiles() {
 	shift && export tags_archs="$*"
 	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
-	cd docker
+	cd "$D_DIR" || _die "Directory '$D_DIR' is missing"
 	python3 generate_dockerfiles.py
-	cd - > /dev/null
+	cd - > /dev/null || _die "Error, check project structure"
 }
 
 docker_build() {
-	export dock_repo="$1" version="$2" tag_arch="$3"
-	[ "$tag_arch" = "" ] && _get_tag_arch
-	dockerfile="docker/Dockerfile.$tag_arch" && tag="${dock_repo}:${version}"
-	echo "Building docker image for $tag_arch..."
+	export dock_repo="$1" version="$2"
+	shift 2 && export tags_archs="$*"
+	_get_host_tag_arch
+	_create_dockerfile
+	_docker_build
+}
+
+_create_dockerfile() {
+	cd "$D_DIR" || _die "Directory '$D_DIR' is missing"
+	[ -r "$ENV" ] || _init_venv
+	. "$ENV/bin/activate"
+	python3 generate_dockerfiles.py "$host_tag_arch"
+	cd - > /dev/null || _die "Error, check project structure"
+}
+
+_docker_build() {
+	dockerfile="$D_DIR/Dockerfile.$host_tag_arch" && tag="${dock_repo}:${version}"
+	echo "Building docker image for $host_tag_arch..."
 	CMD=$(echo docker build -f "$dockerfile" -t "$tag" .)
-	echo "> $CMD" && eval $CMD
+	echo "> $CMD" && eval "$CMD"
 }
 
 run() {
 	export config_file="$1" VERSION="$2"
-	if ! [ -r "$config_file" ]; then
-		echo "Cannot find config file"
-		cp $L_DATA/config.sample "$config_file" || \
-			_die "Cannot initialize config file"
-		echo "Starting with example config file"
-	fi
 	_parse_config
 	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
 	if [ "$DOCKER" = "0" ]; then
-		# Local building
-		mkdir -p "$LOGS_DIR" || _die "Cannot create $LOGS_DIR"
-		[ -w "$LOGS_DIR" ] || _die "Cannot write to $LOGS_DIR"
-		python3 main.py $VERSION
+		# Local running
+		_run_local
 	else
-		# Docker building
-		_check_compose
-		python3 docker/generate_compose.py
-		VERSION=$VERSION docker-compose -f compose.yml up -d $NAME
+		# Docker running
+		_run_docker
 	fi
 }
+
+_run_docker() {
+	export MYUID=$(id -u)
+	python3 $D_DIR/generate_compose.py
+	_check_compose
+	docker-compose -f $COMPOSE up -d $NAME
+}
+
+_run_local() {
+	declare -a dirs=(CERTS_DIR DB_DIR LOGS_DIR MACAROONS_DIR)
+	for dir in "${dirs[@]}"; do
+		mkdir -p "${!dir}" 2> /dev/null
+		[ -w "${!dir}" ] || _die "Cannot create or write to ${!dir}"
+	done
+	python3 main.py "$VERSION"
+}
+
 
 _check_compose() {
 	if ! which docker-compose > /dev/null; then
@@ -234,30 +271,114 @@ _check_compose() {
 	fi
 }
 
+secure() {
+	export config_file="$1" VERSION="$2"
+	_parse_config
+	_check_db
+	[ -r "$ENV" ] || _init_venv
+	. "$ENV/bin/activate"
+	[ "$IMPLEMENTATION" = "lnd" ] && _init_lnd
+	if [ "$DOCKER" = "0" ]; then
+		# Local secure
+		python3 -c 'from secure import secure; secure()'
+	else
+		# Docker secure
+		python3 $D_DIR/generate_compose.py
+		_check_compose
+		docker-compose -f $COMPOSE run --rm \
+			-e NO_DB="$NO_DB" \
+			-e RM_DB="$RM_DB" \
+			--entrypoint /usr/local/bin/start-secure.sh \
+			$NAME
+	fi
+}
+
+_check_db() {
+	db="$DB_DIR/$DB_NAME"
+	[ ! -r "$db" ] && export NO_DB=1 && return
+	echo "Db already exists, do you want to override it? (note this will also delete macaroon files) [y/N] "
+	read -r res
+	res="$(echo "$res" | tr '[:upper:]' '[:lower:]')"
+	if [ "${res:0:1}" = 'y' ]; then
+		export RM_DB=1
+	fi
+}
+
+_init_lnd() {
+	echo "If you want to store a macaroon for lnd, overriding the current one (if any), provide its path (enter to skip) "
+		read -r macaroon_path
+		if [ -n "$macaroon_path" ]; then
+			[ ! -f "$macaroon_path" ] && \
+				_die "Could not find macaroon in specified path"
+			[ ! -r "$macaroon_path" ] && \
+				_die "Could not read macaroon in specified path (hint: check file permissions)"
+			export LND_MAC="$macaroon_path"
+		fi
+}
+
+set_lnd_mac() {
+	file="$1"
+	temp_file="/srv/lnd/macaroons/lnd.macaroon"
+	mkdir -p "/srv/lnd/macaroons"
+	cp "$file" "$temp_file"
+	chown "$USER" "$temp_file"
+	chmod 600 "$temp_file"
+}
+
 stop() {
 	. "$ENV/bin/activate"
 	_check_compose
-	docker-compose -f compose.yml stop $NAME
-	docker-compose -f compose.yml rm -fv $NAME
+	docker-compose -f $COMPOSE stop $NAME
+	docker-compose -f $COMPOSE rm -fv $NAME
 }
 
 logs() {
 	. "$ENV/bin/activate"
 	_check_compose
-	docker-compose -f compose.yml logs -f $NAME
+	docker-compose -f $COMPOSE logs -f $NAME
 }
 
-clean_venv() {
-	rm -rf "$ENV"
+clean() {
+	_clean_venv
+	_clean_autogenerated
+}
+
+_clean_venv() {
+	rm -rfv "$ENV" | tail -1
+}
+
+_clean_autogenerated() {
+	# Docker files
+	find $D_DIR/ -name 'Dockerfile.*' \
+		! -name 'Dockerfile.cross' \
+		! -name 'Dockerfile.ci' \
+		-type f -delete -printf "removed '%p'\n"
+	rm -fv "$COMPOSE"
+	# Python files
+	find . -name __pycache__ -type d -exec rm -rf "{}" \; \
+		-prune -printf "removed directory '%p'\n"
+	find . -name .pytest_cache -type d -exec rm -rf "{}" \; \
+		-prune -printf "removed directory '%p'\n"
+	find . -name '*.pyc' -type f -delete -printf "removed '%p'\n"
+	rm -rfv $L_DIR/lighter_pb2*.py
+	# Lint files
+	rm -fv .coverage "$LINT_DIR/pycodestyle.report" "$LINT_DIR/pylint.report"
+	# Eclair files
+	rm -fv "$L_DIR/$ECL_CLI"
+	# Lnd files
+	rm -fv $L_DIR/rpc_pb2*.py "$L_DIR/$LND_PROTO" "$GOOGLEAPIS_ZIP"
+	rm -rfv "$L_DIR/google/" | tail -1
 }
 
 _parse_config() {
+	_copy_config
 	# Exports all variables in config file, setting defaults where necessary
 	set -a
 	. "$config_file"
 	set +a
 	[ -z "$IMPLEMENTATION" ] && _die "'IMPLEMENTATION' variable is necessary"
-	export IMPLEMENTATION="$(echo $IMPLEMENTATION |tr '[:upper:]' '[:lower:]')"
+	IMPLEMENTATION="$(echo "$IMPLEMENTATION" | tr '[:upper:]' '[:lower:]')"
+	export IMPLEMENTATION
 	case $IMPLEMENTATION in
 		clightning|eclair|lnd ) echo "You chose to use $IMPLEMENTATION" ;;
 		* ) _die "Unsupported implementation" ;;
@@ -265,36 +386,48 @@ _parse_config() {
 	set_defaults
 }
 
+docker_bash_env() {
+	CL_DIR="/srv/clightning"
+	LND_DIR="/srv/lnd"
+	LOGS_DIR="$APP_DIR/$L_DATA/logs"
+	CERTS_DIR="$APP_DIR/$L_DATA/certs"
+	SERVER_KEY="$CERTS_DIR/server.key"
+	SERVER_CRT="$CERTS_DIR/server.crt"
+	MACAROONS_DIR="$APP_DIR/$L_DATA/macaroons"
+	DB_DIR="$APP_DIR/$L_DATA/db"
+	CL_RPC_DIR="$CL_DIR/.lightning"
+	CL_CLI_DIR="$CL_DIR/cli"
+	LND_CERT_DIR="$LND_DIR/certs"
+	LND_MAC="$LND_DIR/macaroons/lnd.macaroon"
+}
+
 set_defaults() {
 	[ -z "$DOCKER" ] && export DOCKER="1"
-	[ -z "$SERVER_KEY" ] && export SERVER_KEY="./$L_DATA/certs/server.key"
-	[ -z "$SERVER_CRT" ] && export SERVER_CRT="./$L_DATA/certs/server.crt"
-	[ -z "$LOGS_DIR" ] && export LOGS_DIR="./$L_DATA/logs"
-	[ -z "$CL_CLI" ] && export CL_CLI="lightning-cli"
-	[ -z "$CL_RPC" ] && export CL_RPC="lightning-rpc"
-	[ -z "$ECL_HOST" ] && export ECL_HOST="localhost"
-	[ -z "$ECL_PORT" ] && export ECL_PORT="8080"
-	[ -z "$LND_HOST" ] && export LND_HOST="localhost"
-	[ -z "$LND_PORT" ] && export LND_PORT="10009"
-	[ -z "$LND_CERT" ] && export LND_CERT="tls.cert"
-	[ -z "$LND_MACAROON" ] && export LND_MACAROON="admin.macaroon"
+	declare -a vars=(PORT SERVER_KEY SERVER_CRT LOGS_DIR DB_DIR DB_NAME CERTS_DIR
+					 MACAROONS_DIR CL_CLI CL_RPC ECL_HOST ECL_PORT LND_HOST
+					 LND_PORT LND_CERT)
+	for var_name in "${vars[@]}"; do
+		def_val=$(python3 -c "from lighter.settings import $var_name; print($var_name)")
+		[ -z "${!var_name}" ] && export ${var_name}="${def_val}"
+	done
 }
 
 lint_code() {
 	export dock_tag="$1"
 	docker run --rm \
-		-v `pwd`/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro \
-		-v `pwd`/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro \
-		-v `pwd`/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro \
-		-v `pwd`/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro \
-		-v `pwd`/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro \
-		-v `pwd`/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro \
-		-v `pwd`/$L_DIR/settings.py:$APP_DIR/$L_DIR/settings.py:ro \
-		-v `pwd`/tests:$APP_DIR/tests:ro \
-		-v `pwd`/reports:$APP_DIR/reports:rw \
-		-v `pwd`/.pylintrc:$APP_DIR/.pylintrc:ro \
-		--entrypoint $APP_DIR/reports/lint.sh \
-		$dock_tag \
+		-v "$(pwd)/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro" \
+		-v "$(pwd)/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro" \
+		-v "$(pwd)/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro" \
+		-v "$(pwd)/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro" \
+		-v "$(pwd)/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro" \
+		-v "$(pwd)/$L_DIR/macaroons.py:$APP_DIR/$L_DIR/macaroons.py:ro" \
+		-v "$(pwd)/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro" \
+		-v "$(pwd)/$L_DIR/settings.py:$APP_DIR/$L_DIR/settings.py:ro" \
+		-v "$(pwd)/tests:$APP_DIR/tests:ro" \
+		-v "$(pwd)/$LINT_DIR:$APP_DIR/$LINT_DIR:rw" \
+		-v "$(pwd)/.pylintrc:$APP_DIR/.pylintrc:ro" \
+		--entrypoint $APP_DIR/$LINT_DIR/lint.sh \
+		"$dock_tag" \
 		$NAME
 }
 
@@ -302,17 +435,18 @@ test_code() {
 	export dock_tag="$1"
 	rm -rf tests/__pycache__ $L_DIR/__pycache__
 	docker run --rm \
-		-v `pwd`/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro \
-		-v `pwd`/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro \
-		-v `pwd`/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro \
-		-v `pwd`/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro \
-		-v `pwd`/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro \
-		-v `pwd`/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro \
-		-v `pwd`/$L_DIR/settings.py:$APP_DIR/$L_DIR/settings.py:ro \
-		-v `pwd`/tests:$APP_DIR/tests:ro \
-		-v `pwd`/.coveragerc:$APP_DIR/.coveragerc:ro \
+		-v "$(pwd)/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro" \
+		-v "$(pwd)/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro" \
+		-v "$(pwd)/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro" \
+		-v "$(pwd)/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro" \
+		-v "$(pwd)/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro" \
+		-v "$(pwd)/$L_DIR/macaroons.py:$APP_DIR/$L_DIR/macaroons.py:ro" \
+		-v "$(pwd)/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro" \
+		-v "$(pwd)/$L_DIR/settings.py:$APP_DIR/$L_DIR/settings.py:ro" \
+		-v "$(pwd)/tests:$APP_DIR/tests:ro" \
+		-v "$(pwd)/.coveragerc:$APP_DIR/.coveragerc:ro" \
 		--entrypoint $ENV_DIR/bin/pytest \
-		$dock_tag \
+		"$dock_tag" \
 		-v --cov=$L_DIR --cov-report=term-missing
 }
 

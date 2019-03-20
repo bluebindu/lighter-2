@@ -22,15 +22,17 @@ from re import sub
 from shutil import copyfile
 
 
-def _create_dockerfile(version, tag_arch):
+def _create_dockerfile(tag_arch):
     """ Creates a Dockerfile for a specific version and tag_arch """
     print('Creating Dockerfile for {}...'.format(tag_arch))
     new_file = 'Dockerfile.{}'.format(tag_arch)
     copyfile('Dockerfile.cross', new_file)
     envs = 'ENV APP_DIR="{}" ENV="{}" VERSION="{}"'.format(
         env['APP_DIR'], env['ENV_DIR'], env['version'])
-    install_cmd = 'apt-get update && apt-get -y install g++ python3-dev &&'
-    clean_cmd = '&& apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*'
+    install_cmd = ("apt-get update && apt-get -y install g++ "
+                   "libffi-dev python3-dev &&")
+    clean_cmd = ("&& apt-get clean && "
+                 "rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*")
     with FileInput(files=(new_file), inplace=True) as file:
         for line in file:
             line = sub('%%BASEIMAGE_ARCH%%', tag_arch, line.rstrip())
@@ -48,10 +50,9 @@ def _create_dockerfile(version, tag_arch):
 def generate_dockerfiles():
     """ Generates a Dockerfile for each tag_arch """
     try:
-        version = env['version']
         tags_archs = env['tags_archs'].split(' ')
         for tag_arch in tags_archs:
-            _create_dockerfile(version, tag_arch)
+            _create_dockerfile(tag_arch)
     except KeyError as err:
         print('{} environment variable needs to be set'.format(err))
         sys.exit(1)

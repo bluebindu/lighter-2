@@ -2,7 +2,7 @@ FROM %%BASEIMAGE_ARCH%%/debian:stretch-slim
 
 RUN apt-get update && \
     apt-get -y install \
-    curl gosu jq make unzip virtualenv && \
+    curl gosu jq libscrypt0 make unzip virtualenv && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 %%ENVS%%
@@ -27,13 +27,17 @@ COPY lighter/lighter.proto $L_DIR
 # Install Lighter for all implementations
 RUN make build
 
-COPY docker/start-lighter.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/start-lighter.sh
+COPY docker/start-lighter.sh docker/start-secure.sh \
+     /usr/local/bin/
+RUN chmod +x /usr/local/bin/start-lighter.sh \
+             /usr/local/bin/start-secure.sh
 
-COPY main.py .
-COPY lighter/__init__.py lighter/lighter.py lighter/settings.py $L_DIR/
+RUN mkdir -p $APP_DIR/lighter-data/db $APP_DIR/lighter-data/macaroons
+
+COPY main.py secure.py ./
+COPY lighter/__init__.py lighter/lighter.py lighter/macaroons.py lighter/settings.py $L_DIR/
 COPY lighter/utils.py lighter/errors.py lighter/light_* $L_DIR/
 
 VOLUME $APP_DIR/lighter-data/logs/
-EXPOSE 17080 17443
+EXPOSE 1708
 ENTRYPOINT ["/usr/local/bin/start-lighter.sh"]

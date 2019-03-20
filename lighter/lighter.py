@@ -15,21 +15,61 @@
 
 """ The Python implementation of the gRPC Lighter server """
 
-import sys
-
 from concurrent import futures
+from contextlib import suppress
 from importlib import import_module
 from logging import getLogger
-from os import environ
-from time import sleep
+from threading import Thread
+from time import sleep, time
 
-from grpc import server, ssl_server_credentials
+from grpc import server, ServerInterceptor, ssl_server_credentials, \
+    StatusCode, unary_unary_rpc_method_handler
 
 from . import lighter_pb2_grpc as pb_grpc
-from . import settings, utils
+from . import lighter_pb2 as pb
+from . import settings
 from .errors import Err
+from .macaroons import check_macaroons, get_baker
+from .utils import check_connection, check_req_params, Crypter, DbHandler, \
+    FakeContext, get_start_options, slow_exit
 
 LOGGER = getLogger(__name__)
+
+
+class UnlockerServicer(pb_grpc.UnlockerServicer):
+    """
+    UnlockerServicer implements a service which does not require authentication
+    but
+    """
+
+    # pylint: disable=too-few-public-methods
+
+    def UnlockLighter(self, request, context):
+        """
+        If passsword is correct, unlocks Lighter database, checks connection
+        to node (continuing even if node is not reachable) and finally stops
+        the UnlockerServicer.
+        """
+        check_req_params(context, request, 'password')
+        password = request.password
+        crypter = Crypter(password)
+        if not settings.DISABLE_MACAROONS:
+            serialized_data = DbHandler.get_key_from_db(context)
+            root_key = crypter.decrypt(context, serialized_data)
+            baker = get_baker(root_key, put_ops=True)
+            settings.LIGHTNING_BAKERY = baker
+        plain_secret = None
+        table = '{}_data'.format(settings.IMPLEMENTATION)
+        secret, active = DbHandler.get_secret_from_db(context, table)
+        if secret and active:
+            plain_secret = crypter.decrypt(context, secret)
+        # Checks if implementation is supported, could throw an ImportError
+        mod = import_module('lighter.light_{}'.format(settings.IMPLEMENTATION))
+        # Calls the implementation specific update method
+        mod.update_settings(plain_secret)
+        Thread(target=check_connection).start()
+        settings.UNLOCKER_STOP = True
+        return pb.UnlockLighterResponse()
 
 
 class LightningServicer():  # pylint: disable=too-few-public-methods
@@ -44,6 +84,15 @@ class LightningServicer():  # pylint: disable=too-few-public-methods
         """ Dispatches gRPC request dynamically. """
 
         def dispatcher(request, context):
+            start_time = time()
+            peer = user_agent = 'unknown'
+            with suppress(ValueError):
+                peer = context.peer().split(':', 1)[1]
+            for data in context.invocation_metadata():
+                if data.key == 'user-agent':
+                    user_agent = data.value
+            LOGGER.info('< %-24s %s %s',
+                        request.DESCRIPTOR.name, peer, user_agent)
             # Importing module for specific implementation
             module = import_module('lighter.light_{}'.format(
                 settings.IMPLEMENTATION))
@@ -53,62 +102,132 @@ class LightningServicer():  # pylint: disable=too-few-public-methods
             except AttributeError:
                 Err().unimplemented_method(context)
             # Return requested function if implemented
-            return func(request, context)
+            response = func(request, context)
+            response_name = response.DESCRIPTOR.name
+            stop_time = time()
+            call_time = round(stop_time - start_time, 3)
+            LOGGER.info('> %-24s %s %2.3fs',
+                        response_name, peer, call_time)
+            LOGGER.debug('Full response: %s', str(response).replace('\n', ' '))
+            return response
 
         return dispatcher
 
 
-def _serve(info):
-    """ Starts a gRPC server at the ip and port specified in settings """
-    grpc_server = server(
-        futures.ThreadPoolExecutor(max_workers=settings.GRPC_WORKERS))
-    pb_grpc.add_LightningServicer_to_server(LightningServicer(), grpc_server)
-    if settings.INSECURE_CONN:
-        grpc_server.add_insecure_port('{}:{}'.format(settings.HOST,
-                                                     settings.INSECURE_PORT))
-    if settings.SECURE_CONN:
-        settings.SERVER_KEY = environ['SERVER_KEY']
+def _unary_unary_rpc_terminator():
+    """ Returns an RpcMethodHandler if request is not accepted """
+    def terminate(_ignored_request, context):
+        """ Terminates gRPC call, denying access"""
+        context.abort(StatusCode.UNAUTHENTICATED, 'Access denied')
+
+    return unary_unary_rpc_method_handler(terminate)
+
+
+def _request_accepted(handler):
+    """
+    Checks if request is authorized: it is defined in ALL_PERMS and
+    macaroons are disabled or macaroons correctly verify.
+    """
+    if handler.method not in settings.ALL_PERMS:
+        LOGGER.error('- Not a Lightning operation')
+        return False
+    if settings.DISABLE_MACAROONS:
+        return True
+    return check_macaroons(handler.invocation_metadata, handler.method)
+
+
+class Interceptor(ServerInterceptor):  # pylint: disable=too-few-public-methods
+    """ gRPC interceptor that checks whether the request
+    is authorized by the included macaroons """
+
+    def __init__(self):
+        self._terminator = _unary_unary_rpc_terminator()
+
+    def intercept_service(self, continuation, handler_call_details):
+        """ Intercepts gRPC request to decide if request is authorized """
+        if _request_accepted(handler_call_details):
+            return continuation(handler_call_details)
+        return self._terminator
+
+
+def _create_server(servicer, interceptors):
+    """ Creates a gRPC server in insecure or secure mode """
+    if settings.INSECURE_CONNECTION:
+        grpc_server = server(
+            futures.ThreadPoolExecutor(max_workers=settings.GRPC_WORKERS))
+        grpc_server.add_insecure_port(settings.LIGHTER_ADDR)
+        _add_servicer_to_server(servicer, grpc_server)
+    else:
+        grpc_server = server(
+            futures.ThreadPoolExecutor(max_workers=settings.GRPC_WORKERS),
+            interceptors=interceptors)
         with open(settings.SERVER_KEY, 'rb') as key:
             private_key = key.read()
-        settings.SERVER_CRT = environ['SERVER_CRT']
         with open(settings.SERVER_CRT, 'rb') as cert:
             certificate_chain = cert.read()
         server_credentials = ssl_server_credentials(((
             private_key,
             certificate_chain,
         ), ))
-        grpc_server.add_secure_port(
-            '{}:{}'.format(settings.HOST, settings.SECURE_PORT),
-            server_credentials)
-    if info.version:
-        LOGGER.info(
-            'Using %s version %s', settings.IMPLEMENTATION, info.version)
-    else:
-        LOGGER.info('Using %s', settings.IMPLEMENTATION)
+        grpc_server.add_secure_port(settings.LIGHTER_ADDR, server_credentials)
+        _add_servicer_to_server(servicer, grpc_server)
+    return grpc_server
+
+
+def _add_servicer_to_server(servicer, grpc_server):
+    """ Adds an Unlocker or Lightning servicer to a gRPC server """
+    if isinstance(servicer, LightningServicer):
+        pb_grpc.add_LightningServicer_to_server(servicer, grpc_server)
+    elif isinstance(servicer, UnlockerServicer):
+        pb_grpc.add_UnlockerServicer_to_server(servicer, grpc_server)
+
+
+def _serve_unlocker():
+    """
+    Starts a UnlockerServicer gRPC server at the ip and port specified in
+    settings
+    """
+    grpc_server = _create_server(UnlockerServicer(), None)
     grpc_server.start()
-    if settings.INSECURE_CONN:
-        LOGGER.info(
-            'Listening on %s:%s (insecure connection)',
-            settings.HOST, settings.INSECURE_PORT)
-    if settings.SECURE_CONN:
-        LOGGER.info(
-            'Listening on %s:%s (secure connection)',
-            settings.HOST, settings.SECURE_PORT)
-    try:
-        while True:
-            sleep(settings.ONE_DAY_IN_SECONDS)
-    except KeyboardInterrupt:
-        grpc_server.stop(settings.GRPC_GRACE_TIME)
-        _slow_exit('Keyboard interrupt detected. Exiting...')
+    _log_listening('Unlocker service')
+    LOGGER.info('Waiting for password to unlock Lightning service...')
+    _unlocker_wait(grpc_server)
 
 
-def _slow_exit(message):
-    """ Goes to sleep before exiting, useful when autorestarting (docker) """
-    LOGGER.error(message)
-    LOGGER.info(
-        'Sleeping for %s secs before exiting...', settings.RESTART_THROTTLE)
-    sleep(settings.RESTART_THROTTLE)
-    sys.exit(1)
+def _serve_lightning():
+    """
+    Starts a LightningServicer gRPC server at the ip and port specified in
+    settings
+    """
+    grpc_server = _create_server(LightningServicer(), [Interceptor()])
+    grpc_server.start()
+    _log_listening('Lightning service')
+    _lightning_wait(grpc_server)
+
+
+def _log_listening(servicer_name):
+    """ Logs at which host and port the servicer is listening """
+    if settings.INSECURE_CONNECTION:
+        LOGGER.info(
+            '%s listening on %s (insecure connection)',
+            servicer_name, settings.LIGHTER_ADDR)
+    else:
+        LOGGER.info(
+            '%s listening on %s (secure connection)',
+            servicer_name, settings.LIGHTER_ADDR)
+
+
+def _unlocker_wait(grpc_server):
+    """ Waits a signal to stop the UnlockerServicer """
+    while not settings.UNLOCKER_STOP:
+        sleep(1)
+    grpc_server.stop(0)
+
+
+def _lightning_wait(_grpc_server):
+    """ Keeps the LightningServicer on until a KeyboardInterrupt occurs """
+    while True:
+        sleep(settings.ONE_DAY_IN_SECONDS)
 
 
 def start():
@@ -121,24 +240,26 @@ def start():
     Any raised exception will be handled with a slow exit.
     """
     try:
-        settings.IMPLEMENTATION = environ['IMPLEMENTATION'].lower()
-        # Checks if implementation is supported, could throw an ImportError
-        mod = import_module('lighter.light_{}'.format(settings.IMPLEMENTATION))
-        # Calls the implementation specific update method
-        mod.update_settings()
-        LOGGER.info(
-            'Checking connection to %s node...', settings.IMPLEMENTATION)
-        info = utils.check_connection()
-        if info.identity_pubkey:
-            LOGGER.info(
-                'Connection to node "%s" successful', info.identity_pubkey)
-        utils.get_connection_modes()
-        _serve(info)
+        get_start_options()
+        if not settings.DISABLE_MACAROONS:
+            serialized_data = DbHandler.get_key_from_db(FakeContext())
+            if not serialized_data:
+                slow_exit("Cannot obtain macaroon root key", wait=False)
+        if settings.NO_SECRETS:
+            # Checks if implementation is supported, could throw an ImportError
+            mod = import_module(
+                'lighter.light_{}'.format(settings.IMPLEMENTATION))
+            # Calls the implementation specific update method
+            mod.update_settings(None)
+            Thread(target=check_connection).start()
+        else:
+            _serve_unlocker()
+        _serve_lightning()
     except ImportError:
-        _slow_exit('{} is not supported'.format(settings.IMPLEMENTATION))
+        slow_exit('{} is not supported'.format(settings.IMPLEMENTATION))
     except KeyError as err:
-        _slow_exit('{} environment variable needs to be set'.format(err))
+        slow_exit('{} environment variable needs to be set'.format(err))
     except RuntimeError as err:
-        _slow_exit(str(err))
+        slow_exit(str(err))
     except FileNotFoundError as err:
-        _slow_exit(str(err))
+        slow_exit(str(err))

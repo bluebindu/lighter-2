@@ -17,7 +17,21 @@ syntax = "proto3";
 
 package lighter;
 
-// Service defines the methods that the grpc server can expose to the client
+// Unlocker service exposes a single operation used to unlock the Lightning
+// service.
+service Unlocker {
+
+    /**
+    UnlockLighter unlocks Lighter's secrets using the password choosen in
+    initialization phase. This call does not require macaroons authentication.
+    */
+    rpc UnlockLighter (UnlockLighterRequest) returns (UnlockLighterResponse);
+
+}
+
+// Lightning service exposes all LN node related operations. It activates
+// after unlocking Lighter and it requires valid macaroons, if they are
+// enabled, for each call.
 service Lightning {
 
     /**
@@ -104,6 +118,16 @@ service Lightning {
 
 }
 
+message UnlockLighterRequest {
+    /**
+    Password to unlock Lighter
+    */
+    string password = 1;
+}
+
+message UnlockLighterResponse {
+}
+
 message ChannelBalanceRequest {
 }
 
@@ -123,7 +147,7 @@ message CheckInvoiceRequest {
 
 message CheckInvoiceResponse {
     /**
-    Wether the invoice has been paid
+    Whether the invoice has been paid
     */
     bool settled = 1;
 }
@@ -241,9 +265,9 @@ message HopHint {
     */
     string short_channel_id = 2;
     /**
-    Base fee of the channel, in bits
+    Base fee of the channel, in msat
     */
-    double fee_base_bits = 3;
+    double fee_base_msat = 3;
     /**
     Amount charged per transferred satoshi, in millionths of a satoshi
     */
@@ -283,7 +307,7 @@ message GetInfoResponse {
 
 message ListChannelsRequest {
     /**
-    Wether to return active channels only (peer is online)
+    Whether to return active channels only (peer is online)
     */
     bool active_only = 1;
 }
@@ -348,15 +372,15 @@ message ListInvoicesRequest {
     */
     Order list_order = 4;
     /**
-    Wether to include paid invoices
+    Whether to include paid invoices
     */
     bool paid = 5;
     /**
-    Wether to include pending invoices
+    Whether to include pending invoices
     */
     bool pending = 6;
     /**
-    Wether to include expired invoices
+    Whether to include expired invoices
     */
     bool expired = 7;
 }

@@ -146,7 +146,7 @@ GETINFO = {
     ],
     "version": "v0.6",
     "blockheight": 7777,
-    "network": "testnet"
+    "network": "bitcoin"
 }
 
 

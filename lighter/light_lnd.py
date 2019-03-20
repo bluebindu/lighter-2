@@ -20,27 +20,45 @@ from codecs import encode
 from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
+from logging import getLogger
 from os import environ, path
 
-import grpc
+from grpc import channel_ready_future, composite_channel_credentials, \
+    FutureTimeoutError, metadata_call_credentials, RpcError, secure_channel, \
+    ssl_channel_credentials
 
 from . import rpc_pb2 as ln
 from . import rpc_pb2_grpc as lnrpc
 from . import lighter_pb2 as pb
 from . import settings
-from .utils import check_req_params, convert, Enforcer as Enf
 from .errors import Err
+from .utils import check_req_params, convert, Enforcer as Enf
+
+LOGGER = getLogger(__name__)
 
 ERRORS = {
+    'already connected to peer': {
+        'fun': 'connect_failed'
+    },
     'amount must be specified when paying a zero amount invoice': {
         'fun': 'amount_required'
     },
     'chain backend is still syncing': {
         'fun': 'node_error'
     },
+    'channels cannot be created before the wallet is fully synced': {
+        'fun': 'openchannel_failed'
+    },
     'checksum failed': {
         'fun': 'invalid',
         'params': 'payment_request'
+    },
+    'checksum mismatch': {
+        'fun': 'invalid',
+        'params': 'address'
+    },
+    'Deadline Exceeded': {
+        'fun': 'node_error'
     },
     'encoding/hex': {
         'fun': 'invalid',
@@ -49,8 +67,20 @@ ERRORS = {
     'expected 1 macaroon, got': {
         'fun': 'node_error'
     },
+    'greater than max expiry of': {
+        'fun': 'invalid',
+        'params': 'expiry_time'
+    },
     'i/o timeout': {
         'fun': 'node_error'
+    },
+    'invalid bech32 string length': {
+        'fun': 'invalid',
+        'params': 'payment_request'
+    },
+    'invalid index of': {
+        'fun': 'invalid',
+        'params': 'payment_request'
     },
     'invoice expired': {
         'fun': 'invoice_expired'
@@ -59,12 +89,18 @@ ERRORS = {
         'fun': 'invalid',
         'params': 'payment_request'
     },
+    'is not online': {
+        'fun': 'openchannel_failed'
+    },
     'Name resolution failure': {
         'fun': 'node_error'
     },
     'payment hash must': {
         'fun': 'invalid',
         'params': 'payment_hash'
+    },
+    'Socket closed': {
+        'fun': 'node_error'
     },
     'string not all lowercase or all uppercase': {
         'fun': 'invalid',
@@ -92,75 +128,79 @@ LND_LN_TX = {'min_value': 1, 'max_value': 2**32 / 1000, 'unit': Enf.SATS}
 LND_FUNDING = {'min_value': 20000, 'max_value': 2**24, 'unit': Enf.SATS}
 
 
-def update_settings():
+def update_settings(macaroon):
     """
     Updates lnd specific settings
 
     KeyError exception raised by missing dictionary keys in environ
     are left unhandled on purpose and later catched by lighter.start()
     """
-    lnd_host = environ['LND_HOST']
-    lnd_port = environ['LND_PORT']
+    lnd_host = environ.get('LND_HOST', settings.LND_HOST)
+    lnd_port = environ.get('LND_PORT', settings.LND_PORT)
     settings.LND_ADDR = '{}:{}'.format(lnd_host, lnd_port)
     lnd_tls_cert_dir = environ['LND_CERT_DIR']
-    lnd_tls_cert = environ['LND_CERT']
+    lnd_tls_cert = environ.get('LND_CERT', settings.LND_CERT)
     lnd_tls_cert_path = path.join(lnd_tls_cert_dir, lnd_tls_cert)
     with open(lnd_tls_cert_path, 'rb') as file:
         cert = file.read()
     # Build ssl credentials using the cert
-    settings.LND_CREDS = cert_creds = grpc.ssl_channel_credentials(cert)
-    if environ.get('LND_MACAROON_DIR'):
+    settings.LND_CREDS = cert_creds = ssl_channel_credentials(cert)
+    if macaroon:
+        LOGGER.info("Connecting to lnd in secure mode (tls + macaroon)")
+        settings.LND_MAC = macaroon
         # Build meta data credentials
-        auth_creds = grpc.metadata_call_credentials(_metadata_callback)
+        auth_creds = metadata_call_credentials(_metadata_callback)
         # Combine the cert credentials and the macaroon auth credentials
         # Such that every call is properly encrypted and authenticated
-        settings.LND_CREDS = grpc.composite_channel_credentials(
+        settings.LND_CREDS = composite_channel_credentials(
             cert_creds, auth_creds)
+    else:
+        LOGGER.info("Connecting to lnd in insecure mode")
 
 
 def _metadata_callback(context, callback):  # pylint: disable=unused-argument
     """ Gets lnd macaroon """
-    lnd_macaroon_dir = environ['LND_MACAROON_DIR']
-    lnd_macaroon = environ['LND_MACAROON']
-    lnd_macaroon_path = path.join(lnd_macaroon_dir, lnd_macaroon)
-    with open(lnd_macaroon_path, 'rb') as file:
-        macaroon_bytes = file.read()
-        macaroon = encode(macaroon_bytes, 'hex')
+    macaroon = encode(settings.LND_MAC, 'hex')
     callback([('macaroon', macaroon)], None)
 
 
-def handle_rpc_errors(func):
+def _handle_rpc_errors(func):
     """ Decorator to add more context to RPC errors """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except grpc.RpcError as error:
+        except RpcError as error:
             _handle_error(args[1], error)
 
     return wrapper
 
 
 @contextmanager
-def _connect():
+def _connect(context):
     """ Securely connects to the lnd node using gRPC """
-    channel = grpc.secure_channel(settings.LND_ADDR, settings.LND_CREDS)
-    stub = lnrpc.LightningStub(channel)
-    yield stub
-    channel.close()
+    channel = secure_channel(settings.LND_ADDR, settings.LND_CREDS)
+    future_channel = channel_ready_future(channel)
+    try:
+        future_channel.result(timeout=settings.IMPL_TIMEOUT)
+    except FutureTimeoutError:
+        # Handle gRPC channel that did not connect
+        Err().node_error(context, 'Failed to dial server')
+    else:
+        stub = lnrpc.LightningStub(channel)
+        yield stub
+        channel.close()
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def GetInfo(request, context):  # pylint: disable=unused-argument
     """ Returns info about the running LN node """
     response = pb.GetInfoResponse()
     lnd_req = ln.GetInfoRequest()
-    with _connect() as stub:
-        lnd_res = stub.GetInfo(lnd_req)
-        network = 'mainnet'
-        if lnd_res.testnet:
-            network = 'testnet'
+    with _connect(context) as stub:
+        lnd_res = stub.GetInfo(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        network = lnd_res.chains[0].network
         response = pb.GetInfoResponse(
             identity_pubkey=lnd_res.identity_pubkey,
             alias=lnd_res.alias,
@@ -169,12 +209,12 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
             network=network)
         if lnd_res.identity_pubkey:
             lnd_req = ln.NodeInfoRequest(pub_key=lnd_res.identity_pubkey)
-            lnd_res = stub.GetNodeInfo(lnd_req)
+            lnd_res = stub.GetNodeInfo(lnd_req, timeout=settings.IMPL_TIMEOUT)
             response.color = lnd_res.node.color
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def NewAddress(request, context):  # pylint: disable=unused-argument
     """ Creates a new bitcoin address under control of the running LN node """
     response = pb.NewAddressResponse()
@@ -184,48 +224,49 @@ def NewAddress(request, context):  # pylint: disable=unused-argument
     else:
         # in lnd WITNESS_PUBKEY_HASH = 0;
         lnd_req = ln.NewAddressRequest(type=0)
-    with _connect() as stub:
-        lnd_res = stub.NewAddress(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.NewAddress(lnd_req, timeout=settings.IMPL_TIMEOUT)
         response = pb.NewAddressResponse(address=lnd_res.address)
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def WalletBalance(request, context):  # pylint: disable=unused-argument
     """ Returns the on-chain balance in bits of the running LN node """
     response = pb.WalletBalanceResponse()
     lnd_req = ln.WalletBalanceRequest()
-    with _connect() as stub:
-        lnd_res = stub.WalletBalance(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.WalletBalance(lnd_req, timeout=settings.IMPL_TIMEOUT)
         response = pb.WalletBalanceResponse(
             balance=convert(context, Enf.SATS, lnd_res.total_balance))
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def ChannelBalance(request, context):  # pylint: disable=unused-argument
     """ Returns the off-chain balance in bits available across all channels """
     response = pb.ChannelBalanceResponse()
     lnd_req = ln.ChannelBalanceRequest()
-    with _connect() as stub:
-        lnd_res = stub.ChannelBalance(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.ChannelBalance(lnd_req, timeout=settings.IMPL_TIMEOUT)
         response = pb.ChannelBalanceResponse(
             balance=convert(context, Enf.SATS, lnd_res.balance))
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def ListChannels(request, context):
     """ Returns a list of channels of the running LN node """
     response = pb.ListChannelsResponse()
     lnd_req = ln.ListChannelsRequest()
-    with _connect() as stub:
-        lnd_res = stub.ListChannels(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.ListChannels(lnd_req, timeout=settings.IMPL_TIMEOUT)
         for lnd_chan in lnd_res.channels:
             _add_channel(context, response, lnd_chan, active=True)
         if not request.active_only:
             lnd_req = ln.PendingChannelsRequest()
-            lnd_res = stub.PendingChannels(lnd_req)
+            lnd_res = stub.PendingChannels(
+                lnd_req, timeout=settings.IMPL_TIMEOUT)
             for lnd_chan in lnd_res.pending_open_channels:
                 _add_channel(context, response, lnd_chan.channel)
             for lnd_chan in lnd_res.pending_closing_channels:
@@ -237,7 +278,7 @@ def ListChannels(request, context):
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def ListInvoices(request, context):
     """ Returns a list of lightning invoices created by the running LN node """
     if not request.max_items:
@@ -247,9 +288,9 @@ def ListInvoices(request, context):
         reversed=request.search_order,
         num_max_invoices=request.max_items * settings.INVOICES_TIMES)
     stop = False
-    with _connect() as stub:
+    with _connect(context) as stub:
         while True:
-            lnd_res = stub.ListInvoices(lnd_req)
+            lnd_res = stub.ListInvoices(lnd_req, timeout=settings.IMPL_TIMEOUT)
             if not lnd_res.invoices:
                 break
             if request.search_order:
@@ -273,25 +314,25 @@ def ListInvoices(request, context):
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def ListPayments(request, context):  # pylint: disable=unused-argument
     """ Returns a list of lightning invoices paid by the running LN node """
     response = pb.ListPaymentsResponse()
     lnd_req = ln.ListPaymentsRequest()
-    with _connect() as stub:
-        lnd_res = stub.ListPayments(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.ListPayments(lnd_req, timeout=settings.IMPL_TIMEOUT)
         for lnd_payment in lnd_res.payments:
             _add_payment(context, response, lnd_payment)
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def ListPeers(request, context):  # pylint: disable=unused-argument
     """ Returns a list of peers connected to the running LN node """
     response = pb.ListPeersResponse()
     lnd_req = ln.ListPeersRequest()
-    with _connect() as stub:
-        lnd_res = stub.ListPeers(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.ListPeers(lnd_req, timeout=settings.IMPL_TIMEOUT)
         for lnd_peer in lnd_res.peers:
             response.peers.add(  # pylint: disable=no-member
                 pubkey=lnd_peer.pub_key,
@@ -299,19 +340,19 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def ListTransactions(request, context):  # pylint: disable=unused-argument
     """ Returns a list of on-chain transactions of the running LN node """
     response = pb.ListTransactionsResponse()
     lnd_req = ln.GetTransactionsRequest()
-    with _connect() as stub:
-        lnd_res = stub.GetTransactions(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.GetTransactions(lnd_req, timeout=settings.IMPL_TIMEOUT)
         for lnd_transaction in lnd_res.transactions:
             _add_transaction(context, response, lnd_transaction)
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def CreateInvoice(request, context):
     """ Creates a LN invoice (bolt 11 standard) """
     response = pb.CreateInvoiceResponse()
@@ -330,8 +371,8 @@ def CreateInvoice(request, context):
         lnd_req.value = convert(
             context, Enf.SATS, request.amount_bits,
             enforce=LND_PAYREQ, max_precision=Enf.SATS)
-    with _connect() as stub:
-        lnd_res = stub.AddInvoice(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.AddInvoice(lnd_req, timeout=settings.IMPL_TIMEOUT)
         payment_hash_str = ''
         if lnd_res.r_hash:
             payment_hash_str = hexlify(lnd_res.r_hash)
@@ -340,24 +381,27 @@ def CreateInvoice(request, context):
             payment_request=lnd_res.payment_request)
         if payment_hash_str:
             lnd_req = ln.PaymentHash(r_hash_str=payment_hash_str)
-            lnd_res = stub.LookupInvoice(lnd_req)
+            lnd_res = stub.LookupInvoice(
+                lnd_req, timeout=settings.IMPL_TIMEOUT)
             response.expires_at = lnd_res.creation_date + lnd_res.expiry
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def CheckInvoice(request, context):
     """ Checks if a LN invoice has been paid """
     check_req_params(context, request, 'payment_hash')
     response = pb.CheckInvoiceResponse()
     lnd_req = ln.PaymentHash(r_hash_str=request.payment_hash)
-    with _connect() as stub:
-        lnd_res = stub.LookupInvoice(lnd_req)
-        response.settled = lnd_res.settled
+    with _connect(context) as stub:
+        lnd_res = stub.LookupInvoice(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        response.settled = False
+        if lnd_res.state == 1:
+            response.settled = True
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def PayInvoice(request, context):
     """
     Tries to pay a LN invoice from its payment request (bolt 11 standard).
@@ -384,8 +428,8 @@ def PayInvoice(request, context):
             context, Enf.SATS, request.amount_bits,
             enforce=LND_LN_TX, max_precision=Enf.SATS)
     # pylint: enable=no-member
-    with _connect() as stub:
-        lnd_res = stub.SendPaymentSync(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.SendPaymentSync(lnd_req, timeout=settings.IMPL_TIMEOUT)
         if lnd_res.payment_preimage:
             response.payment_preimage = hexlify(lnd_res.payment_preimage)
         elif lnd_res.payment_error:
@@ -393,7 +437,7 @@ def PayInvoice(request, context):
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def PayOnChain(request, context):
     """ Tries to pay a bitcoin address """
     response = pb.PayOnChainResponse()
@@ -409,13 +453,13 @@ def PayOnChain(request, context):
             lnd_req.sat_per_byte = request.fee_sat_byte
         else:
             Err().out_of_range(context, 'fee_sat_byte')
-    with _connect() as stub:
-        lnd_res = stub.SendCoins(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.SendCoins(lnd_req, timeout=settings.IMPL_TIMEOUT)
         response.txid = lnd_res.txid
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def DecodeInvoice(request, context):
     """
     Tries to return information of a LN invoice from its payment request
@@ -424,8 +468,8 @@ def DecodeInvoice(request, context):
     response = pb.DecodeInvoiceResponse()
     check_req_params(context, request, 'payment_request')
     lnd_req = ln.PayReqString(pay_req=request.payment_request)
-    with _connect() as stub:
-        lnd_res = stub.DecodePayReq(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.DecodePayReq(lnd_req, timeout=settings.IMPL_TIMEOUT)
         response = pb.DecodeInvoiceResponse(
             amount_bits=convert(context, Enf.SATS, lnd_res.num_satoshis),
             timestamp=lnd_res.timestamp,
@@ -437,20 +481,23 @@ def DecodeInvoice(request, context):
             min_final_cltv_expiry=lnd_res.cltv_expiry,
             fallback_addr=lnd_res.fallback_addr)
         for lnd_route in lnd_res.route_hints:
-            _add_route_hint(context, response, lnd_route)
+            _add_route_hint(response, lnd_route)
     return response
 
 
-@handle_rpc_errors
+@_handle_rpc_errors
 def OpenChannel(request, context):
     """ Tries to connect and open a channel with a peer """
     response = pb.OpenChannelResponse()
     check_req_params(context, request, 'node_uri', 'funding_bits')
-    pubkey, host = request.node_uri.split("@")
+    try:
+        pubkey, host = request.node_uri.split("@")
+    except ValueError:
+        Err().invalid(context, 'node_uri')
     peer_address = ln.LightningAddress(pubkey=pubkey, host=host)
     lnd_req = ln.ConnectPeerRequest(addr=peer_address, perm=True)
-    with _connect() as stub:
-        lnd_res = stub.ConnectPeer(lnd_req)
+    with _connect(context) as stub:
+        lnd_res = stub.ConnectPeer(lnd_req, timeout=settings.IMPL_TIMEOUT)
         lnd_req = ln.OpenChannelRequest(
             node_pubkey_string=pubkey, private=request.private,
             local_funding_amount=convert(
@@ -462,7 +509,7 @@ def OpenChannel(request, context):
                                        request.push_bits,
                                        enforce=Enf.PUSH_MSAT,
                                        max_precision=Enf.SATS)
-        lnd_res = stub.OpenChannelSync(lnd_req)
+        lnd_res = stub.OpenChannelSync(lnd_req, timeout=settings.IMPL_TIMEOUT)
         response.funding_txid = lnd_res.funding_txid_str
     return response
 
@@ -526,12 +573,12 @@ def _parse_invoices(context, response, invoices, request):
     for lnd_invoice in invoices:
         if _check_timestamp(request, lnd_invoice):
             continue
-        if request.paid and lnd_invoice.settled:
+        if request.paid and lnd_invoice.state == 1:
             _add_invoice(context, response, lnd_invoice, 0)
-        if request.pending and not lnd_invoice.settled and \
+        if request.pending and not lnd_invoice.state == 1 and \
                 (lnd_invoice.creation_date + lnd_invoice.expiry) > now:
             _add_invoice(context, response, lnd_invoice, 1)
-        if request.expired and not lnd_invoice.settled and \
+        if request.expired and not lnd_invoice.state == 1 and \
                 (lnd_invoice.creation_date + lnd_invoice.expiry) < now:
             _add_invoice(context, response, lnd_invoice, 2)
         if len(response.invoices) == request.max_items:
@@ -552,7 +599,7 @@ def _add_invoice(context, response, lnd_invoice, invoice_state):
             fallback_addr=lnd_invoice.fallback_addr,
             state=invoice_state)
         for lnd_route in lnd_invoice.route_hints:
-            _add_route_hint(context, invoice, lnd_route)
+            _add_route_hint(invoice, lnd_route)
 
 
 def _add_payment(context, response, lnd_payment):
@@ -581,7 +628,7 @@ def _add_transaction(context, response, lnd_transaction):
             transaction.dest_addresses.extend(lnd_transaction.dest_addresses)
 
 
-def _add_route_hint(context, response, lnd_route):
+def _add_route_hint(response, lnd_route):
     """ Adds a route hint and its hop hints to a DecodeInvoiceResponse """
     if lnd_route.ListFields():
         grpc_route = response.route_hints.add()
@@ -589,7 +636,7 @@ def _add_route_hint(context, response, lnd_route):
         grpc_route.hop_hints.add(
             pubkey=lnd_hop.node_id,
             short_channel_id=str(lnd_hop.chan_id),
-            fee_base_bits=convert(context, Enf.MSATS, lnd_hop.fee_base_msat),
+            fee_base_msat=lnd_hop.fee_base_msat,
             fee_proportional_millionths=lnd_hop.fee_proportional_millionths,
             cltv_expiry_delta=lnd_hop.cltv_expiry_delta)
 

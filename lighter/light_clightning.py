@@ -66,7 +66,7 @@ ERRORS = {
 }
 
 
-def update_settings():
+def update_settings(_dummy):
     """
     Updates c-lightning specific settings
 
@@ -102,6 +102,8 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
         response.blockheight = int(cl_res['blockheight'])
     if 'network' in cl_res:
         response.network = cl_res['network']
+        if cl_res['network'] == 'bitcoin':
+            response.network = 'mainnet'
     _handle_error(context, cl_res, always_abort=False)
     return response
 
@@ -353,7 +355,7 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
         response.fallback_addr = cl_res['fallback']['addr']
     if 'routes' in cl_res:
         for cl_route in cl_res['routes']:
-            _add_route_hint(context, response, cl_route)
+            _add_route_hint(response, cl_route)
     _handle_error(context, cl_res, always_abort=False)
     return response
 
@@ -365,7 +367,10 @@ def OpenChannel(request, context):
     check_req_params(context, request, 'node_uri', 'funding_bits')
     if request.push_bits:
         Err().unimplemented_parameter(context)
-    pubkey, _host = request.node_uri.split("@")
+    try:
+        pubkey, _host = request.node_uri.split("@")
+    except ValueError:
+        Err().invalid(context, 'node_uri')
     cl_req.append('id="{}"'.format(request.node_uri))
     cl_res = command(context, *cl_req)
     if 'id' not in cl_res:
@@ -423,7 +428,7 @@ def _add_payment(context, response, cl_payment):
         grpc_payment.payment_preimage = cl_payment['payment_preimage']
 
 
-def _add_route_hint(context, response, cl_route):
+def _add_route_hint(response, cl_route):
     """ Adds a route hint and its hop hints to a DecodeInvoiceResponse """
     grpc_route = response.route_hints.add()
     for cl_hop in cl_route:
@@ -433,8 +438,7 @@ def _add_route_hint(context, response, cl_route):
         if 'short_channel_id' in cl_hop:
             grpc_hop.short_channel_id = cl_hop['short_channel_id']
         if 'fee_base_msat' in cl_hop:
-            grpc_hop.fee_base_bits = convert(context, Enf.MSATS,
-                                             cl_hop['fee_base_msat'])
+            grpc_hop.fee_base_msat = cl_hop['fee_base_msat']
         if 'fee_proportional_millionths' in cl_hop:
             grpc_hop.fee_proportional_millionths = cl_hop[
                 'fee_proportional_millionths']

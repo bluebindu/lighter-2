@@ -46,36 +46,32 @@ ERRORS = {
 }
 
 
-def update_settings():
+def update_settings(password):
     """
     Updates eclair specific settings
 
     KeyError exception raised by missing dictionary keys in environ
     are left unhandled on purpose and later catched by lighter.start()
     """
-    ecl_host = environ['ECL_HOST']
-    ecl_port = environ['ECL_PORT']
-    ecl_pass = environ['ECL_PASS']
-    ecl_cli_path = path.abspath('lighter/eclair-cli')
-    _set_credentials(ecl_cli_path, ecl_host, ecl_port, ecl_pass)
-    settings.CMD_BASE = [ecl_cli_path]
-
-
-def _set_credentials(cli, host, port, password):
-    """ Writes eclair's host credentials to eclair-cli """
-    url = '{}:{}'.format(host, port)
-    with FileInput(files=(cli), inplace=1) as file:
+    ecl_host = environ.get('ECL_HOST', settings.ECL_HOST)
+    ecl_port = environ.get('ECL_PORT', settings.ECL_PORT)
+    ecl_pass = password.decode()
+    settings.ECL_ENV = {'PASSWORD': ecl_pass}
+    ecl_url = '{}:{}'.format(ecl_host, ecl_port)
+    ecl_cli = path.abspath('lighter/eclair-cli')
+    ecl_options = ['-a', ecl_url]
+    with FileInput(files=(ecl_cli), inplace=1) as file:
         for line in file:
-            line = sub('^URL=.*', "URL='{}'".format(url), line.rstrip())
-            line = sub('^PASSWORD=.*', "PASSWORD='{}'".format(password),
+            line = sub('^PASSWORD=.*', "PASSWORD=$PASSWORD",
                        line.rstrip())
             print(line)
+    settings.CMD_BASE = [ecl_cli] + ecl_options
 
 
 def GetInfo(request, context):  # pylint: disable=unused-argument
     """ Returns info about the running LN node """
     ecl_req = ['getinfo']
-    ecl_res = command(context, *ecl_req)
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     response = pb.GetInfoResponse()
     if _defined(ecl_res, 'nodeId'):
         response.identity_pubkey = ecl_res['nodeId']
@@ -98,13 +94,13 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
 def ChannelBalance(request, context):  # pylint: disable=unused-argument
     """ Returns the off-chain balance in bits available across all channels """
     ecl_req = ['channels']
-    ecl_res = command(context, *ecl_req)
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     _handle_error(context, ecl_res, always_abort=False)
     funds = 0.0
     for channel in ecl_res:
         # check id
         ecl_req = ['channel', channel['channelId']]
-        ecl_res = command(context, *ecl_req)
+        ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
         if _defined(ecl_res, 'data') \
                 and _defined(ecl_res['data'], 'commitments'):
             commitments = ecl_res['data']['commitments']
@@ -121,7 +117,7 @@ def ChannelBalance(request, context):  # pylint: disable=unused-argument
 def ListPeers(request, context):  # pylint: disable=unused-argument
     """ Returns a list of peers connected to the running LN node """
     ecl_req = ['peers']
-    ecl_res = command(context, *ecl_req)
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     response = pb.ListPeersResponse()
     for peer in ecl_res:
         # Filtering disconnected peers
@@ -139,12 +135,12 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
 def ListChannels(request, context):
     """ Returns a list of channels of the running LN node """
     ecl_req = ['channels']
-    ecl_res = command(context, *ecl_req)
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     response = pb.ListChannelsResponse()
     for channel in ecl_res:
         if _defined(channel, 'channelId'):
             ecl_req = ['channel', channel['channelId']]
-            ecl_res = command(context, *ecl_req)
+            ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
             if request.active_only and _defined(ecl_res, 'state') \
                     and ecl_res['state'] == 'NORMAL':
                 _add_channel(context, response, ecl_res)
@@ -176,12 +172,12 @@ def CreateInvoice(request, context):
         ecl_req.append('{}'.format(request.expiry_time))
     elif request.expiry_time and not request.amount_bits:
         Err().unsettable(context, 'expiry_time (amount necessary)')
-    ecl_res = command(context, *ecl_req)
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     _handle_error(context, ecl_res, always_abort=False)
     response = pb.CreateInvoiceResponse()
     response.payment_request = ecl_res.strip()
     ecl_req = ['checkinvoice', ecl_res.strip()]
-    ecl_res = command(context, *ecl_req)
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     _handle_error(context, ecl_res, always_abort=False)
     if _defined(ecl_res, 'tags'):
         for tag in ecl_res['tags']:
@@ -199,7 +195,7 @@ def CheckInvoice(request, context):
     ecl_req = ['checkpayment']
     check_req_params(context, request, 'payment_hash')
     ecl_req.append(request.payment_hash)
-    ecl_res = command(context, *ecl_req)
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     if not isinstance(ecl_res, bool):
         Err().invalid(context, 'payment_hash')
     return pb.CheckInvoiceResponse(settled=ecl_res)
@@ -227,7 +223,7 @@ def PayInvoice(request, context):
             convert(
                 context, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)))
     # pylint: enable=no-member
-    ecl_res = command(context, *ecl_req)
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     response = pb.PayInvoiceResponse()
     if _defined(ecl_res, 'paymentPreimage'):
         response.payment_preimage = ecl_res['paymentPreimage']
@@ -244,7 +240,7 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
     ecl_req = ['checkinvoice']
     check_req_params(context, request, 'payment_request')
     ecl_req.append('{}'.format(request.payment_request))
-    ecl_res = command(context, *ecl_req)
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     if 'invalid payment request' in ecl_res:
         # checking manually as error is not in json
         Err().invalid(context, 'payment_request')
@@ -273,7 +269,7 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
             if _defined(tag, 'blocks'):
                 response.min_final_cltv_expiry = tag['blocks']
             if _defined(tag, 'path'):
-                _add_route_hint(context, response, tag['path'])
+                _add_route_hint(response, tag['path'])
     _handle_error(context, ecl_res, always_abort=False)
     return response
 
@@ -316,7 +312,7 @@ def _add_channel(context, response, ecl_chan):
                             grpc_chan.local_balance + grpc_chan.remote_balance
 
 
-def _add_route_hint(context, response, ecl_route):
+def _add_route_hint(response, ecl_route):
     """ Adds a route hint and its hop hints to a DecodeInvoiceResponse """
     grpc_route = response.route_hints.add()
     for ecl_hop in ecl_route:
@@ -326,8 +322,7 @@ def _add_route_hint(context, response, ecl_route):
         if _defined(ecl_hop, 'shortChannelId'):
             grpc_hop.short_channel_id = ecl_hop['shortChannelId']
         if _defined(ecl_hop, 'feeBaseMsat'):
-            grpc_hop.fee_base_bits = convert(context, Enf.MSATS,
-                                             ecl_hop['feeBaseMsat'])
+            grpc_hop.fee_base_msat = ecl_hop['feeBaseMsat']
         if _defined(ecl_hop, 'feeProportionalMillionths'):
             grpc_hop.fee_proportional_millionths = ecl_hop[
                 'feeProportionalMillionths']

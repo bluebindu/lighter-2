@@ -1,5 +1,3 @@
-#!/usr/bin/env bash
-#
 # Copyright (C) 2018 inbitcoin s.r.l.
 #
 # This program is free software: you can redistribute it and/or modify
@@ -15,21 +13,15 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Activates virtual environment
-. "$ENV/bin/activate"
+""" Fixtures for lighter module """
 
-# Exports variables so they are available to python
-# Overrides cofiguration variables for docker environment
-set -a
-. "$APP_DIR/lighter-data/config"
-. "$APP_DIR/unix_make.sh"
-docker_bash_env
-set_defaults
-set +a
+class FakeMetadatum():
+    def __init__(self, key, value):
+        self.key = key
+        self.value = value
 
-# Sets ownership
-[ -z "$MYUID" ] || usermod -u "$MYUID" "$USER"
-chown -R --silent "$USER" "$APP_DIR"
 
-# Starts lighter
-exec gosu "$USER" python3 -u main.py $VERSION
+METADATA = (
+    FakeMetadatum(key='macaroon', value='stuff'),
+    FakeMetadatum(key='user-agent', value='stuff')
+)

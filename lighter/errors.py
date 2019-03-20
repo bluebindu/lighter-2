@@ -34,6 +34,10 @@ ERRORS = {
         'code': 'CANCELLED',
         'msg': 'Connection to peer failed'
     },
+    'db_error': {
+        'code': 'CANCELLED',
+        'msg': 'Error accessing database'
+    },
     'incorrect_description': {
         'code': 'INVALID_ARGUMENT',
         'msg': 'Provided description doesn\'t match the payment request one'
@@ -66,6 +70,10 @@ ERRORS = {
         'code': 'UNAVAILABLE',
         'msg': '[node error] %PARAM%'
     },
+    'openchannel_failed': {
+        'code': 'CANCELLED',
+        'msg': 'Failed to open channel'
+    },
     'out_of_range': {
         'code': 'OUT_OF_RANGE',
         'msg': 'Parameter "%PARAM%" out of range'
@@ -97,6 +105,10 @@ ERRORS = {
     'value_too_high': {
         'code': 'OUT_OF_RANGE',
         'msg': 'Value exceeds maximum treshold'
+    },
+    'wrong_password': {
+        'code': 'INVALID_ARGUMENT',
+        'msg': 'Wrong password'
     },
     # Fallback
     'unexpected_error': {

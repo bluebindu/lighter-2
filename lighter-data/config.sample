@@ -8,13 +8,13 @@
 # Possible values: clightning, eclair, lnd (case-insensitive)
 # IMPLEMENTATION=""
 
-# If set to 1, Lighter listens to port 17080 in cleartext
+# If set to 1, Lighter listens in cleartext
+# Note: implies disable of macaroons
 # Possible values: 0, 1
-# ALLOW_INSECURE_CONNECTION="0"
+# INSECURE_CONNECTION="0"
 
-# If set to 1, Lighter listens to port 17443 with TLSv1.2
-# Possible values: 0, 1
-# ALLOW_SECURE_CONNECTION="0"
+# Set Lighter's listening port
+# PORT="1708"
 
 # Specifies the private key path
 # SERVER_KEY="./lighter-data/certs/server.key"
@@ -24,6 +24,16 @@
 
 # Specifies the location which will contain logs
 # LOGS_DIR="./lighter-data/logs"
+
+# Specifies the location which will contain database
+# DB_DIR="./lighter-data/db"
+
+# Specifies the location which will contain macaroons
+# MACAROONS_DIR="./lighter-data/macaroons"
+
+# If set to 1, macaroons authorization check will be disabled
+# Note: do not disable macaroons in production
+# DISABLE_MACAROONS="0"
 
 # If set to 1, make run executes Lighter in docker
 # If set to 0, make run executes Lighter locally
@@ -66,9 +76,6 @@
 # Specifies eclair port
 # ECL_PORT="8080"
 
-# Specifies eclair password
-# ECL_PASS=""
-
 
 ### lnd ###
 
@@ -83,11 +90,5 @@
 
 # Specifies the lnd certificate file, relative to LND_CERT_DIR
 # LND_CERT="tls.cert"
-
-# Specifies the location containing the macaroon file
-# LND_MACAROON_DIR=""
-
-# Specifies the macaroon file, relative to LND_MACAROON_DIR
-# LND_MACAROON="admin.macaroon"
 
 ###############################################################################

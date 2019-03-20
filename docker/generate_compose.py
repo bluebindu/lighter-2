@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Generator of a compose file for running lighter in docker """
+""" Generator of a compose file to run Lighter in docker """
 
 import sys
 
@@ -36,7 +36,7 @@ HEADER = [
     '        max-size: "77m"',
     '        max-file: "7"',
     '    container_name: lighter',
-    '    restart: "unless-stopped"'
+    '    restart: "unless-stopped"',
 ]
 
 VOLUMES_COMMON = [
@@ -46,7 +46,11 @@ VOLUMES_COMMON = [
     '      - {}:{}/lighter-data/certs/server.key:ro'.format(
         env['SERVER_KEY'], env['APP_DIR']),
     '      - {}:{}/lighter-data/certs/server.crt:ro'.format(
-        env['SERVER_CRT'], env['APP_DIR'])
+        env['SERVER_CRT'], env['APP_DIR']),
+    '      - {}:{}/lighter-data/db'.format(
+        env['DB_DIR'], env['APP_DIR']),
+    '      - {}:{}/lighter-data/macaroons'.format(
+        env['MACAROONS_DIR'], env['APP_DIR']),
 ]
 
 VOLUMES_IMPLEMENTATIONS = {
@@ -58,7 +62,7 @@ VOLUMES_IMPLEMENTATIONS = {
     },
     'lnd': {
         'LND_CERT_DIR': '/srv/lnd/certs:ro',
-        'LND_MACAROON_DIR': '/srv/lnd/macaroons:ro'
+        'LND_MAC': '/srv/lnd/tmp/lnd.macaroon:ro'
     }
 }
 
@@ -67,11 +71,17 @@ NETWORKS = ['networks:']
 VOLUMES = ['volumes:']
 
 
+def _exit(message):
+    """ Exits printing a message """
+    print(message)
+    sys.exit(1)
+
+
 def _render_compose(implementation):
     """ Extends the compose list in the right order """
     COMPOSE.extend(HEADER)
+    _add_myuid()
     COMPOSE.extend(VOLUMES_COMMON)
-
     _add_volumes(implementation)
     _add_ports()
     _add_network(env.get('DOCKER_NET'))
@@ -80,6 +90,14 @@ def _render_compose(implementation):
         if len(section) > 1:
             COMPOSE.extend([''])
             COMPOSE.extend(section)
+
+
+def _add_myuid():
+    """ Adds MYUID as a docker environemnt variable, if shell var is set """
+    myuid = env.get('MYUID')
+    if myuid:
+        COMPOSE.extend(['    environment:',
+                        '        MYUID: {}'.format(myuid)])
 
 
 def _add_volumes(implementation):
@@ -112,12 +130,9 @@ def _declare_volume(volume):
 def _add_ports():
     """ Exposes allowed ports """
     ports = ['    ports:']
-    available_ports = {
-        'ALLOW_INSECURE_CONNECTION': '17080:17080',
-        'ALLOW_SECURE_CONNECTION': '17443:17443'}
-    for key, port in available_ports.items():
-        if _is_port_allowed(env.get(key)):
-            ports.extend(['      - {}'.format(port)])
+    port = env.get('PORT')
+    if _is_port_allowed(port):
+        ports.extend(['      - {}:{}'.format(port, port)])
     if len(ports) > 1:
         COMPOSE.extend(ports)
 
@@ -127,7 +142,7 @@ def _is_port_allowed(port):
     try:
         return int(port)
     except Exception:
-        return 0
+        _exit('Invalid port')
 
 
 def _add_network(docker_net):
@@ -158,12 +173,11 @@ def generate_compose():
     Lighter's config variables
     """
     try:
-        implementation = env['IMPLEMENTATION']
+        implementation = env['IMPLEMENTATION'].lower()
         _render_compose(implementation)
         _write_file('compose.yml')
     except KeyError as err:
-        print('{} environment variable needs to be set'.format(err))
-        sys.exit(1)
+        _exit('{} environment variable needs to be set'.format(err))
 
 
 if __name__ == '__main__':

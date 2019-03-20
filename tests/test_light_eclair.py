@@ -31,46 +31,21 @@ CTX = 'context'
 class LightEclairTests(TestCase):
     """ Tests for light_eclair module """
 
-    @patch('lighter.light_eclair._set_credentials', autospec=True)
-    def test_update_settings(self, mocked_set_creds):
+    def test_update_settings(self):
+        password = b'password'
         # Correct case
         reset_mocks(vars())
         values = {
             'ECL_HOST': 'eclair',
             'ECL_PORT': '8080',
-            'ECL_PASS': 'sette'
         }
         with patch.dict('os.environ', values):
-            MOD.update_settings()
+            MOD.update_settings(password)
         ecl_cli_path = '/srv/app/lighter/eclair-cli'
-        mocked_set_creds.assert_called_once_with(
-            ecl_cli_path, values['ECL_HOST'], values['ECL_PORT'],
-            values['ECL_PASS'])
-        self.assertEqual(settings.CMD_BASE, [ecl_cli_path])
-        # Missing variable case
-        reset_mocks(vars())
-        settings.CMD_BASE = ''
-        values = {}
-        with patch.dict('os.environ', values):
-            with self.assertRaises(KeyError):
-                MOD.update_settings()
-        assert not mocked_set_creds.called
-        self.assertEqual(settings.CMD_BASE, '')
-
-    @patch('lighter.light_eclair.FileInput', autospec=True)
-    def test_set_credentials(self, mocked_fileinput):
-        # Correct case
-        file = ["lorem", "URL='localhost'", "PASSWORD='secret'", "ipsum"]
-        mocked_fileinput.return_value.__enter__.return_value = file
-        calls = [
-            call("lorem"),
-            call("URL='ip:port'"),
-            call("PASSWORD='psw'"),
-            call("ipsum")
-        ]
-        with mock.patch('lighter.light_eclair.print') as mocked_print:
-            MOD._set_credentials('cli', 'ip', 'port', 'psw')
-            mocked_print.assert_has_calls(calls)
+        self.assertEqual(
+            settings.CMD_BASE,
+            [ecl_cli_path, '-a', '{}:{}'.format(
+                values['ECL_HOST'], values['ECL_PORT'])])
 
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair.command', autospec=True)
@@ -78,7 +53,7 @@ class LightEclairTests(TestCase):
         # Testnet case
         mocked_command.return_value = fix.GETINFO_TESTNET
         res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo')
+        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.GETINFO_TESTNET, always_abort=False)
         self.assertEqual(res.network, 'testnet')
@@ -86,7 +61,7 @@ class LightEclairTests(TestCase):
         reset_mocks(vars())
         mocked_command.return_value = fix.GETINFO_MAINNET
         res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo')
+        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.GETINFO_MAINNET, always_abort=False)
         self.assertEqual(res.network, 'mainnet')
@@ -94,7 +69,7 @@ class LightEclairTests(TestCase):
         reset_mocks(vars())
         mocked_command.return_value = fix.GETINFO_UNKNOWN
         res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo')
+        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.GETINFO_UNKNOWN, always_abort=False)
         self.assertEqual(res.network, 'unknown')
@@ -102,7 +77,7 @@ class LightEclairTests(TestCase):
         reset_mocks(vars())
         mocked_command.return_value = fix.GETINFO
         res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo')
+        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
         self.assertEqual(res.network, 'testnet')
         self.assertEqual(res.identity_pubkey, 'id')
         self.assertEqual(res.alias, 'pie')
@@ -111,7 +86,7 @@ class LightEclairTests(TestCase):
         reset_mocks(vars())
         mocked_command.return_value = fix.STRANGERESPONSE
         res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo')
+        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.STRANGERESPONSE, always_abort=False)
         self.assertEqual(res, pb.GetInfoResponse())
@@ -122,7 +97,7 @@ class LightEclairTests(TestCase):
         res = 'not set'
         with self.assertRaises(Exception):
             res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo')
+        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
@@ -137,7 +112,8 @@ class LightEclairTests(TestCase):
         mocked_conv.return_value = 0.0
         res = MOD.ChannelBalance('request', CTX)
         mocked_command.assert_called_with(CTX, 'channel',
-                                          fix.CHANNELS_ONE[0]['channelId'])
+                                          fix.CHANNELS_ONE[0]['channelId'],
+                                          env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.CHANNELS_ONE, always_abort=False)
         mocked_conv.assert_called_once_with(CTX, Enf.MSATS, 0.0)
@@ -148,7 +124,7 @@ class LightEclairTests(TestCase):
         mocked_command.return_value = []
         mocked_conv.return_value = 0.0
         res = MOD.ChannelBalance('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'channels')
+        mocked_command.assert_called_once_with(CTX, 'channels', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, mocked_command.return_value, always_abort=False)
         mocked_conv.assert_called_once_with(CTX, Enf.MSATS, 0.0)
@@ -159,7 +135,7 @@ class LightEclairTests(TestCase):
     def test_ListPeers(self, mocked_command, mocked_check_err):
         mocked_command.return_value = fix.PEERS2
         res = MOD.ListPeers('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'peers')
+        mocked_command.assert_called_once_with(CTX, 'peers', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, mocked_command.return_value, always_abort=False)
         self.assertEqual(res.peers[0].pubkey, 'pubkey_2')
@@ -167,7 +143,7 @@ class LightEclairTests(TestCase):
         reset_mocks(vars())
         mocked_command.return_value = []
         res = MOD.ListPeers('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'peers')
+        mocked_command.assert_called_once_with(CTX, 'peers', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, mocked_command.return_value, always_abort=False)
         self.assertEqual(res, pb.ListPeersResponse())
@@ -181,8 +157,9 @@ class LightEclairTests(TestCase):
         request = pb.ListChannelsRequest(active_only=True)
         res = MOD.ListChannels(request, CTX)
         calls = [
-            call(CTX, 'channels'),
-            call(CTX, 'channel', fix.CHANNELS_ONE[0]['channelId'])
+            call(CTX, 'channels', env=settings.ECL_ENV),
+            call(CTX, 'channel', fix.CHANNELS_ONE[0]['channelId'],
+                 env=settings.ECL_ENV)
         ]
         mocked_command.assert_has_calls(calls)
         mocked_add.assert_called_once_with(
@@ -196,8 +173,9 @@ class LightEclairTests(TestCase):
         request = pb.ListChannelsRequest(active_only=False)
         res = MOD.ListChannels(request, CTX)
         calls = [
-            call(CTX, 'channels'),
-            call(CTX, 'channel', fix.CHANNELS_ONE[0]['channelId'])
+            call(CTX, 'channels', env=settings.ECL_ENV),
+            call(CTX, 'channel', fix.CHANNELS_ONE[0]['channelId'],
+                 env=settings.ECL_ENV)
         ]
         mocked_command.assert_has_calls(calls)
         mocked_add.assert_called_once_with(
@@ -211,7 +189,8 @@ class LightEclairTests(TestCase):
         mocked_check_err.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.ListChannels('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'channels')
+        mocked_command.assert_called_once_with(
+            CTX, 'channels', env=settings.ECL_ENV)
         assert not mocked_add.called
 
     @patch('lighter.light_eclair._handle_error', autospec=True)
@@ -230,8 +209,9 @@ class LightEclairTests(TestCase):
         mocked_conv.assert_called_once_with(
             CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
         calls = [
-            call(CTX, 'receive', '77700000', 'aaa zzz', '1666'),
-            call(CTX, 'checkinvoice', 'lntb1pdkq')
+            call(CTX, 'receive', '77700000', 'aaa zzz', '1666',
+                 env=settings.ECL_ENV),
+            call(CTX, 'checkinvoice', 'lntb1pdkq', env=settings.ECL_ENV)
         ]
         mocked_command.assert_has_calls(calls)
         mocked_check_err.assert_called_with(
@@ -247,8 +227,9 @@ class LightEclairTests(TestCase):
         res = MOD.CreateInvoice(request, CTX)
         assert not mocked_err().unsettable.called
         calls = [
-            call(CTX, 'receive', settings.DEFAULT_DESCRIPTION),
-            call(CTX, 'checkinvoice', 'lntb1pdkq')
+            call(CTX, 'receive', settings.DEFAULT_DESCRIPTION,
+                 env=settings.ECL_ENV),
+            call(CTX, 'checkinvoice', 'lntb1pdkq', env=settings.ECL_ENV)
         ]
         mocked_command.assert_has_calls(calls)
         mocked_check_err.assert_called_with(
@@ -281,7 +262,8 @@ class LightEclairTests(TestCase):
         request = pb.CreateInvoiceRequest(description='aaa zzz')
         mocked_command.side_effect = ['', 'badresponse']
         MOD.CreateInvoice(request, CTX)
-        mocked_command.assert_called_with(CTX, 'checkinvoice', '')
+        mocked_command.assert_called_with(
+            CTX, 'checkinvoice', '', env=settings.ECL_ENV)
         mocked_check_err.assert_called_with(
             CTX, 'badresponse', always_abort=False)
 
@@ -294,7 +276,7 @@ class LightEclairTests(TestCase):
         mocked_command.return_value = True
         res = MOD.CheckInvoice(request, CTX)
         mocked_command.assert_called_once_with(CTX, 'checkpayment',
-                                               'random')
+                                               'random', env=settings.ECL_ENV)
         assert not mocked_err().invalid.called
         self.assertEqual(res.settled, True)
         # Missing parameter case
@@ -312,8 +294,8 @@ class LightEclairTests(TestCase):
         res = 'not set'
         with self.assertRaises(Exception):
             res = MOD.CheckInvoice(request, CTX)
-        mocked_command.assert_called_once_with(CTX, 'checkpayment',
-                                               'incorrect')
+        mocked_command.assert_called_once_with(
+            CTX, 'checkpayment', 'incorrect', env=settings.ECL_ENV)
         mocked_err().invalid.assert_called_once_with(CTX, 'payment_hash')
         self.assertEqual(res, 'not set')
 
@@ -338,7 +320,7 @@ class LightEclairTests(TestCase):
         mocked_conv.assert_called_once_with(
             CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)
         mocked_command.assert_called_once_with(CTX, 'send', 'random',
-                                               '7770000')
+                                               '7770000', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.SEND, always_abort=False)
         self.assertEqual(res.payment_preimage, fix.SEND['paymentPreimage'])
@@ -352,7 +334,7 @@ class LightEclairTests(TestCase):
         mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
-        mocked_command.assert_called_once_with(CTX, 'send', 'random')
+        mocked_command.assert_called_once_with(CTX, 'send', 'random', env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.SEND, always_abort=False)
         self.assertEqual(res.payment_preimage, fix.SEND['paymentPreimage'])
@@ -408,7 +390,8 @@ class LightEclairTests(TestCase):
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         mocked_command.assert_called_once_with(CTX, 'send',
-                                               request.payment_request)
+                                               request.payment_request,
+                                               env=settings.ECL_ENV)
         mocked_err().invalid.assert_called_once_with(CTX, 'payment_request')
         assert not mocked_check_err.called
         # Strange error case
@@ -422,7 +405,8 @@ class LightEclairTests(TestCase):
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         mocked_command.assert_called_once_with(CTX, 'send',
-                                               request.payment_request)
+                                               request.payment_request,
+                                               env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.STRANGERESPONSE, always_abort=False)
         self.assertEqual(res, pb.PayInvoiceResponse())
@@ -440,7 +424,8 @@ class LightEclairTests(TestCase):
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         mocked_command.assert_called_once_with(CTX, 'send',
-                                               request.payment_request)
+                                               request.payment_request,
+                                               env=settings.ECL_ENV)
         mocked_check_err.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
@@ -459,7 +444,7 @@ class LightEclairTests(TestCase):
         mocked_conv.return_value = 7.77
         res = MOD.DecodeInvoice(request, CTX)
         mocked_command.assert_called_once_with(CTX, 'checkinvoice',
-                                               'random')
+                                               'random', env=settings.ECL_ENV)
         assert not mocked_err().invoice_incorrect.called
         mocked_conv.assert_called_once_with(CTX, Enf.MSATS,
                                             fix.CHECKINVOICE_HASH['amount'])
@@ -484,7 +469,7 @@ class LightEclairTests(TestCase):
         mocked_conv.return_value = 20000
         res = MOD.DecodeInvoice(request, CTX)
         mocked_command.assert_called_once_with(CTX, 'checkinvoice',
-                                               'random')
+                                               'random', env=settings.ECL_ENV)
         assert not mocked_err().invoice_incorrect.called
         mocked_conv.assert_called_once_with(CTX, Enf.MSATS,
                                             fix.CHECKINVOICE_DESC['amount'])
@@ -519,7 +504,7 @@ class LightEclairTests(TestCase):
         with self.assertRaises(Exception):
             res = MOD.DecodeInvoice(request, CTX)
         mocked_command.assert_called_once_with(CTX, 'checkinvoice',
-                                               'random')
+                                               'random', env=settings.ECL_ENV)
         mocked_err().invalid.assert_called_once_with(CTX, 'payment_request')
         assert not mocked_conv.called
         assert not mocked_add.called
@@ -533,7 +518,8 @@ class LightEclairTests(TestCase):
         with self.assertRaises(Exception):
             res = MOD.DecodeInvoice(request, CTX)
         mocked_command.assert_called_once_with(CTX, 'checkinvoice',
-                                               'something')
+                                               'something',
+                                               env=settings.ECL_ENV)
         assert not mocked_conv.called
         assert not mocked_add.called
         mocked_check_err.assert_called_once_with(
@@ -577,21 +563,16 @@ class LightEclairTests(TestCase):
         self.assertEqual(response.channels[0].remote_balance, 20000)
         self.assertEqual(response.channels[0].capacity, 20000)
 
-    @patch('lighter.light_eclair.convert', autospec=True)
-    def test_add_route_hint(self, mocked_conv):
+    def test_add_route_hint(self):
         response = pb.DecodeInvoiceResponse()
         ecl_route = fix.CHECKINVOICE_HASH['tags'][3]['path']
-        mocked_conv.side_effect = [0.00001, 0.00002]
-        res = MOD._add_route_hint(CTX, response, ecl_route)
-        calls = [call(CTX, Enf.MSATS, 1), call(CTX, Enf.MSATS, 2)]
-        mocked_conv.assert_has_calls(calls)
+        res = MOD._add_route_hint(response, ecl_route)
         self.assertEqual(res, None)
         self.assertEqual(response.route_hints[0].hop_hints[0].pubkey,
                          ecl_route[0]['nodeId'])
         self.assertEqual(response.route_hints[0].hop_hints[0].short_channel_id,
                          ecl_route[0]['shortChannelId'])
-        self.assertEqual(response.route_hints[0].hop_hints[0].fee_base_bits,
-                         0.00001)
+        self.assertEqual(response.route_hints[0].hop_hints[0].fee_base_msat, 1)
         self.assertEqual(
             response.route_hints[0].hop_hints[0].fee_proportional_millionths,
             ecl_route[0]['feeProportionalMillionths'])
@@ -602,8 +583,7 @@ class LightEclairTests(TestCase):
                          ecl_route[1]['nodeId'])
         self.assertEqual(response.route_hints[0].hop_hints[1].short_channel_id,
                          ecl_route[1]['shortChannelId'])
-        self.assertEqual(response.route_hints[0].hop_hints[1].fee_base_bits,
-                         0.00002)
+        self.assertEqual(response.route_hints[0].hop_hints[1].fee_base_msat, 2)
         self.assertEqual(
             response.route_hints[0].hop_hints[1].fee_proportional_millionths,
             ecl_route[1]['feeProportionalMillionths'])

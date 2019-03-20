@@ -15,17 +15,36 @@
 
 """ Configuration settings module for Lighter """
 
+from os import path
+
+
 # Empty variables are set at runtime
+# Some variables contain default values, cpuld be overwritten
 
 IMPLEMENTATION = ''
 
+L_DATA = './lighter-data'
+
 HOST = '0.0.0.0'
-INSECURE_CONN = 0
-INSECURE_PORT = '17080'
-SECURE_CONN = 0
-SECURE_PORT = '17443'
-SERVER_KEY = ''
-SERVER_CRT = ''
+PORT = '1708'
+LIGHTER_ADDR = ''
+INSECURE_CONNECTION = 0
+SERVER_KEY = path.join(L_DATA, 'certs/server.key')
+SERVER_CRT = path.join(L_DATA, 'certs/server.crt')
+DB_DIR = path.join(L_DATA, 'db')
+DB_NAME = 'lighter.db'
+NO_SECRETS = 0
+LOGS_DIR = path.join(L_DATA, 'logs')
+CERTS_DIR = path.join(L_DATA, 'certs')
+
+# Macaroons settings
+UNLOCKER_STOP = False
+LIGHTNING_BAKERY = None
+DISABLE_MACAROONS = 0
+MACAROONS_DIR = path.join(L_DATA, 'macaroons')
+MAC_ADMIN = 'admin.macaroon'
+MAC_READONLY = 'readonly.macaroon'
+MAC_INVOICES = 'invoices.macaroon'
 
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
 GRPC_WORKERS = 10
@@ -37,20 +56,34 @@ ENFORCE = True
 TEST_HASH = '43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000'
 MAIN_HASH = '6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000'
 
-DEFAULT_DESCRIPTION = 'Lighter invoice'
-
 # Cli-based implementations settings
 CMD_BASE = []
-CMD_TIMEOUT = 30
 
-# Lnd specific settings
+# c-lightning specific settings
+CL_CLI = 'lightning-cli'
+CL_RPC = 'lightning-rpc'
+
+# eclair specific settings
+ECL_HOST = 'localhost'
+ECL_PORT = 8080
+ECL_ENV = ''
+
+# lnd specific settings
+LND_HOST = 'localhost'
+LND_PORT = 10009
+LND_CERT = 'tls.cert'
 LND_ADDR = ''
 LND_CREDS = ''
+LND_MAC = ''
 
+# Common settings
+IMPL_TIMEOUT = 7
 MAX_INVOICES = 200
 INVOICES_TIMES = 3
+DEFAULT_DESCRIPTION = 'Lighter invoice'
 
 LOG_TIMEFMT = '%Y-%m-%d %H:%M:%S %z'
+LOG_TIMEFMT_SIMPLE = '%d %b %H:%M:%S'
 
 LOGGING = {
     'version': 1,
@@ -62,7 +95,8 @@ LOGGING = {
             'datefmt': LOG_TIMEFMT
         },
         'simple': {
-            'format': '%(levelname)s: %(message)s'
+            'format': '%(asctime)s %(levelname).3s: %(message)s',
+            'datefmt': LOG_TIMEFMT_SIMPLE
         },
     },
     'handlers': {
@@ -90,3 +124,93 @@ FILE_LOGGING = {
         'formatter': 'verbose'
     }
 }
+
+UNLOCK_PERMISSIONS = {
+    '/lighter.Unlocker/UnlockLighter': {
+        'entity': 'root',
+        'action': 'unlock'
+    }
+}
+
+READ_PERMS = {
+    '/lighter.Lightning/ChannelBalance': {
+        'entity': 'offchain',
+        'action': 'read'
+    },
+    '/lighter.Lightning/CheckInvoice': {
+        'entity': 'invoices',
+        'action': 'read'
+    },
+    '/lighter.Lightning/DecodeInvoice': {
+        'entity': 'offchain',
+        'action': 'read'
+    },
+    '/lighter.Lightning/GetInfo': {
+        'entity': 'info',
+        'action': 'read'
+    },
+    '/lighter.Lightning/ListChannels': {
+        'entity': 'offchain',
+        'action': 'read'
+    },
+    '/lighter.Lightning/ListInvoices': {
+        'entity': 'offchain',
+        'action': 'read'
+    },
+    '/lighter.Lightning/ListPayments': {
+        'entity': 'offchain',
+        'action': 'read'
+    },
+    '/lighter.Lightning/ListPeers': {
+        'entity': 'peers',
+        'action': 'read'
+    },
+    '/lighter.Lightning/ListTransactions': {
+        'entity': 'onchain',
+        'action': 'read'
+    },
+    '/lighter.Lightning/WalletBalance': {
+        'entity': 'onchain',
+        'action': 'read'
+    },
+}
+
+WRITE_PERMISSIONS = {
+    '/lighter.Lightning/CreateInvoice': {
+        'entity': 'invoices',
+        'action': 'write'
+    },
+    '/lighter.Lightning/NewAddress': {
+        'entity': 'address',
+        'action': 'write'
+    },
+    '/lighter.Lightning/OpenChannel': {
+        'entity': 'onchain',
+        'action': 'write'
+    },
+    '/lighter.Lightning/PayInvoice': {
+        'entity': 'offchain',
+        'action': 'write'
+    },
+    '/lighter.Lightning/PayOnChain': {
+        'entity': 'onchain',
+        'action': 'write'
+    },
+}
+
+INVOICE_PERMS = {
+    '/lighter.Lightning/CheckInvoice': {
+        'entity': 'invoices',
+        'action': 'read'
+    },
+    '/lighter.Lightning/CreateInvoice': {
+        'entity': 'invoices',
+        'action': 'write'
+    },
+    '/lighter.Lightning/GetInfo': {
+        'entity': 'info',
+        'action': 'read'
+    },
+}
+
+ALL_PERMS = {**READ_PERMS, **WRITE_PERMISSIONS}
