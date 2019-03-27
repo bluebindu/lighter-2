@@ -26,7 +26,7 @@ COM_DEPS    = id rm tr virtualenv
 ECL_DEPS    = curl jq
 LND_DEPS    = curl unzip
 
-COM_PIPS    = grpcio==1.19.0 grpcio-tools==1.19.0 pymacaroons==0.13.0 macaroonbakery==1.2.1 pylibscrypt==1.7.1 pynacl==1.3.0
+COM_PIPS    = grpcio==1.19.0 grpcio-tools==1.19.0 pymacaroons==0.13.0 macaroonbakery==1.2.1 pylibscrypt==1.7.1 pynacl==1.3.0 click==7.0 protobuf==3.7.1
 DEV_PIPS    = pytest-cov pylint pycodestyle
 LND_PIPS    = googleapis-common-protos==1.5.8
 
@@ -62,6 +62,9 @@ secure:
 run:
 	@ $(SCRIPT) run $(CONFIG_FILE) $(VERSION)
 
+cli:
+	@ $(SCRIPT) cli $(CONFIG_FILE) $(VERSION)
+
 logs:
 	@ $(SCRIPT) logs
 
@@ -84,6 +87,7 @@ help:
 	@ echo " - docker:       builds Lighter docker image"
 	@ echo " - secure:       handles Lighter and implementation secrets"
 	@ echo " - run:          runs Lighter (in docker or locally)"
+	@ echo " - cli:          runs an environment to call lit-cli (in docker or locally)"
 	@ echo " - logs:         shows Lighter logs (in docker)"
 	@ echo " - stop:         stops Lighter (in docker), removing all anonymous volumes attached to it"
 	@ echo " - clean:        removes Lighter virtualenv"
@@ -140,4 +144,4 @@ build_lnd:
 	@ $(SCRIPT) build_lnd
 
 
-.PHONY: all clightning eclair lnd docker secure run logs stop clean test lint help
+.PHONY: all clightning eclair lnd docker secure run cli logs stop clean test lint help

@@ -121,6 +121,8 @@ def get_start_options():
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
     if sett.DISABLE_MACAROONS and sett.IMPLEMENTATION == 'clightning':
         sett.NO_SECRETS = True
+    sett.CLI_HOST = env.get('CLI_HOST', sett.CLI_HOST)
+    sett.CLI_ADDR = '{}:{}'.format(sett.CLI_HOST, sett.PORT)
 
 
 def str2bool(string, force_true=False):

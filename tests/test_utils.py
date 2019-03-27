@@ -112,6 +112,7 @@ class UtilsTests(TestCase):
             'SERVER_KEY': 'key',
             'DB_DIR': 'mac_db_dir',
             'MACAROONS_DIR': 'mac_dir',
+            'CLI_HOST': 'cli',
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options()
@@ -120,6 +121,7 @@ class UtilsTests(TestCase):
         values = {
             'IMPLEMENTATION': 'asd',
             'INSECURE_CONNECTION': '1',
+            'CLI_HOST': 'cli',
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options()
@@ -131,6 +133,7 @@ class UtilsTests(TestCase):
             'IMPLEMENTATION': 'clightning',
             'INSECURE_CONNECTION': '1',
             'DISABLE_MACAROONS': '1',
+            'CLI_HOST': 'cli',
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options()

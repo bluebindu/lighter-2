@@ -27,14 +27,15 @@ COPY lighter/lighter.proto $L_DIR
 # Install Lighter for all implementations
 RUN make build
 
-COPY docker/start-lighter.sh docker/start-secure.sh \
-     /usr/local/bin/
+COPY docker/start-lighter.sh docker/start-cli.sh \
+     docker/start-secure.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/start-lighter.sh \
+             /usr/local/bin/start-cli.sh \
              /usr/local/bin/start-secure.sh
 
 RUN mkdir -p $APP_DIR/lighter-data/db $APP_DIR/lighter-data/macaroons
 
-COPY main.py secure.py ./
+COPY main.py lit_cli.py setup.py secure.py ./
 COPY lighter/__init__.py lighter/lighter.py lighter/macaroons.py lighter/settings.py $L_DIR/
 COPY lighter/utils.py lighter/errors.py lighter/light_* $L_DIR/
 
