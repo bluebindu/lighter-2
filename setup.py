@@ -19,7 +19,7 @@ from setuptools import setup
 
 setup(
     name='lit-cli',
-    version='0.2.2',
+    version='1.0.0',
     py_modules=['lit-cli'],
     install_requires=[
         'Click',

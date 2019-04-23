@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 NAME        = lighter
-VERSION    ?= 0.2.2
+VERSION    ?= 1.0.0
 
 DOCKER_NS  ?= inbitcoin
 DOCKER_REPO = $(DOCKER_NS)/$(NAME)

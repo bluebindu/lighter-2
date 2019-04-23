@@ -33,7 +33,7 @@ Currently, it supports the main LN implementations:
 - [c-lightning](https://github.com/ElementsProject/lightning) (v0.7.0) by
   Blockstream
 - [eclair](https://github.com/ACINQ/eclair) (v0.2-beta9) by Acinq
-- [lnd](https://github.com/lightningnetwork/lnd) (v0.5.2-beta) by Lightning Labs
+- [lnd](https://github.com/lightningnetwork/lnd) (v0.6-beta) by Lightning Labs
 
 
 #### How it works
@@ -48,7 +48,9 @@ From the Lighter user's point of view, implementation-specific configuration
 variables and software dependencies are the only differences between the
 various supported implementations.
 
-Stay tuned for future improvements. Better security is coming (hint: macaroons).
+To secure Lighter we use macaroons as authorization mechanism.
+See [Security](/doc/security.md) to get more information on how Lighter is
+secured.
 
 
 # Requirements
@@ -71,11 +73,11 @@ dependencies, based on its configuration.
 ### System dependencies
 
 - **common**
-    - virtualenv
-    - make
     - bash
-    - rm
+    - make
+    - virtualenv
     - which
+    - [optional] libscrypt 1.8+ (faster start)
 
 - **locally**
     - Linux <sup>1</sup>
@@ -151,74 +153,40 @@ $ make docker
 
 #### Notes
 
-1. _supported architectures: amd64, arm32v7_
+1. _supported architectures: amd64, arm32v7 (may require additional
+    dependencies)_
 
 
 # Configuring
 
-All configuration options can be set in the `lighter-data/config` file.
-See [config.sample](/lighter-data/config.sample) for a commented example.
-If run without a config file, the example file will be copied in place and
-left behind for the user to edit.
-
-Paths are relative to the project directory, unless otherwise stated.
-
-### Lighter settings
-
-| Variable                      | Description                                                                |
-| ----------------------------- | -------------------------------------------------------------------------- |
-| `IMPLEMENTATION` <sup>1</sup> | Implementation to use (possible values: `clightning`, `eclair`, `lnd`; no default) |
-| `ALLOW_INSECURE_CONNECTION`   | Set to `1` to make Lighter listen to port 17080 in cleartext (default `0`) |
-| `ALLOW_SECURE_CONNECTION`     | Set to `1` to make Lighter listen to port 17443 with TLSv1.2 (default `0`) |
-| `SERVER_KEY` <sup>2</sup>     | Private key path (default `./lighter-data/certs/server.key`)               |
-| `SERVER_CRT` <sup>2</sup>     | Certificate (chain) path (default `./lighter-data/certs/server.crt`)       |
-| `LOGS_DIR`                    | Location <sup>3</sup> to hold log files (default `./lighter-data/logs`)    |
-| `DOCKER`                      | Set to `1` to run Lighter in docker when calling `make run`, set to 0 to run locally (default `1`) |
-| `DOCKER_NS`                   | Namespace for docker image (default `inbitcoin`)                           |
-| `DOCKER_NET`                  | External docker network Lighter's container should be connected to         |
-
-### Implementation settings
-
-| Variable                     | Description                                                     |
-| ---------------------------- | --------------------------------------------------------------- |
-| `CL_CLI_DIR`                 | c-lightning location <sup>3</sup> containing `CL_CLI`           |
-| `CL_CLI`                     | c-lightning  cli binary (relative; default `lightning-cli`)     |
-| `CL_RPC_DIR` <sup>4</sup>    | c-lightning location <sup>3</sup> containing `CL_RPC`           |
-| `CL_RPC` <sup>5</sup>        | c-lightning JSON-RPC socket (relative; default `lightning-rpc`) |
-| `ECL_HOST`                   | eclair host <sup>6</sup> (default `localhost`)                  |
-| `ECL_PORT` <sup>7</sup>      | eclair port (default `8080`)                                    |
-| `ECL_PASS` <sup>8</sup>      | eclair password, which will be filled in eclair-cli at runtime  |
-| `LND_HOST`                   | lnd host <sup>6</sup> (default `localhost`)                     |
-| `LND_PORT`                   | lnd port (default `10009`)                                      |
-| `LND_CERT_DIR`               | lnd location <sup>3</sup> containing `LND_CERT`                 |
-| `LND_CERT`                   | lnd TLS certificate (default `tls.cert`)                        |
-| `LND_MACAROON_DIR` <sup>9</sup> | lnd location <sup>3</sup> containing `LND_MACAROON`          |
-| `LND_MACAROON` <sup>10</sup> | lnd macaroon file (default `admin.macaroon`)                    |
+Lighter needs to be configured before the execution of any other operation
+(`build` excluded).
+See [Configuring](/doc/configuring.md) for instructions on how to configure
+Lighter.
 
 
-#### Notes
+# Securing
 
-1. _implementation value is case-insensitive_
-2. _example self-signed TLS certificate generation one-liner:_
-   `openssl req -newkey rsa:2048 -nodes -keyout server.key -x509 -days 365 -out server.crt -subj "/CN=lighter.example.com"`
-3. _location can be a local directory or the name of an existing docker volume;
-   path can be absolute or relative, if relative it has to start with_ `./`
-4. _option:_ `lightning-dir` _(usually ~/.lightning)_
-5. _option:_ `rpc-file` _(expected to be owned by uid 1000; usually
-   ~/.lightning/lightning-rpc)_
-6. _host can be IP, FQDN or docker container reference (id, name,
-   compose service)_
-7. _option:_ `eclair.api.port` _(usually 8080)_
-8. _option:_ `eclair.api.password` _(to be set on eclair, along with
-   eclair.api to True)_
-9. _implies_ `--no-macaroons` _if unset, enables macaroon support otherwise_
-10. _attention, could impact some Lighter functionalities_
+To handle Lighter and implementation secrets, run:
+```bash
+$ make secure
+```
+
+This creates Lighter's database and macaroon files in their currently
+configured path, eventually asking for implementation secrets.
+If an existing database is found, Lighter will ask to keep the current one
+(to update implementation secrets) or to override it.
+
+All the secrets will be stored in encrypted form (in the database) and only
+made available to Lighter at runtime, after it has been unlocked.
+
+Securing may be optional but is strongly recommended.
+Read [Security](/doc/security.md) for more details.
 
 
 # Running
 
-The following command runs Lighter's gRPC server
-according to the configured scenario.
+To start Lighter's gRPC server, according to the configured scenario, run:
 
 ```bash
 $ make run
@@ -226,12 +194,12 @@ $ make run
 
 #### Additional docker-only commands
 
-Follow logs:
+Follow logs with:
 ```bash
 $ make logs
 ```
 
-Stop the running container:
+Stop the running container with:
 ```bash
 $ make stop
 ```
@@ -240,6 +208,8 @@ $ make stop
 # Using
 
 Lighter can be operated through its gRPC client interface.
+A CLI with bash completion support is also available for maintenance and
+testing.
 
 The `lighter.proto` defines the structure for the data to be serialized
 and can be found [here](/lighter/lighter.proto).
@@ -250,13 +220,22 @@ Protocol buffer data is structured as messages (and enums), where each message
 can contain a series of name-value pairs called fields.
 Several services can be defined in the proto file, each one
 including different methods.
-Our proto file contains one service, _Lightning_, which includes the methods for
-all the supported operations <sup>1</sup>.
+Our proto file contains two services: _Unlocker_ and _Lightning_.
+The former unlocks Lighter.
+The latter only starts after it is unlocked and provides all the supported LN
+node operations <sup>1</sup>.
 
-A set of documentation for the gRPC APIs, along with example code in Python
-and Go, can be found at our
+A set of documentation for the gRPC APIs, along with example code in
+Python, Go, Node.js and Bash can be found at our
 [lighter-doc api page](https://lighter-doc.inbitcoin.it).
 
+To use Lighter's CLI and have a full list of available commands, run:
+```bash
+$ make cli
+$ lit-cli --help
+```
+Note: `make cli` spawns a new shell, configured for `lit-cli`,
+run `exit` to leave environment.
 
 #### Notes
 

@@ -8,8 +8,7 @@
 # Possible values: clightning, eclair, lnd (case-insensitive)
 # IMPLEMENTATION=""
 
-# If set to 1, Lighter listens in cleartext
-# Note: implies disable of macaroons
+# If set to 1, Lighter listens in cleartext (implies DISABLE_MACAROONS="1")
 # Possible values: 0, 1
 # INSECURE_CONNECTION="0"
 
@@ -22,16 +21,16 @@
 # Specifies the certificate (chain) path
 # SERVER_CRT="./lighter-data/certs/server.crt"
 
-# Specifies the location which will contain logs
+# Specifies the location which will contain the logs
 # LOGS_DIR="./lighter-data/logs"
 
-# Specifies the location which will contain database
+# Specifies the location which will contain the database
 # DB_DIR="./lighter-data/db"
 
-# Specifies the location which will contain macaroons
+# Specifies the location which will contain the macaroons
 # MACAROONS_DIR="./lighter-data/macaroons"
 
-# If set to 1, macaroons authorization check will be disabled
+# If set to 1, macaroon authorization will be disabled
 # Note: do not disable macaroons in production
 # DISABLE_MACAROONS="0"
 
