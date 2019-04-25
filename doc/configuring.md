@@ -12,13 +12,13 @@ Paths are relative to the project directory, unless otherwise stated.
 | Variable                      | Description                                                                |
 | ----------------------------- | -------------------------------------------------------------------------- |
 | `IMPLEMENTATION` <sup>1</sup> | Implementation to use (possible values: `clightning`, `eclair`, `lnd`; no default) |
-| `INSECURE_CONNECTION`         | Set to `1` to make Lighter listen in cleartext (default `0`). Implies macaroons disabling. |
+| `INSECURE_CONNECTION`         | Set to `1` to make Lighter listen in cleartext (default `0`). Implies disabling macaroons. |
 | `PORT`                        | Lighter's listening port (default `1708`)                                  |
 | `SERVER_KEY` <sup>2</sup>     | Private key path (default `./lighter-data/certs/server.key`)               |
 | `SERVER_CRT` <sup>2</sup>     | Certificate (chain) path (default `./lighter-data/certs/server.crt`)       |
 | `LOGS_DIR`                    | Location <sup>4</sup> to hold log files (default `./lighter-data/logs`)    |
-| `DB_DIR`                      | Database path (default `./lighter-data/db`)                                |
-| `MACAROONS_DIR`               | Directory in which save macaroons (default `./lighter-data/macaroons`)     |
+| `DB_DIR`                      | Location to hold the database (default `./lighter-data/db`)                |
+| `MACAROONS_DIR`               | Location to hold macaroons (default `./lighter-data/macaroons`)            |
 | `DISABLE_MACAROONS` <sup>3</sup> | Set to `1` to disable macaroons authentication (default `0`)            |
 | `DOCKER`                      | Set to `1` to run Lighter in docker when calling `make run`, set to 0 to run locally (default `1`) |
 | `DOCKER_NS`                   | Namespace for docker image (default `inbitcoin`)                           |
@@ -44,13 +44,15 @@ Paths are relative to the project directory, unless otherwise stated.
 
 1. _implementation value is case-insensitive_
 2. _example self-signed TLS certificate generation one-liner:_
-   `openssl req -newkey rsa:2048 -nodes -keyout server.key -x509 -days 365 -out server.crt -subj "/CN=lighter.example.com"`
-3. _for security reasons Lighter will refuse to start if running on mainnet with macaroons disabled_
+   `openssl req -newkey rsa:2048 -nodes -keyout server.key -x509 -days 365 -out server.crt -subj "/CN=node.example.com" -extensions SAN -config <(cat /etc/ssl/openssl.cnf <(printf "\n[SAN]\nsubjectAltName=DNS:node.example.com,DNS:lighter,DNS:localhost,IP:127.0.0.1,IP:::1"))`
+3. _running Lighter on mainnet with macaroons disabled has severe security
+   implications and is highly discouraged, don't do this unless you know
+   what you're doing_
 4. _location can be a local directory or the name of an existing docker volume;
    path can be absolute or relative, if relative it has to start with_ `./`
 5. _option:_ `lightning-dir` _(usually ~/.lightning)_
-6. _option:_ `rpc-file` _(expected to be owned by uid 1000; usually
-   ~/.lightning/lightning-rpc)_
+6. _option:_ `rpc-file` _the JSON-RPC socket needs to be owned by the same user
+   Lighter is running as_
 7. _host can be IP, FQDN or docker container reference (id, name,
    compose service)_
 8. _option:_ `eclair.api.port` _(usually 8080)_
