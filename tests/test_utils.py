@@ -299,20 +299,22 @@ class UtilsTests(TestCase):
             MOD.check_req_params(CTX, request, 'node_uri', 'funding_bits')
         mocked_err().missing_parameter.assert_called_once_with(CTX, 'node_uri')
 
+    @patch('lighter.utils.log_outro', autospec=True)
     @patch('lighter.utils.sleep', autospec=True)
     @patch('lighter.utils.LOGGER', autospec=True)
-    def test_slow_exit(self, mocked_logger, mocked_sleep):
-        # Filled message
+    def test_slow_exit(self, mocked_logger, mocked_sleep, mocked_logoutro):
+        msg = 'message'
+        # Waiting
         with self.assertRaises(SystemExit):
-            MOD.slow_exit('msg')
-        mocked_logger.error.assert_called_once_with('msg')
+            MOD.slow_exit(msg)
+        mocked_logger.error.assert_called_once_with(msg)
         mocked_sleep.assert_called_once_with(settings.RESTART_THROTTLE)
-        # Empty message
+        # Not waiting
         reset_mocks(vars())
         with self.assertRaises(SystemExit):
-            MOD.slow_exit('')
-        mocked_logger.error.assert_called_once_with('')
-        mocked_sleep.assert_called_once_with(settings.RESTART_THROTTLE)
+            MOD.slow_exit(msg, wait=False)
+        mocked_logger.info.assert_called_once_with(msg)
+        assert not mocked_sleep.called
 
     @patch('lighter.utils.slow_exit', autospec=True)
     def test_handle_keyboardinterrupt(self, mocked_slow_exit):
@@ -331,8 +333,7 @@ class UtilsTests(TestCase):
         self.assertEqual(res, None)
         self.assertEqual(func.call_count, 1)
         grpc_server.stop.assert_called_once_with(settings.GRPC_GRACE_TIME)
-        mocked_slow_exit.assert_called_once_with(
-            'Keyboard interrupt detected. Exiting...', wait=False)
+        assert mocked_slow_exit.called
 
     def test_gen_random_data(self):
         length = 7

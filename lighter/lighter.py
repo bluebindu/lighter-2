@@ -31,7 +31,7 @@ from . import settings
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
 from .utils import check_connection, check_req_params, Crypter, DbHandler, \
-    FakeContext, get_start_options, slow_exit
+    FakeContext, get_start_options, handle_keyboardinterrupt, slow_exit
 
 LOGGER = getLogger(__name__)
 
@@ -67,7 +67,6 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
         mod = import_module('lighter.light_{}'.format(settings.IMPLEMENTATION))
         # Calls the implementation specific update method
         mod.update_settings(plain_secret)
-        Thread(target=check_connection).start()
         settings.UNLOCKER_STOP = True
         return pb.UnlockLighterResponse()
 
@@ -217,6 +216,7 @@ def _log_listening(servicer_name):
             servicer_name, settings.LIGHTER_ADDR)
 
 
+@handle_keyboardinterrupt
 def _unlocker_wait(grpc_server):
     """ Waits a signal to stop the UnlockerServicer """
     while not settings.UNLOCKER_STOP:
@@ -224,6 +224,7 @@ def _unlocker_wait(grpc_server):
     grpc_server.stop(0)
 
 
+@handle_keyboardinterrupt
 def _lightning_wait(_grpc_server):
     """ Keeps the LightningServicer on until a KeyboardInterrupt occurs """
     while True:
@@ -251,9 +252,11 @@ def start():
                 'lighter.light_{}'.format(settings.IMPLEMENTATION))
             # Calls the implementation specific update method
             mod.update_settings(None)
-            Thread(target=check_connection).start()
         else:
             _serve_unlocker()
+        con_thread = Thread(target=check_connection)
+        con_thread.daemon = True
+        con_thread.start()
         _serve_lightning()
     except ImportError:
         slow_exit('{} is not supported'.format(settings.IMPLEMENTATION))

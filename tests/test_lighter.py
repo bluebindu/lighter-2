@@ -33,15 +33,13 @@ class LighterTests(TestCase):
     """ Tests for lighter module """
 
     @patch('lighter.lighter.slow_exit', autospec=True)
-    @patch('lighter.lighter.Thread', autospec=True)
     @patch('lighter.lighter.import_module', autospec=True)
     @patch('lighter.lighter.get_baker', autospec=True)
     @patch('lighter.lighter.DbHandler', autospec=True)
     @patch('lighter.lighter.Crypter', autospec=True)
     @patch('lighter.lighter.check_req_params', autospec=True)
     def test_UnlockLighter(self, mocked_check_par, mocked_crypter, mocked_db,
-                           mocked_baker, mocked_import, mocked_thread,
-                           mocked_slow_exit):
+                           mocked_baker, mocked_import, mocked_slow_exit):
         password = 'password'
         plain_data = 'plain_data'
         request = pb.UnlockLighterRequest(password=password)
@@ -51,8 +49,6 @@ class LighterTests(TestCase):
         mocked_db.get_secret_from_db.return_value = 'secret', 1
         res = MOD.UnlockerServicer().UnlockLighter(request, CTX)
         mocked_import.return_value.update_settings.assert_called_once_with(plain_data)
-        mocked_thread.assert_called_once_with(target=utils.check_connection)
-        mocked_thread.return_value.start.assert_called_once_with()
 
     @patch('lighter.lighter.Err')
     @patch('lighter.lighter.getattr')

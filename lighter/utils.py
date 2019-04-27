@@ -84,7 +84,7 @@ def check_connection():
         try:
             info = getattr(module, 'GetInfo')(request, FakeContext())
         except RuntimeError as err:
-            LOGGER.error('Connection to LN node failed: %s', err)
+            LOGGER.error('Connection to LN node failed: %s', str(err).strip())
         if not info:
             sleep(3)
             continue
@@ -268,14 +268,22 @@ def check_req_params(context, request, *parameters):
 
 
 def slow_exit(message, wait=True):
-    """ Goes to sleep before exiting, useful when autorestarting (docker) """
-    LOGGER.error(message)
+    """
+    Exits with optional sleep, useful when autorestarting (docker).
+    If wait is False, a voluntary exit is assumed.
+    """
+    exit_code = 0
     if wait:
+        LOGGER.error(message)
         LOGGER.info(
             'Sleeping for %s secs before exiting...',
             sett.RESTART_THROTTLE)
         sleep(sett.RESTART_THROTTLE)
-    sys.exit(1)
+        exit_code = 1
+    else:
+        LOGGER.info(message)
+    log_outro()
+    sys.exit(exit_code)
 
 
 def handle_keyboardinterrupt(func):
@@ -288,7 +296,9 @@ def handle_keyboardinterrupt(func):
         except KeyboardInterrupt:
             with suppress(IndexError):
                 args[0].stop(sett.GRPC_GRACE_TIME)
-            slow_exit('Keyboard interrupt detected. Exiting...', wait=False)
+                print()
+            slow_exit('Keyboard interrupt detected. Waiting for threads to '
+                      'complete...', wait=False)
 
     return wrapper
 
