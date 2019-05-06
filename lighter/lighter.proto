@@ -443,6 +443,10 @@ message Invoice {
     Invoice state (paid, pending or expired)
     */
     InvoiceState state = 9;
+    /**
+    Bech32 encoded LN invoice
+    */
+    string payment_request = 10;
 }
 
 /**

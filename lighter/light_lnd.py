@@ -600,7 +600,8 @@ def _add_invoice(context, response, lnd_invoice, invoice_state):
             description_hash=hexlify(lnd_invoice.description_hash),
             expiry_time=lnd_invoice.expiry,
             fallback_addr=lnd_invoice.fallback_addr,
-            state=invoice_state)
+            state=invoice_state,
+            payment_request=lnd_invoice.payment_request)
         for lnd_route in lnd_invoice.route_hints:
             _add_route_hint(invoice, lnd_route)
 
