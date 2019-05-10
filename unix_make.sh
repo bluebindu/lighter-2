@@ -333,6 +333,7 @@ set_lnd_mac() {
 cli() {
 	export config_file="$1" VERSION="$2"
 	_parse_config
+	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
 	if [ "$DOCKER" = "0" ]; then
 		# Local running
