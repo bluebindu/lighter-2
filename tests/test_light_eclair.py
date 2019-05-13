@@ -15,12 +15,11 @@
 """ Tests for light_eclair module """
 
 from importlib import import_module
-from unittest import mock, TestCase
+from unittest import TestCase
 from unittest.mock import call, patch
 
 from lighter import lighter_pb2 as pb
-from lighter import light_eclair, settings
-from lighter.light_eclair import ERRORS
+from lighter import settings
 from lighter.utils import Enforcer as Enf
 from tests import fixtures_eclair as fix
 
@@ -49,148 +48,131 @@ class LightEclairTests(TestCase):
 
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair.command', autospec=True)
-    def test_GetInfo(self, mocked_command, mocked_check_err):
-        # Testnet case
-        mocked_command.return_value = fix.GETINFO_TESTNET
-        res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.GETINFO_TESTNET, always_abort=False)
-        self.assertEqual(res.network, 'testnet')
+    def test_GetInfo(self, mocked_command, mocked_handle):
+        cmd = 'getinfo'
         # Mainnet case
         reset_mocks(vars())
         mocked_command.return_value = fix.GETINFO_MAINNET
         res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
+        mocked_handle.assert_called_once_with(
             CTX, fix.GETINFO_MAINNET, always_abort=False)
         self.assertEqual(res.network, 'mainnet')
         # Unknown network case
         reset_mocks(vars())
         mocked_command.return_value = fix.GETINFO_UNKNOWN
         res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
+        mocked_handle.assert_called_once_with(
             CTX, fix.GETINFO_UNKNOWN, always_abort=False)
         self.assertEqual(res.network, 'unknown')
-        # Filled case
+        # Testnet case
         reset_mocks(vars())
-        mocked_command.return_value = fix.GETINFO
+        mocked_command.return_value = fix.GETINFO_TESTNET
         res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
         self.assertEqual(res.network, 'testnet')
-        self.assertEqual(res.identity_pubkey, 'id')
-        self.assertEqual(res.alias, 'pie')
-        self.assertEqual(res.blockheight, 7777)
+        self.assertEqual(res.identity_pubkey, fix.GETINFO_TESTNET['nodeId'])
+        self.assertEqual(res.alias, fix.GETINFO_TESTNET['alias'])
+        self.assertEqual(res.blockheight, fix.GETINFO_TESTNET['blockHeight'])
         # Strange error case
         reset_mocks(vars())
         mocked_command.return_value = fix.STRANGERESPONSE
         res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
+        mocked_handle.assert_called_once_with(
             CTX, fix.STRANGERESPONSE, always_abort=False)
         self.assertEqual(res, pb.GetInfoResponse())
         # Error case
         reset_mocks(vars())
         mocked_command.return_value = fix.BADRESPONSE
-        mocked_check_err.side_effect = Exception()
+        mocked_handle.side_effect = Exception()
         res = 'not set'
         with self.assertRaises(Exception):
             res = MOD.GetInfo('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'getinfo', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
+        mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
     @patch('lighter.light_eclair.convert', autospec=True)
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair.command', autospec=True)
-    def test_ChannelBalance(self, mocked_command, mocked_check_err,
+    def test_ChannelBalance(self, mocked_command, mocked_handle,
                             mocked_conv):
+        cmd = 'channels'
         # Filled
-        mocked_command.side_effect = [fix.CHANNELS_ONE, fix.CHANNEL_NORMAL]
+        mocked_command.return_value = fix.CHANNELS
         mocked_conv.return_value = 0.0
         res = MOD.ChannelBalance('request', CTX)
-        mocked_command.assert_called_with(CTX, 'channel',
-                                          fix.CHANNELS_ONE[0]['channelId'],
-                                          env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.CHANNELS_ONE, always_abort=False)
-        mocked_conv.assert_called_once_with(CTX, Enf.MSATS, 0.0)
+        mocked_command.assert_called_with(CTX, cmd, env=settings.ECL_ENV)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.CHANNELS, always_abort=False)
+        assert mocked_conv.called
         self.assertEqual(res.balance, 0.0)
         # Empty
         reset_mocks(vars())
-        mocked_command.side_effect = None
         mocked_command.return_value = []
         mocked_conv.return_value = 0.0
         res = MOD.ChannelBalance('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'channels', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
+        mocked_handle.assert_called_once_with(
             CTX, mocked_command.return_value, always_abort=False)
-        mocked_conv.assert_called_once_with(CTX, Enf.MSATS, 0.0)
+        assert mocked_conv.called
         self.assertEqual(res.balance, 0.0)
 
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair.command', autospec=True)
-    def test_ListPeers(self, mocked_command, mocked_check_err):
-        mocked_command.return_value = fix.PEERS2
+    def test_ListPeers(self, mocked_command, mocked_handle):
+        cmd = 'peers'
+        mocked_command.return_value = fix.PEERS
         res = MOD.ListPeers('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'peers', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
+        mocked_handle.assert_called_once_with(
             CTX, mocked_command.return_value, always_abort=False)
-        self.assertEqual(res.peers[0].pubkey, 'pubkey_2')
+        self.assertEqual(res.peers[0].pubkey, fix.PEERS[0]['nodeId'])
         # Empty case
         reset_mocks(vars())
         mocked_command.return_value = []
         res = MOD.ListPeers('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'peers', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
+        mocked_handle.assert_called_once_with(
             CTX, mocked_command.return_value, always_abort=False)
         self.assertEqual(res, pb.ListPeersResponse())
 
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair._add_channel', autospec=True)
     @patch('lighter.light_eclair.command', autospec=True)
-    def test_ListChannels(self, mocked_command, mocked_add, mocked_check_err):
+    def test_ListChannels(self, mocked_command, mocked_add, mocked_handle):
+        cmd = 'channels'
         # Active only
-        mocked_command.side_effect = [fix.CHANNELS_ONE, fix.CHANNEL_NORMAL]
+        mocked_command.return_value = fix.CHANNELS
         request = pb.ListChannelsRequest(active_only=True)
         res = MOD.ListChannels(request, CTX)
-        calls = [
-            call(CTX, 'channels', env=settings.ECL_ENV),
-            call(CTX, 'channel', fix.CHANNELS_ONE[0]['channelId'],
-                 env=settings.ECL_ENV)
-        ]
-        mocked_command.assert_has_calls(calls)
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
         mocked_add.assert_called_once_with(
             CTX, pb.ListChannelsResponse(), fix.CHANNEL_NORMAL)
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.CHANNEL_NORMAL, always_abort=False)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.CHANNELS, always_abort=False)
         self.assertEqual(res, pb.ListChannelsResponse())
         # List all channels
         reset_mocks(vars())
-        mocked_command.side_effect = [fix.CHANNELS_ONE, fix.CHANNEL_WAITING]
+        mocked_command.return_value = fix.CHANNELS
         request = pb.ListChannelsRequest(active_only=False)
         res = MOD.ListChannels(request, CTX)
-        calls = [
-            call(CTX, 'channels', env=settings.ECL_ENV),
-            call(CTX, 'channel', fix.CHANNELS_ONE[0]['channelId'],
-                 env=settings.ECL_ENV)
-        ]
-        mocked_command.assert_has_calls(calls)
-        mocked_add.assert_called_once_with(
-            CTX, pb.ListChannelsResponse(), fix.CHANNEL_WAITING)
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.CHANNEL_WAITING, always_abort=False)
+        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
+        self.assertEqual(mocked_add.call_count, 2)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.CHANNELS, always_abort=False)
         self.assertEqual(res, pb.ListChannelsResponse())
         # Error case
         reset_mocks(vars())
         mocked_command.return_value = 'badresponse'
-        mocked_check_err.side_effect = Exception()
+        mocked_handle.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.ListChannels('request', CTX)
         mocked_command.assert_called_once_with(
-            CTX, 'channels', env=settings.ECL_ENV)
+            CTX, cmd, env=settings.ECL_ENV)
         assert not mocked_add.called
 
     @patch('lighter.light_eclair._handle_error', autospec=True)
@@ -198,46 +180,47 @@ class LightEclairTests(TestCase):
     @patch('lighter.light_eclair.convert', autospec=True)
     @patch('lighter.light_eclair.Err')
     def test_CreateInvoice(self, mocked_err, mocked_conv, mocked_command,
-                           mocked_check_err):
+                           mocked_handle):
+        cmd = 'createinvoice'
+        pay_req = fix.CREATEINVOICE['serialized']
+        pay_hash = fix.CREATEINVOICE['paymentHash']
+        expiry_time = fix.CREATEINVOICE['timestamp'] + \
+            fix.CREATEINVOICE['expiry']
         # Correct case
         reset_mocks(vars())
         request = pb.CreateInvoiceRequest(
-            description="aaa zzz", amount_bits=777, expiry_time=1666)
-        mocked_conv.return_value = 77700000
-        mocked_command.side_effect = ['lntb1pdkq', fix.DETAILS]
+            description="d", amount_bits=7, expiry_time=3000,
+            fallback_addr="f")
+        mocked_conv.return_value = 777
+        mocked_command.return_value = fix.CREATEINVOICE
         res = MOD.CreateInvoice(request, CTX)
         mocked_conv.assert_called_once_with(
             CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
-        calls = [
-            call(CTX, 'receive', '77700000', 'aaa zzz', '1666',
-                 env=settings.ECL_ENV),
-            call(CTX, 'checkinvoice', 'lntb1pdkq', env=settings.ECL_ENV)
-        ]
-        mocked_command.assert_has_calls(calls)
-        mocked_check_err.assert_called_with(
-            CTX, fix.DETAILS, always_abort=False)
-        self.assertEqual(mocked_check_err.call_count, 2)
-        self.assertEqual(res.payment_request, 'lntb1pdkq')
-        self.assertEqual(res.payment_hash, 'a3af1a3caef9370b3d75a49f35425c')
-        self.assertEqual(res.expires_at, 1533041362 + 3600)
+        mocked_command.assert_called_once_with(
+            CTX, cmd, '--description="d"', '--amountMsat="777"',
+            '--expireIn="3000"', '--fallbackAddress="f"', env=settings.ECL_ENV)
+        mocked_handle.assert_called_with(
+            CTX, fix.CREATEINVOICE, always_abort=False)
+        assert mocked_handle.called
+        self.assertEqual(res.payment_request, pay_req)
+        self.assertEqual(res.payment_hash, pay_hash)
+        self.assertEqual(res.expires_at, expiry_time)
         # Empty request case
         reset_mocks(vars())
         request = pb.CreateInvoiceRequest()
-        mocked_command.side_effect = ['lntb1pdkq', fix.DETAILS]
+        mocked_command.return_value = fix.CREATEINVOICE
         res = MOD.CreateInvoice(request, CTX)
         assert not mocked_err().unsettable.called
-        calls = [
-            call(CTX, 'receive', settings.DEFAULT_DESCRIPTION,
-                 env=settings.ECL_ENV),
-            call(CTX, 'checkinvoice', 'lntb1pdkq', env=settings.ECL_ENV)
-        ]
-        mocked_command.assert_has_calls(calls)
-        mocked_check_err.assert_called_with(
-            CTX, fix.DETAILS, always_abort=False)
-        self.assertEqual(mocked_check_err.call_count, 2)
-        self.assertEqual(res.payment_request, 'lntb1pdkq')
-        self.assertEqual(res.payment_hash, 'a3af1a3caef9370b3d75a49f35425c')
-        self.assertEqual(res.expires_at, 1533041362 + 3600)
+        mocked_command.assert_called_once_with(
+            CTX, cmd,
+            '--description="{}"'.format(settings.DEFAULT_DESCRIPTION),
+            env=settings.ECL_ENV)
+        mocked_handle.assert_called_with(
+            CTX, fix.CREATEINVOICE, always_abort=False)
+        assert mocked_handle.called
+        self.assertEqual(res.payment_request, pay_req)
+        self.assertEqual(res.payment_hash, pay_hash)
+        self.assertEqual(res.expires_at, expiry_time)
         # Unimplemented parameter case
         reset_mocks(vars())
         request = pb.CreateInvoiceRequest(min_final_cltv_expiry=7)
@@ -247,36 +230,19 @@ class LightEclairTests(TestCase):
         mocked_err().unimplemented_parameter.assert_called_once_with(
             CTX, 'min_final_cltv_expiry')
         assert not mocked_command.called
-        assert not mocked_check_err.called
-        # Unsettable parameter expiry_time case
-        reset_mocks(vars())
-        request = pb.CreateInvoiceRequest(expiry_time=7)
-        mocked_err().unsettable.side_effect = Exception()
-        with self.assertRaises(Exception):
-            MOD.CreateInvoice(request, CTX)
-        mocked_err().unsettable.assert_called_once_with(
-            CTX, 'expiry_time (amount necessary)')
-        assert not mocked_command.called
-        assert not mocked_check_err.called
-        # Error case
-        request = pb.CreateInvoiceRequest(description='aaa zzz')
-        mocked_command.side_effect = ['', 'badresponse']
-        MOD.CreateInvoice(request, CTX)
-        mocked_command.assert_called_with(
-            CTX, 'checkinvoice', '', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_with(
-            CTX, 'badresponse', always_abort=False)
+        assert not mocked_handle.called
 
     @patch('lighter.light_eclair.command', autospec=True)
     @patch('lighter.light_eclair.Err')
     @patch('lighter.light_eclair.check_req_params', autospec=True)
     def test_CheckInvoice(self, mocked_check_par, mocked_err, mocked_command):
+        cmd = 'getreceivedinfo'
         # Correct case
         request = pb.CheckInvoiceRequest(payment_hash='random')
-        mocked_command.return_value = True
+        mocked_command.return_value = fix.GETRECEIVEDINFO
         res = MOD.CheckInvoice(request, CTX)
-        mocked_command.assert_called_once_with(CTX, 'checkpayment',
-                                               'random', env=settings.ECL_ENV)
+        mocked_command.assert_called_once_with(
+            CTX, cmd, '--paymentHash="random"', env=settings.ECL_ENV)
         assert not mocked_err().invalid.called
         self.assertEqual(res.settled, True)
         # Missing parameter case
@@ -295,7 +261,7 @@ class LightEclairTests(TestCase):
         with self.assertRaises(Exception):
             res = MOD.CheckInvoice(request, CTX)
         mocked_command.assert_called_once_with(
-            CTX, 'checkpayment', 'incorrect', env=settings.ECL_ENV)
+            CTX, cmd, '--paymentHash="incorrect"', env=settings.ECL_ENV)
         mocked_err().invalid.assert_called_once_with(CTX, 'payment_hash')
         self.assertEqual(res, 'not set')
 
@@ -306,49 +272,61 @@ class LightEclairTests(TestCase):
     @patch('lighter.light_eclair.Err')
     @patch('lighter.light_eclair.check_req_params', autospec=True)
     def test_PayInvoice(self, mocked_check_par, mocked_err, mocked_decode,
-                        mocked_conv, mocked_command, mocked_check_err):
+                        mocked_conv, mocked_command, mocked_handle):
+        cmd = 'payinvoice'
+        cmd2 = 'getsentinfo'
         # Correct case: with amount requested
         request = pb.PayInvoiceRequest(
-            payment_request='random', amount_bits=77.7)
+            payment_request='random', amount_bits=7)
         mocked_decode.return_value = pb.DecodeInvoiceResponse()
-        mocked_conv.return_value = 7770000
-        mocked_command.return_value = fix.SEND
+        mocked_conv.return_value = 777
+        mocked_command.side_effect = [fix.PAYINVOICE, fix.GETSENTINFO_SUCCESS]
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
         mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         mocked_conv.assert_called_once_with(
             CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)
-        mocked_command.assert_called_once_with(CTX, 'send', 'random',
-                                               '7770000', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.SEND, always_abort=False)
-        self.assertEqual(res.payment_preimage, fix.SEND['paymentPreimage'])
+        calls = [
+            call(CTX, cmd, '--invoice="random"', '--amountMsat="777"',
+                 env=settings.ECL_ENV),
+            call(CTX, cmd2, '--id="{}"'.format(fix.PAYINVOICE),
+                 env=settings.ECL_ENV)
+        ]
+        mocked_command.assert_has_calls(calls)
+        assert not mocked_handle.called
+        self.assertEqual(
+            res.payment_preimage, fix.GETSENTINFO_SUCCESS[0]['preimage'])
         # Correct case: no amount requested
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(payment_request='random')
         mocked_decode.return_value = pb.DecodeInvoiceResponse()
-        mocked_command.return_value = fix.SEND
+        mocked_command.side_effect = [fix.PAYINVOICE, fix.GETSENTINFO_SUCCESS]
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
         mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
-        mocked_command.assert_called_once_with(CTX, 'send', 'random', env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.SEND, always_abort=False)
-        self.assertEqual(res.payment_preimage, fix.SEND['paymentPreimage'])
-        # Missing parameter case
+        calls = [
+            call(CTX, cmd, '--invoice="random"', env=settings.ECL_ENV),
+            call(CTX, cmd2, '--id="{}"'.format(fix.PAYINVOICE),
+                 env=settings.ECL_ENV)
+        ]
+        mocked_command.assert_has_calls(calls)
+        assert not mocked_handle.called
+        self.assertEqual(
+            res.payment_preimage, fix.GETSENTINFO_SUCCESS[0]['preimage'])
+        # Missing parameter payment_request case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest()
-        mocked_check_par.side_effect = Exception()
+        mocked_check_par.side_effect = [Exception(), None]
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         assert not mocked_decode.called
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         assert not mocked_command.called
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
         # Unimplemented parameter case
         reset_mocks(vars())
         mocked_check_par.side_effect = None
@@ -361,7 +339,7 @@ class LightEclairTests(TestCase):
         assert not mocked_decode.called
         assert not mocked_conv.called
         assert not mocked_command.called
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
         # Unsettable parameter amount_bits case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(
@@ -376,12 +354,27 @@ class LightEclairTests(TestCase):
             CTX, 'amount_bits')
         assert not mocked_conv.called
         assert not mocked_command.called
-        assert not mocked_check_err.called
-        # Parameter payment_request not valid case
+        assert not mocked_handle.called
+        # Missing parameter amount_bits case
         reset_mocks(vars())
+        mocked_check_par.side_effect = [None, Exception()]
         request = pb.PayInvoiceRequest(payment_request='random')
         mocked_decode.return_value = pb.DecodeInvoiceResponse()
-        mocked_command.return_value = fix.SEND_ERROR
+        with self.assertRaises(Exception):
+            res = MOD.PayInvoice(request, CTX)
+        dec_req = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_decode.assert_called_once_with(dec_req, CTX)
+        self.assertEqual(mocked_check_par.call_count, 2)
+        assert not mocked_conv.called
+        assert not mocked_command.called
+        assert not mocked_handle.called
+        # Parameter payment_request not valid case
+        reset_mocks(vars())
+        mocked_check_par.side_effect = None
+        request = pb.PayInvoiceRequest(payment_request='random')
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_command.side_effect = [
+            fix.PAYINVOICE_ERROR, fix.GETSENTINFO_SUCCESS]
         mocked_err().invalid.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
@@ -389,101 +382,115 @@ class LightEclairTests(TestCase):
         mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
-        mocked_command.assert_called_once_with(CTX, 'send',
-                                               request.payment_request,
-                                               env=settings.ECL_ENV)
+        mocked_command.assert_called_once_with(
+            CTX, cmd, '--invoice="{}"'.format(request.payment_request),
+            env=settings.ECL_ENV)
         mocked_err().invalid.assert_called_once_with(CTX, 'payment_request')
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
+        # Failed case
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest(payment_request='random')
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_command.side_effect = [fix.PAYINVOICE, fix.GETSENTINFO_FAIL]
+        res = MOD.PayInvoice(request, CTX)
+        dec_req = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_decode.assert_called_once_with(dec_req, CTX)
+        assert not mocked_err().unsettable.called
+        assert not mocked_conv.called
+        calls = [
+            call(CTX, cmd, '--invoice="random"', env=settings.ECL_ENV),
+            call(CTX, cmd2, '--id="{}"'.format(fix.PAYINVOICE),
+                 env=settings.ECL_ENV)
+        ]
+        mocked_command.assert_has_calls(calls)
+        assert not mocked_handle.called
+        # Pending case
+        reset_mocks(vars())
+        request = pb.PayInvoiceRequest(payment_request='random')
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_command.side_effect = [fix.PAYINVOICE, fix.GETSENTINFO_PENDING]
+        res = MOD.PayInvoice(request, CTX)
+        dec_req = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_decode.assert_called_once_with(dec_req, CTX)
+        assert not mocked_err().unsettable.called
+        assert not mocked_conv.called
+        calls = [
+            call(CTX, cmd, '--invoice="random"', env=settings.ECL_ENV),
+            call(CTX, cmd2, '--id="{}"'.format(fix.PAYINVOICE),
+                 env=settings.ECL_ENV)
+        ]
+        mocked_command.assert_has_calls(calls)
+        assert not mocked_handle.called
         # Strange error case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(payment_request='something')
         mocked_decode.return_value = pb.DecodeInvoiceResponse()
-        mocked_command.return_value = fix.STRANGERESPONSE
-        res = MOD.PayInvoice(request, CTX)
-        dec_req = pb.DecodeInvoiceRequest(payment_request='something')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
-        assert not mocked_err().unsettable.called
-        assert not mocked_conv.called
-        mocked_command.assert_called_once_with(CTX, 'send',
-                                               request.payment_request,
-                                               env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.STRANGERESPONSE, always_abort=False)
-        self.assertEqual(res, pb.PayInvoiceResponse())
-        # Unexpected error case
-        reset_mocks(vars())
-        request = pb.PayInvoiceRequest(payment_request='something')
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
-        mocked_command.return_value = fix.BADRESPONSE
-        mocked_check_err.side_effect = Exception()
-        res = 'not set'
+        mocked_command.side_effect = [fix.PAYINVOICE, fix.STRANGERESPONSE]
+        mocked_handle.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='something')
         mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
-        mocked_command.assert_called_once_with(CTX, 'send',
-                                               request.payment_request,
-                                               env=settings.ECL_ENV)
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.BADRESPONSE, always_abort=False)
-        self.assertEqual(res, 'not set')
+        self.assertEqual(mocked_command.call_count, 2)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.STRANGERESPONSE, always_abort=True)
 
     @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair._add_route_hint', autospec=True)
+    @patch('lighter.light_eclair._is_description_hash', autospec=True)
     @patch('lighter.light_eclair.convert', autospec=True)
     @patch('lighter.light_eclair.command', autospec=True)
     @patch('lighter.light_eclair.Err')
     @patch('lighter.light_eclair.check_req_params', autospec=True)
     def test_DecodeInvoice(self, mocked_check_par, mocked_err, mocked_command,
-                           mocked_conv, mocked_add, mocked_check_err):
+                           mocked_conv, mocked_d_hash, mocked_handle):
+        cmd = 'parseinvoice'
         # Correct case: with description hash
         request = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_command.return_value = fix.CHECKINVOICE_HASH
+        mocked_command.return_value = fix.PARSEINVOICE_D_HASH
         mocked_conv.return_value = 7.77
+        mocked_d_hash.return_value = True
         res = MOD.DecodeInvoice(request, CTX)
-        mocked_command.assert_called_once_with(CTX, 'checkinvoice',
-                                               'random', env=settings.ECL_ENV)
+        mocked_command.assert_called_once_with(
+            CTX, cmd, '--invoice="random"', env=settings.ECL_ENV)
         assert not mocked_err().invoice_incorrect.called
-        mocked_conv.assert_called_once_with(CTX, Enf.MSATS,
-                                            fix.CHECKINVOICE_HASH['amount'])
-        assert mocked_add.called
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.CHECKINVOICE_HASH, always_abort=False)
+        assert mocked_conv.called
+        mocked_handle.assert_called_once_with(
+            CTX, fix.PARSEINVOICE_D_HASH, always_abort=False)
         self.assertEqual(res.amount_bits, 7.77)
-        self.assertEqual(res.timestamp, fix.CHECKINVOICE_HASH['timestamp'])
+        self.assertEqual(res.timestamp, fix.PARSEINVOICE_D_HASH['timestamp'])
         self.assertEqual(res.destination_pubkey,
-                         fix.CHECKINVOICE_HASH['nodeId'])
+                         fix.PARSEINVOICE_D_HASH['nodeId'])
         self.assertEqual(res.payment_hash,
-                         fix.CHECKINVOICE_HASH['tags'][0]['hash'])
+                         fix.PARSEINVOICE_D_HASH['paymentHash'])
         self.assertEqual(res.description, '')
         self.assertEqual(res.description_hash,
-                         fix.CHECKINVOICE_HASH['tags'][1]['hash'])
+                         fix.PARSEINVOICE_D_HASH['description'])
         self.assertEqual(res.expiry_time, 0)
         self.assertEqual(res.min_final_cltv_expiry, 0)
         # Correct case: with simple description
         reset_mocks(vars())
+        mocked_d_hash.return_value = False
         request = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_command.return_value = fix.CHECKINVOICE_DESC
+        mocked_command.return_value = fix.PARSEINVOICE
         mocked_conv.return_value = 20000
         res = MOD.DecodeInvoice(request, CTX)
-        mocked_command.assert_called_once_with(CTX, 'checkinvoice',
-                                               'random', env=settings.ECL_ENV)
+        mocked_command.assert_called_once_with(
+            CTX, cmd, '--invoice="random"', env=settings.ECL_ENV)
         assert not mocked_err().invoice_incorrect.called
         mocked_conv.assert_called_once_with(CTX, Enf.MSATS,
-                                            fix.CHECKINVOICE_DESC['amount'])
-        assert not mocked_add.called
-        mocked_check_err.assert_called_once_with(
-            CTX, fix.CHECKINVOICE_DESC, always_abort=False)
+                                            fix.PARSEINVOICE['amount'])
+        mocked_handle.assert_called_once_with(
+            CTX, fix.PARSEINVOICE, always_abort=False)
         self.assertEqual(res.amount_bits, 20000)
-        self.assertEqual(res.timestamp, fix.CHECKINVOICE_DESC['timestamp'])
+        self.assertEqual(res.timestamp, fix.PARSEINVOICE['timestamp'])
         self.assertEqual(res.destination_pubkey,
-                         fix.CHECKINVOICE_DESC['nodeId'])
+                         fix.PARSEINVOICE['nodeId'])
         self.assertEqual(res.payment_hash,
-                         fix.CHECKINVOICE_DESC['tags'][0]['hash'])
+                         fix.PARSEINVOICE['paymentHash'])
         self.assertEqual(res.description,
-                         fix.CHECKINVOICE_DESC['tags'][1]['description'])
+                         fix.PARSEINVOICE['description'])
         self.assertEqual(res.description_hash, '')
         # Missing parameter case
         reset_mocks(vars())
@@ -493,8 +500,7 @@ class LightEclairTests(TestCase):
             res = MOD.DecodeInvoice(request, CTX)
         assert not mocked_command.called
         assert not mocked_conv.called
-        assert not mocked_add.called
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
         # Incorrect invoice case
         reset_mocks(vars())
         mocked_check_par.side_effect = None
@@ -503,26 +509,23 @@ class LightEclairTests(TestCase):
         mocked_err().invalid.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.DecodeInvoice(request, CTX)
-        mocked_command.assert_called_once_with(CTX, 'checkinvoice',
-                                               'random', env=settings.ECL_ENV)
+        mocked_command.assert_called_once_with(
+            CTX, cmd, '--invoice="random"', env=settings.ECL_ENV)
         mocked_err().invalid.assert_called_once_with(CTX, 'payment_request')
         assert not mocked_conv.called
-        assert not mocked_add.called
-        assert not mocked_check_err.called
+        assert not mocked_handle.called
         # Error case
         reset_mocks(vars())
         request = pb.DecodeInvoiceRequest(payment_request='something')
         mocked_command.return_value = fix.BADRESPONSE
-        mocked_check_err.side_effect = Exception()
+        mocked_handle.side_effect = Exception()
         res = 'not set'
         with self.assertRaises(Exception):
             res = MOD.DecodeInvoice(request, CTX)
-        mocked_command.assert_called_once_with(CTX, 'checkinvoice',
-                                               'something',
-                                               env=settings.ECL_ENV)
+            mocked_command.assert_called_once_with(
+                CTX, cmd, '--invoice="something"', env=settings.ECL_ENV)
         assert not mocked_conv.called
-        assert not mocked_add.called
-        mocked_check_err.assert_called_once_with(
+        mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
@@ -542,14 +545,20 @@ class LightEclairTests(TestCase):
         res = MOD._defined(data, 'not a key')
         self.assertEqual(res, False)
 
+    def test_is_description_hash(self):
+        res = MOD._is_description_hash(fix.PARSEINVOICE_D_HASH['description'])
+        self.assertEqual(res, True)
+        res = MOD._is_description_hash(fix.PARSEINVOICE['description'])
+        self.assertEqual(res, False)
+
     @patch('lighter.light_eclair.convert', autospec=True)
     def test_add_channel(self, mocked_conv):
         response = pb.ListChannelsResponse()
         mocked_conv.side_effect = [0, 20000]
         res = MOD._add_channel(CTX, response, fix.CHANNEL_NORMAL)
         calls = [
-            call(CTX, Enf.MSATS, 0),
-            call(CTX, Enf.MSATS, 2000000000)
+            call(CTX, Enf.MSATS, 50000000),
+            call(CTX, Enf.MSATS, 150000000)
         ]
         mocked_conv.assert_has_calls(calls)
         self.assertEqual(res, None)
@@ -562,34 +571,6 @@ class LightEclairTests(TestCase):
         self.assertEqual(response.channels[0].local_balance, 0)
         self.assertEqual(response.channels[0].remote_balance, 20000)
         self.assertEqual(response.channels[0].capacity, 20000)
-
-    def test_add_route_hint(self):
-        response = pb.DecodeInvoiceResponse()
-        ecl_route = fix.CHECKINVOICE_HASH['tags'][3]['path']
-        res = MOD._add_route_hint(response, ecl_route)
-        self.assertEqual(res, None)
-        self.assertEqual(response.route_hints[0].hop_hints[0].pubkey,
-                         ecl_route[0]['nodeId'])
-        self.assertEqual(response.route_hints[0].hop_hints[0].short_channel_id,
-                         ecl_route[0]['shortChannelId'])
-        self.assertEqual(response.route_hints[0].hop_hints[0].fee_base_msat, 1)
-        self.assertEqual(
-            response.route_hints[0].hop_hints[0].fee_proportional_millionths,
-            ecl_route[0]['feeProportionalMillionths'])
-        self.assertEqual(
-            response.route_hints[0].hop_hints[0].cltv_expiry_delta,
-            ecl_route[0]['cltvExpiryDelta'])
-        self.assertEqual(response.route_hints[0].hop_hints[1].pubkey,
-                         ecl_route[1]['nodeId'])
-        self.assertEqual(response.route_hints[0].hop_hints[1].short_channel_id,
-                         ecl_route[1]['shortChannelId'])
-        self.assertEqual(response.route_hints[0].hop_hints[1].fee_base_msat, 2)
-        self.assertEqual(
-            response.route_hints[0].hop_hints[1].fee_proportional_millionths,
-            ecl_route[1]['feeProportionalMillionths'])
-        self.assertEqual(
-            response.route_hints[0].hop_hints[1].cltv_expiry_delta,
-            ecl_route[1]['cltvExpiryDelta'])
 
     @patch('lighter.light_eclair.Err')
     def test_handle_error(self, mocked_err):
@@ -620,7 +601,7 @@ class LightEclairTests(TestCase):
         mocked_err().report_error.assert_called_once_with(
             CTX, ecl_res, always_abort=False)
         mocked_err().unexpected_error.assert_called_once_with(
-            CTX, ecl_res)
+            CTX, str(ecl_res))
 
 
 def reset_mocks(params):

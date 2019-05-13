@@ -78,6 +78,14 @@ ERRORS = {
         'code': 'OUT_OF_RANGE',
         'msg': 'Parameter "%PARAM%" out of range'
     },
+    'payinvoice_failed': {
+        'code': 'CANCELLED',
+        'msg': 'Invoice payment has failed'
+    },
+    'payinvoice_pending': {
+        'code': 'CANCELLED',
+        'msg': 'Invoice payment is pending'
+    },
     'route_not_found': {
         'code': 'NOT_FOUND',
         'msg': 'Can\'t find route to node'
@@ -152,4 +160,4 @@ class Err():  # pylint: disable=too-few-public-methods
                     args = [context, error]
                 getattr(self, act['fun'])(*args)
         if always_abort:
-            self.unexpected_error(context, error)
+            self.unexpected_error(context, str(error))

@@ -18,6 +18,7 @@
 from fileinput import FileInput
 from os import environ, path
 from re import sub
+from string import ascii_lowercase, digits  # pylint: disable=deprecated-module
 
 from . import lighter_pb2 as pb
 from . import settings
@@ -62,7 +63,7 @@ def update_settings(password):
     ecl_options = ['-a', ecl_url]
     with FileInput(files=(ecl_cli), inplace=1) as file:
         for line in file:
-            line = sub('^PASSWORD=.*', "PASSWORD=$PASSWORD",
+            line = sub('^# api_password=.*', "api_password=$PASSWORD",
                        line.rstrip())
             print(line)
     settings.CMD_BASE = [ecl_cli] + ecl_options
@@ -98,12 +99,9 @@ def ChannelBalance(request, context):  # pylint: disable=unused-argument
     _handle_error(context, ecl_res, always_abort=False)
     funds = 0.0
     for channel in ecl_res:
-        # check id
-        ecl_req = ['channel', channel['channelId']]
-        ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
-        if _defined(ecl_res, 'data') \
-                and _defined(ecl_res['data'], 'commitments'):
-            commitments = ecl_res['data']['commitments']
+        if _defined(channel, 'data') \
+                and _defined(channel['data'], 'commitments'):
+            commitments = channel['data']['commitments']
             if _defined(commitments, 'localCommit'):
                 local_commit = commitments['localCommit']
                 if _defined(local_commit, 'spec'):
@@ -138,67 +136,57 @@ def ListChannels(request, context):
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     response = pb.ListChannelsResponse()
     for channel in ecl_res:
-        if _defined(channel, 'channelId'):
-            ecl_req = ['channel', channel['channelId']]
-            ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
-            if request.active_only and _defined(ecl_res, 'state') \
-                    and ecl_res['state'] == 'NORMAL':
-                _add_channel(context, response, ecl_res)
-            elif not request.active_only:
-                _add_channel(context, response, ecl_res)
+        if request.active_only and _defined(channel, 'state') \
+                and channel['state'] == 'NORMAL':
+            _add_channel(context, response, channel)
+        elif not request.active_only:
+            _add_channel(context, response, channel)
     _handle_error(context, ecl_res, always_abort=False)
     return response
 
 
 def CreateInvoice(request, context):
     """ Creates a LN invoice (bolt 11 standard) """
-    ecl_req = ['receive']
-    # [description] or [amount, description] or
-    # [amount, description, expiryDuration]
+    ecl_req = ['createinvoice']
     if request.min_final_cltv_expiry:
         Err().unimplemented_parameter(context, 'min_final_cltv_expiry')
     description = settings.DEFAULT_DESCRIPTION
     if request.description:
         description = request.description
+    ecl_req.append('--description="{}"'.format(description))
     if request.amount_bits:
-        ecl_req.append('{}'.format(
-            convert(
-                context, Enf.MSATS, request.amount_bits,
-                enforce=Enf.LN_PAYREQ)))
-    # Description has to exist at this moment,
-    # needs to be after amount if that exists
-    ecl_req.append(description)
-    if request.expiry_time and request.amount_bits:
-        ecl_req.append('{}'.format(request.expiry_time))
-    elif request.expiry_time and not request.amount_bits:
-        Err().unsettable(context, 'expiry_time (amount necessary)')
+        ecl_req.append('--amountMsat="{}"'.format(
+            convert(context, Enf.MSATS, request.amount_bits,
+                    enforce=Enf.LN_PAYREQ)))
+    if request.expiry_time:
+        ecl_req.append('--expireIn="{}"'.format(request.expiry_time))
+    if request.fallback_addr:
+        ecl_req.append('--fallbackAddress="{}"'.format(request.fallback_addr))
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     _handle_error(context, ecl_res, always_abort=False)
     response = pb.CreateInvoiceResponse()
-    response.payment_request = ecl_res.strip()
-    ecl_req = ['checkinvoice', ecl_res.strip()]
-    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
-    _handle_error(context, ecl_res, always_abort=False)
-    if _defined(ecl_res, 'tags'):
-        for tag in ecl_res['tags']:
-            if _defined(tag, 'hash'):
-                response.payment_hash = str(tag['hash'])
-            if _defined(ecl_res, 'timestamp') and _defined(tag, 'seconds'):
-                expires_at = int(ecl_res['timestamp']) + int(tag['seconds'])
-                response.expires_at = expires_at
+    if _defined(ecl_res, 'serialized'):
+        response.payment_request = ecl_res['serialized']
+    if _defined(ecl_res, 'paymentHash'):
+        response.payment_hash = ecl_res['paymentHash']
+    if _defined(ecl_res, 'timestamp') and _defined(ecl_res, 'expiry'):
+        expires_at = int(ecl_res['timestamp']) + int(ecl_res['expiry'])
+        response.expires_at = expires_at
     return response
 
 
 def CheckInvoice(request, context):
     """ Checks if a LN invoice has been paid """
-    # eclair-cli checkinvoice [payment_request] | checkinvoice [payment_hash]
-    ecl_req = ['checkpayment']
+    ecl_req = ['getreceivedinfo']
     check_req_params(context, request, 'payment_hash')
-    ecl_req.append(request.payment_hash)
+    ecl_req.append('--paymentHash="{}"'.format(request.payment_hash))
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
-    if not isinstance(ecl_res, bool):
+    settled = False
+    if _defined(ecl_res, 'receivedAt'):
+        settled = True
+    elif 'Not found' not in ecl_res:
         Err().invalid(context, 'payment_hash')
-    return pb.CheckInvoiceResponse(settled=ecl_res)
+    return pb.CheckInvoiceResponse(settled=settled)
 
 
 def PayInvoice(request, context):
@@ -208,38 +196,48 @@ def PayInvoice(request, context):
     If a description hash is included in the invoice, its preimage must be
     included in the request
     """
-    ecl_req = ['send']
+    ecl_req = ['payinvoice']
     check_req_params(context, request, 'payment_request')
     if request.cltv_expiry_delta:
         Err().unimplemented_parameter(context, 'cltv_expiry_delta')
-    ecl_req.append('{}'.format(request.payment_request))
+    ecl_req.append('--invoice="{}"'.format(request.payment_request))
     dec_req = pb.DecodeInvoiceRequest(payment_request=request.payment_request)
     invoice = DecodeInvoice(dec_req, context)
     # pylint: disable=no-member
     if request.amount_bits and invoice.amount_bits:
         Err().unsettable(context, 'amount_bits')
     elif request.amount_bits and not invoice.amount_bits:
-        ecl_req.append('{}'.format(
+        ecl_req.append('--amountMsat="{}"'.format(
             convert(
                 context, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)))
+    elif not invoice.amount_bits:
+        check_req_params(context, request, 'amount_bits')
     # pylint: enable=no-member
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
-    response = pb.PayInvoiceResponse()
-    if _defined(ecl_res, 'paymentPreimage'):
-        response.payment_preimage = ecl_res['paymentPreimage']
-    elif 'payment request is not valid' in ecl_res:
-        # checking manually as error is not in json
+    if 'malformed' in ecl_res:
         Err().invalid(context, 'payment_request')
-    _handle_error(context, ecl_res, always_abort=False)
+    ecl_req = ['getsentinfo']
+    ecl_req.append('--id="{}"'.format(ecl_res.strip()))
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
+    response = pb.PayInvoiceResponse()
+    payment = ecl_res[0]
+    if _defined(payment, 'preimage'):
+        response.payment_preimage = payment['preimage']
+    elif _defined(payment, 'status') and payment['status'] == 'FAILED':
+        Err().payinvoice_failed(context)
+    elif _defined(payment, 'status') and payment['status'] == 'PENDING':
+        Err().payinvoice_pending(context)
+    else:
+        _handle_error(context, ecl_res, always_abort=True)
     return response
 
 
 def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
     """ Tries to return information of a LN invoice from its payment request
         (bolt 11 standard) """
-    ecl_req = ['checkinvoice']
+    ecl_req = ['parseinvoice']
     check_req_params(context, request, 'payment_request')
-    ecl_req.append('{}'.format(request.payment_request))
+    ecl_req.append('--invoice="{}"'.format(request.payment_request))
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     if 'invalid payment request' in ecl_res:
         # checking manually as error is not in json
@@ -251,38 +249,36 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
         response.timestamp = ecl_res['timestamp']
     if _defined(ecl_res, 'nodeId'):
         response.destination_pubkey = ecl_res['nodeId']
-    if 'tags' in ecl_res:
-        found_payh = found_desh = False
-        for tag in ecl_res['tags']:
-            if _defined(tag, 'hash') and not found_payh:
-                response.payment_hash = tag['hash']
-                found_payh = True
-                continue
-            if _defined(tag, 'description'):
-                response.description = tag['description']
-            if _defined(tag, 'hash') and found_payh and not found_desh:
-                response.description_hash = tag['hash']
-                found_desh = True
-                continue
-            if _defined(tag, 'seconds'):
-                response.expiry_time = tag['seconds']
-            if _defined(tag, 'blocks'):
-                response.min_final_cltv_expiry = tag['blocks']
-            if _defined(tag, 'path'):
-                _add_route_hint(response, tag['path'])
+    if _defined(ecl_res, 'paymentHash'):
+        response.payment_hash = ecl_res['paymentHash']
+    if _defined(ecl_res, 'description'):
+        if _is_description_hash(ecl_res['description']):
+            response.description_hash = ecl_res['description']
+        else:
+            response.description = ecl_res['description']
+    if _defined(ecl_res, 'expiry'):
+        response.expiry_time = ecl_res['expiry']
+    if _defined(ecl_res, 'minFinalCltvExpiry'):
+        response.min_final_cltv_expiry = ecl_res['minFinalCltvExpiry']
     _handle_error(context, ecl_res, always_abort=False)
     return response
 
 
 def _defined(dictionary, key):
     """ Checks if key is in dictionary and that it's not None """
-    if key in dictionary and dictionary[key] is not None:
-        return True
-    return False
+    return key in dictionary and dictionary[key] is not None
+
+
+def _is_description_hash(description):
+    """ Checks if description is a hash """
+    allowed_set = set(ascii_lowercase + digits)
+    return len(description) == 64 and ' ' not in description and \
+        set(description).issubset(allowed_set)
 
 
 def _add_channel(context, response, ecl_chan):
     """ Adds a channel to a ListChannelsResponse """
+    # pylint: disable=too-many-branches
     grpc_chan = response.channels.add()
     if _defined(ecl_chan, 'nodeId'):
         grpc_chan.remote_pubkey = ecl_chan['nodeId']
@@ -294,6 +290,15 @@ def _add_channel(context, response, ecl_chan):
             grpc_chan.short_channel_id = data['shortChannelId']
         if _defined(data, 'commitments'):
             commitments = data['commitments']
+            if _defined(commitments, 'commitInput'):
+                commit_input = commitments['commitInput']
+                if _defined(commit_input, 'outPoint'):
+                    funding_txid = commit_input['outPoint'].split(':')[0]
+                    grpc_chan.funding_txid = funding_txid
+            if _defined(commitments, 'localParams'):
+                local_params = commitments['localParams']
+                if _defined(local_params, 'toSelfDelay'):
+                    grpc_chan.to_self_delay = local_params['toSelfDelay']
             if _defined(commitments, 'localCommit'):
                 local_commit = commitments['localCommit']
                 if _defined(local_commit, 'spec'):
@@ -312,24 +317,6 @@ def _add_channel(context, response, ecl_chan):
                             grpc_chan.local_balance + grpc_chan.remote_balance
 
 
-def _add_route_hint(response, ecl_route):
-    """ Adds a route hint and its hop hints to a DecodeInvoiceResponse """
-    grpc_route = response.route_hints.add()
-    for ecl_hop in ecl_route:
-        grpc_hop = grpc_route.hop_hints.add()
-        if _defined(ecl_hop, 'nodeId'):
-            grpc_hop.pubkey = ecl_hop['nodeId']
-        if _defined(ecl_hop, 'shortChannelId'):
-            grpc_hop.short_channel_id = ecl_hop['shortChannelId']
-        if _defined(ecl_hop, 'feeBaseMsat'):
-            grpc_hop.fee_base_msat = ecl_hop['feeBaseMsat']
-        if _defined(ecl_hop, 'feeProportionalMillionths'):
-            grpc_hop.fee_proportional_millionths = ecl_hop[
-                'feeProportionalMillionths']
-        if _defined(ecl_hop, 'cltvExpiryDelta'):
-            grpc_hop.cltv_expiry_delta = ecl_hop['cltvExpiryDelta']
-
-
 def _handle_error(context, ecl_res, always_abort=True):
     """ Checks for errors in a eclair cli response """
     if _defined(ecl_res, 'failures'):
@@ -342,4 +329,4 @@ def _handle_error(context, ecl_res, always_abort=True):
     else:
         Err().report_error(context, ecl_res, always_abort=False)
     if always_abort:
-        Err().unexpected_error(context, ecl_res)
+        Err().unexpected_error(context, str(ecl_res))
