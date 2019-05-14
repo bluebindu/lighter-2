@@ -26,17 +26,17 @@ on our shoulders.
 This is an open project under the GNU AGPLv3 license.
 
 
-#### Implementations :zap:
+### Implementations :zap:
 
-Currently, it supports the main LN implementations:
+Currently, it supports the main LN implementations <sup>1</sup>:
 
-- [c-lightning](https://github.com/ElementsProject/lightning) (v0.7.0) by
-  Blockstream
+- [c-lightning](https://github.com/ElementsProject/lightning)
+  (v0.7.0 <sup>2</sup>) by Blockstream
 - [eclair](https://github.com/ACINQ/eclair) (v0.2-beta9) by Acinq
 - [lnd](https://github.com/lightningnetwork/lnd) (v0.6-beta) by Lightning Labs
 
 
-#### How it works
+### How it works
 
 Lighter exposes a gRPC client interface, which uses protocol buffers,
 Google’s open source mechanismn for serializing structured data.
@@ -51,6 +51,12 @@ various supported implementations.
 To secure Lighter we use macaroons as authorization mechanism.
 See [Security](/doc/security.md) to get more information on how Lighter is
 secured.
+
+
+#### Notes
+1. _at the moment Lighter supports only the specified versions of the LN nodes
+  (not provided within this software)_
+2. _`pay` plugin is required_
 
 
 # Requirements

@@ -272,17 +272,20 @@ def PayInvoice(request, context):
     cl_req = ['pay']
     check_req_params(context, request, 'payment_request')
     cl_req.append('bolt11="{}"'.format(request.payment_request))
-    if request.amount_bits:
-        dec_req = pb.DecodeInvoiceRequest(
-            payment_request=request.payment_request)
-        invoice = DecodeInvoice(dec_req, context)
-        if invoice.amount_bits:  # pylint: disable=no-member
-            Err().unsettable(context, 'amount_bits')
-        else:
-            cl_req.append('msatoshi="{}"'.format(
-                convert(
-                    context, Enf.MSATS, request.amount_bits,
-                    enforce=Enf.LN_TX)))
+    dec_req = pb.DecodeInvoiceRequest(
+        payment_request=request.payment_request)
+    invoice = DecodeInvoice(dec_req, context)
+    # pylint: disable=no-member
+    if invoice.amount_bits and request.amount_bits:
+        Err().unsettable(context, 'amount_bits')
+    elif request.amount_bits and not invoice.amount_bits:
+        cl_req.append('msatoshi="{}"'.format(
+            convert(
+                context, Enf.MSATS, request.amount_bits,
+                enforce=Enf.LN_TX)))
+    elif not invoice.amount_bits:
+        check_req_params(context, request, 'amount_bits')
+    # pylint: enable=no-member
     if request.description:
         cl_req.append('description="{}"'.format(request.description))
     if request.cltv_expiry_delta:

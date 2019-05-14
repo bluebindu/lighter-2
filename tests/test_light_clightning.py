@@ -15,13 +15,11 @@
 """ Tests for light_clightning module """
 
 from importlib import import_module
-from json import loads
 from unittest import TestCase
-from unittest.mock import call, patch, Mock, MagicMock
+from unittest.mock import call, patch
 
 from lighter import lighter_pb2 as pb
 from lighter import light_clightning, settings
-from lighter.light_clightning import ERRORS
 from lighter.utils import Enforcer as Enf
 from tests import fixtures_clightning as fix
 
@@ -471,7 +469,20 @@ class LightClightningTests(TestCase):
         self.assertEqual(
             res.payment_preimage,
             'd628d988a3a33fde1db8c1b800d16a1135ee030e21866ae24ae9269d7cd41632')
-        # Missing parameter case
+        # Missing parameter amount_bits case
+        reset_mocks(vars())
+        mocked_check_par.side_effect = [None, Exception()]
+        request = pb.PayInvoiceRequest(payment_request='something')
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        with self.assertRaises(Exception):
+            res = MOD.PayInvoice(request, CTX)
+        dec_req = pb.DecodeInvoiceRequest(payment_request='something')
+        mocked_decode.assert_called_once_with(dec_req, CTX)
+        self.assertEqual(mocked_check_par.call_count, 2)
+        assert not mocked_conv.called
+        assert not mocked_command.called
+        assert not mocked_handle.called
+        # Missing parameter payment_request case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest()
         mocked_check_par.side_effect = Exception()
@@ -515,7 +526,7 @@ class LightClightningTests(TestCase):
         res = 'not set'
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
-        assert not mocked_decode.called
+        assert mocked_decode.called
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         mocked_command.assert_called_once_with(CTX, 'pay',
