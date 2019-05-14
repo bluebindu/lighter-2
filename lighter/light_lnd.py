@@ -409,6 +409,7 @@ def PayInvoice(request, context):
     If a description hash is included in the invoice, its preimage must be
     included in the request
     """
+    check_req_params(context, request, 'payment_request')
     response = pb.PayInvoiceResponse()
     dec_req = pb.DecodeInvoiceRequest(payment_request=request.payment_request)
     invoice = DecodeInvoice(dec_req, context)
@@ -427,6 +428,8 @@ def PayInvoice(request, context):
         lnd_req.amt = convert(
             context, Enf.SATS, request.amount_bits,
             enforce=LND_LN_TX, max_precision=Enf.SATS)
+    elif not invoice.amount_bits:
+        check_req_params(context, request, 'amount_bits')
     # pylint: enable=no-member
     with _connect(context) as stub:
         lnd_res = stub.SendPaymentSync(lnd_req, timeout=settings.IMPL_TIMEOUT)

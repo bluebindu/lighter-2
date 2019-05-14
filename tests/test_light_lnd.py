@@ -23,13 +23,14 @@ from grpc import FutureTimeoutError, RpcError
 
 from lighter import rpc_pb2 as ln
 from lighter import lighter_pb2 as pb
-from lighter import light_lnd, settings
-from lighter.light_lnd import ERRORS, LND_LN_TX, LND_PAYREQ
+from lighter import settings
+from lighter.light_lnd import LND_LN_TX, LND_PAYREQ
 from lighter.utils import Enforcer as Enf
 from tests import fixtures_lnd as fix
 
 MOD = import_module('lighter.light_lnd')
 CTX = 'context'
+
 
 class LightLndTests(TestCase):
     """ Tests for light_lnd module """
@@ -475,8 +476,10 @@ class LightLndTests(TestCase):
     @patch('lighter.light_lnd.Err')
     @patch('lighter.light_lnd.Enf.check_value')
     @patch('lighter.light_lnd.DecodeInvoice', autospec=True)
-    def test_PayInvoice(self, mocked_decode, mocked_check_val, mocked_err,
-                        mocked_conv, mocked_connect, mocked_handle):
+    @patch('lighter.light_lnd.check_req_params', autospec=True)
+    def test_PayInvoice(self, mocked_check_par, mocked_decode,
+                        mocked_check_val, mocked_err, mocked_conv,
+                        mocked_connect, mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
         # Amount in invoice but not in request case
         request = pb.PayInvoiceRequest(
@@ -523,8 +526,22 @@ class LightLndTests(TestCase):
             request.amount_bits,
             enforce=LND_LN_TX,
             max_precision=Enf.SATS)
+        # Amount neither in request or invoice case
+        reset_mocks(vars())
+        mocked_check_par.side_effect = [None, Exception()]
+        request = pb.PayInvoiceRequest(payment_request='random')
+        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        with self.assertRaises(Exception):
+            res = MOD.PayInvoice(request, CTX)
+        dec_req = pb.DecodeInvoiceRequest(payment_request='random')
+        mocked_decode.assert_called_once_with(dec_req, CTX)
+        self.assertEqual(mocked_check_par.call_count, 2)
+        assert not mocked_conv.called
+        assert not mocked_connect.called
+        assert not mocked_handle.called
         # cltv_expiry_delta out of range case
         reset_mocks(vars())
+        mocked_check_par.side_effect = None
         request = pb.PayInvoiceRequest(
             payment_request='abc', cltv_expiry_delta=7)
         mocked_check_val.return_value = False
