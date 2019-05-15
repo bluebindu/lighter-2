@@ -102,8 +102,10 @@ class UtilsTests(TestCase):
         with self.assertRaises(RuntimeError):
             MOD.FakeContext().abort(7, 'error')
 
-    def test_get_start_options(self):
+    @patch('lighter.utils._detect_impl_secret', autospec=True)
+    def test_get_start_options(self, mocked_detect):
         settings.INSECURE_CONNECTION = 0
+        mocked_detect.return_value = False
         # Secure connection case with macaroons enabled
         reset_mocks(vars())
         values = {
@@ -117,6 +119,7 @@ class UtilsTests(TestCase):
         with patch.dict('os.environ', values):
             MOD.get_start_options()
         self.assertEqual(settings.INSECURE_CONNECTION, False)
+        self.assertEqual(settings.ENABLE_UNLOCKER, True)
         # Insecure connection case
         values = {
             'IMPLEMENTATION': 'asd',
@@ -127,7 +130,8 @@ class UtilsTests(TestCase):
             MOD.get_start_options()
         self.assertEqual(settings.INSECURE_CONNECTION, True)
         self.assertEqual(settings.DISABLE_MACAROONS, True)
-        # No secrets case
+        self.assertEqual(settings.ENABLE_UNLOCKER, False)
+        # No secrets case (with warning)
         reset_mocks(vars())
         values = {
             'IMPLEMENTATION': 'clightning',
@@ -136,8 +140,30 @@ class UtilsTests(TestCase):
             'CLI_HOST': 'cli',
         }
         with patch.dict('os.environ', values):
-            MOD.get_start_options()
-        self.assertEqual(settings.NO_SECRETS, True)
+            MOD.get_start_options(warning=True)
+        self.assertEqual(settings.ENABLE_UNLOCKER, False)
+
+    @patch('lighter.utils.slow_exit', autospec=True)
+    @patch('lighter.utils.DbHandler', autospec=True)
+    @patch('lighter.utils.path.isfile', autospec=True)
+    def test_detect_impl_secret(self, mocked_isfile, mocked_db, mocked_exit):
+        settings.IMPLEMENTATION = 'clightning'
+        res = MOD._detect_impl_secret()
+        self.assertEqual(res, False)
+        settings.IMPLEMENTATION = 'lnd'
+        mocked_isfile.return_value = False
+        res = MOD._detect_impl_secret()
+        self.assertEqual(res, False)
+        mocked_isfile.return_value = True
+        mocked_db.get_secret_from_db.return_value = None, None
+        res = MOD._detect_impl_secret()
+        self.assertEqual(res, False)
+        mocked_db.get_secret_from_db.return_value = None, True
+        res = MOD._detect_impl_secret()
+        assert mocked_exit.called
+        mocked_db.get_secret_from_db.return_value = 'data', True
+        res = MOD._detect_impl_secret()
+        self.assertEqual(res, True)
 
     def test_str2bool(self):
         ## force_true=False

@@ -241,19 +241,20 @@ def start():
     Any raised exception will be handled with a slow exit.
     """
     try:
-        get_start_options()
+        get_start_options(warning=True)
         if not settings.DISABLE_MACAROONS:
             serialized_data = DbHandler.get_key_from_db(FakeContext())
             if not serialized_data:
-                slow_exit("Cannot obtain macaroon root key", wait=False)
-        if settings.NO_SECRETS:
+                slow_exit("Cannot obtain macaroon root key (hint: make "
+                          "secure)", wait=False)
+        if settings.ENABLE_UNLOCKER:
+            _serve_unlocker()
+        else:
             # Checks if implementation is supported, could throw an ImportError
             mod = import_module(
                 'lighter.light_{}'.format(settings.IMPLEMENTATION))
             # Calls the implementation specific update method
             mod.update_settings(None)
-        else:
-            _serve_unlocker()
         con_thread = Thread(target=check_connection)
         con_thread.daemon = True
         con_thread.start()

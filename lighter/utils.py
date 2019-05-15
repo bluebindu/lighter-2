@@ -98,7 +98,7 @@ def check_connection():
             LOGGER.info('Using %s', sett.IMPLEMENTATION)
 
 
-def get_start_options():
+def get_start_options(warning=False):
     """ Sets Lighter start options """
     sett.IMPLEMENTATION = env['IMPLEMENTATION'].lower()
     bool_opt = {
@@ -114,15 +114,33 @@ def get_start_options():
         sett.SERVER_KEY = env.get('SERVER_KEY', sett.SERVER_KEY)
         sett.SERVER_CRT = env.get('SERVER_CRT', sett.SERVER_CRT)
     if sett.DISABLE_MACAROONS:
-        LOGGER.warning('Disabling macaroons is not safe, '
-                       'do not disable them in production')
+        sett.ENABLE_UNLOCKER = _detect_impl_secret()
+        if warning:
+            LOGGER.warning('Disabling macaroons is not safe, '
+                           'do not disable them in production')
     else:
         sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
-    if sett.DISABLE_MACAROONS and sett.IMPLEMENTATION == 'clightning':
-        sett.NO_SECRETS = True
+    if not sett.ENABLE_UNLOCKER and warning:
+        LOGGER.warning('Running Lighter without secrets. '
+                       'Run make secure to configure them')
     sett.CLI_HOST = env.get('CLI_HOST', sett.CLI_HOST)
     sett.CLI_ADDR = '{}:{}'.format(sett.CLI_HOST, sett.PORT)
+
+
+def _detect_impl_secret():
+    """ Detects if implementation has a secret stored """
+    if sett.IMPLEMENTATION == 'clightning':
+        return False
+    if not path.isfile(path.join(sett.DB_DIR, sett.DB_NAME)):
+        return False
+    table = '{}_data'.format(sett.IMPLEMENTATION)
+    secret, active = DbHandler.get_secret_from_db(FakeContext(), table)
+    if not active:
+        return False
+    if active and not secret:
+        slow_exit('Cannot obtain implementation secret (hint: make secure)')
+    return True
 
 
 def str2bool(string, force_true=False):
