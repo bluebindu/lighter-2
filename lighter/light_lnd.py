@@ -262,7 +262,10 @@ def ListChannels(request, context):
     with _connect(context) as stub:
         lnd_res = stub.ListChannels(lnd_req, timeout=settings.IMPL_TIMEOUT)
         for lnd_chan in lnd_res.channels:
-            _add_channel(context, response, lnd_chan, active=True)
+            if request.active_only and lnd_chan.active:
+                _add_channel(context, response, lnd_chan, open_chan=True)
+            elif not request.active_only:
+                _add_channel(context, response, lnd_chan, open_chan=True)
         if not request.active_only:
             lnd_req = ln.PendingChannelsRequest()
             lnd_res = stub.PendingChannels(
@@ -517,15 +520,15 @@ def OpenChannel(request, context):
     return response
 
 
-def _add_channel(context, response, lnd_chan, active=False):
-    """ Adds an active or pending channel to a ListChannelsResponse """
+def _add_channel(context, response, lnd_chan, open_chan=False):
+    """ Adds an open or pending channel to a ListChannelsResponse """
     if lnd_chan.ListFields():
         channel = response.channels.add(
             funding_txid=lnd_chan.channel_point,
             capacity=convert(context, Enf.SATS, lnd_chan.capacity),
             local_balance=convert(context, Enf.SATS, lnd_chan.local_balance),
             remote_balance=convert(context, Enf.SATS, lnd_chan.remote_balance))
-        if active:
+        if open_chan:
             channel.remote_pubkey = lnd_chan.remote_pubkey
             channel.channel_id = str(lnd_chan.chan_id)
             channel.to_self_delay = lnd_chan.csv_delay

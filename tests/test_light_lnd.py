@@ -250,7 +250,7 @@ class LightLndTests(TestCase):
                 CTX,
                 pb.ListChannelsResponse(),
                 lnd_res_act.channels[0],
-                active=True),
+                open_chan=True),
             call(CTX, pb.ListChannelsResponse(),
                  lnd_res_pen.pending_open_channels[0].channel),
             call(CTX, pb.ListChannelsResponse(),
@@ -272,7 +272,7 @@ class LightLndTests(TestCase):
         reset_mocks(vars())
         request = pb.ListChannelsRequest(active_only=True)
         lnd_res = ln.ListChannelsResponse()
-        lnd_res.channels.add()
+        lnd_res.channels.add(active=True)
         stub.ListChannels.return_value = lnd_res
         res = MOD.ListChannels(request, CTX)
         stub.ListChannels.assert_called_once_with(
@@ -281,7 +281,7 @@ class LightLndTests(TestCase):
             CTX,
             pb.ListChannelsResponse(),
             lnd_res.channels[0],
-            active=True)
+            open_chan=True)
         assert not stub.PendingChannels.called
         assert not mocked_handle.called
         self.assertEqual(res, pb.ListChannelsResponse())
@@ -700,7 +700,7 @@ class LightLndTests(TestCase):
         # Active: empty
         response = pb.ListChannelsResponse()
         lnd_chan = ln.Channel()
-        MOD._add_channel(CTX, response, lnd_chan, active=True)
+        MOD._add_channel(CTX, response, lnd_chan, open_chan=True)
         assert not mocked_conv.called
         self.assertEqual(response, pb.ListChannelsResponse())
         # Active: filled
@@ -710,7 +710,7 @@ class LightLndTests(TestCase):
             capacity=7777777,
             local_balance=6666666,
             remote_balance=1111111)
-        MOD._add_channel(CTX, response, lnd_chan, active=True)
+        MOD._add_channel(CTX, response, lnd_chan, open_chan=True)
         calls = [
             call(CTX, Enf.SATS, lnd_chan.capacity),
             call(CTX, Enf.SATS, lnd_chan.local_balance),
