@@ -142,7 +142,9 @@ class LightLndTests(TestCase):
     def test_GetInfo(self, mocked_connect, mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
         # Testnet case
-        lnd_res = ln.GetInfoResponse(identity_pubkey='asd', chains=[ln.Chain(network="testnet")])
+        lnd_res = ln.GetInfoResponse(
+            identity_pubkey='asd', chains=[ln.Chain(network="testnet")],
+            uris=['uri'])
         stub.GetInfo.return_value = lnd_res
         node = ln.LightningNode(color='#DCDCDC')
         stub.GetNodeInfo.return_value = ln.NodeInfo(node=node)

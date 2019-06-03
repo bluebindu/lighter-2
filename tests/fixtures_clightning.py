@@ -126,27 +126,32 @@ FUNDCHANNEL = {
 
 
 GETINFO = {
-    "id": "022d558f74f2ab2a78d29ebf",
-    "port": 9735,
-    "alias": "pie",
-    "color": "#DCDCDC",
-    "address": [
-        {
-        "type": "ipv4",
-        "address": "5.95.80.47",
-        "port": 9735
-        }
-    ],
-    "binding": [
-        {
-        "type": "ipv4",
-        "address": "0.0.0.0",
-        "port": 9735
-        }
-    ],
-    "version": "v0.6",
-    "blockheight": 7777,
-    "network": "bitcoin"
+   "id" : "022d558f74f2ab2a78d29ebf",
+   "alias" : "pie",
+   "color" : "dcdcdc",
+   "num_peers" : 4,
+   "num_pending_channels" : 1,
+   "num_active_channels" : 3,
+   "num_inactive_channels" : 0,
+   "address" : [
+      {
+         "type" : "ipv4",
+         "address" : "30.107.77.66",
+         "port" : 9735
+      }
+   ],
+   "binding" : [
+      {
+         "type" : "ipv4",
+         "address" : "0.0.0.0",
+         "port" : 9735
+      }
+   ],
+   "version" : "v0.7.0-331-g12f703e",
+   "blockheight" : 1519674,
+   "network" : "bitcoin",
+   "msatoshi_fees_collected" : 4,
+   "fees_collected_msat" : "4msat"
 }
 
 

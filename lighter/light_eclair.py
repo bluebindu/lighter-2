@@ -76,6 +76,9 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
     response = pb.GetInfoResponse()
     if _defined(ecl_res, 'nodeId'):
         response.identity_pubkey = ecl_res['nodeId']
+        if _defined(ecl_res, 'publicAddresses'):
+            response.node_uri = '{}@{}'.format(
+                ecl_res['nodeId'], ecl_res['publicAddresses'][0])
     if _defined(ecl_res, 'alias'):
         response.alias = ecl_res['alias']
     if _defined(ecl_res, 'blockHeight'):

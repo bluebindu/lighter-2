@@ -92,6 +92,11 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
     response = pb.GetInfoResponse()
     if 'id' in cl_res:
         response.identity_pubkey = cl_res['id']
+        if 'address' in cl_res:
+            address = cl_res['address'][0]
+            if 'address' in address and 'port' in address:
+                response.node_uri = '{}@{}:{}'.format(
+                    cl_res['id'], address['address'], address['port'])
     if 'alias' in cl_res:
         response.alias = cl_res['alias']
     if 'color' in cl_res:

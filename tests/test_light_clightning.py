@@ -64,10 +64,10 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.GETINFO, always_abort=False)
         self.assertEqual(res.identity_pubkey, '022d558f74f2ab2a78d29ebf')
-        self.assertEqual(res.alias, 'pie')
-        self.assertEqual(res.color, '#DCDCDC')
-        self.assertEqual(res.version, 'v0.6')
-        self.assertEqual(res.blockheight, 7777)
+        self.assertEqual(res.alias, fix.GETINFO['alias'])
+        self.assertEqual(res.color, fix.GETINFO['color'])
+        self.assertEqual(res.version, fix.GETINFO['version'])
+        self.assertEqual(res.blockheight, fix.GETINFO['blockheight'])
         self.assertEqual(res.network, 'mainnet')
         # Error case
         reset_mocks(vars())

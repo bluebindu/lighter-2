@@ -207,6 +207,8 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
             version=lnd_res.version,
             blockheight=lnd_res.block_height,
             network=network)
+        if lnd_res.uris:
+            response.node_uri = lnd_res.uris[0]
         if lnd_res.identity_pubkey:
             lnd_req = ln.NodeInfoRequest(pub_key=lnd_res.identity_pubkey)
             lnd_res = stub.GetNodeInfo(lnd_req, timeout=settings.IMPL_TIMEOUT)

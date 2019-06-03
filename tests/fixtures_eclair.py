@@ -271,7 +271,8 @@ GETINFO_TESTNET = {
   "chainHash": "43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000",
   "blockHeight": 1515554,
   "publicAddresses": [
-    "7.58.73.71:9735"
+    "7.58.73.71:9735",
+    "of7husrflx7sforh3fw6yqlpwstee3wg5imvvmkp4bz6rbjxtg5nljad.onion:9735"
   ]
 }
 

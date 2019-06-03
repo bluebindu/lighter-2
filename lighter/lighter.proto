@@ -303,6 +303,10 @@ message GetInfoResponse {
     Node's network
     */
     string network = 6;
+    /**
+    Node's uri
+    */
+    string node_uri = 7;
 }
 
 message ListChannelsRequest {
