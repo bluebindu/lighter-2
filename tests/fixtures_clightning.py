@@ -399,38 +399,47 @@ PAY = {
 PAYMENTS = {
     "payments": [
         {
-          "id": 1,
-          "payment_hash": "f7ce87ebee5e5n20641ef17db847224220a8d446c1cf6491a35cde7b27503f3fe",
-          "destination": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
-          "msatoshi": 77000,
-          "msatoshi_sent": 77033,
-          "created_at": 1548680924,
-          "status": "complete",
-          "payment_preimage": "e333b05b94aaecdadd03aa65b47df296f6a312aaaa7b334aeb5abe0e6a40e19a",
-          "description": "pizza"
+            "id": 1,
+            "payment_hash": "f7ce87ebee5e5n20641ef17db847224220a8d446c1cf6491a35cde7b27503f3fe",
+            "destination": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
+            "msatoshi": 77000,
+            "msatoshi_sent": 77033,
+            "created_at": 1548680924,
+            "status": "complete",
+            "payment_preimage": "e333b05b94aaecdadd03aa65b47df296f6a312aaaa7b334aeb5abe0e6a40e19a",
+            "description": "pizza"
         },
         {
-          "id": 2,
-          "payment_hash": "4a8e28d38fcc9f572807df876249715g31f962aaeb76741658db6c0e5d700a92",
-          "destination": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
-          "msatoshi": 100000,
-          "msatoshi_sent": 100048,
-          "created_at": 1548680969,
-          "status": "complete",
-          "payment_preimage": "cb791daf001a8f180d5964b2bd7e79e1a7bd8940g071775855f1015cdb8385ae",
-          "description": "lightning fast"
+            "id": 2,
+            "payment_hash": "4a8e28d38fcc9f572807df876249715g31f962aaeb76741658db6c0e5d700a92",
+            "destination": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
+            "msatoshi": 100000,
+            "msatoshi_sent": 100048,
+            "created_at": 1548680969,
+            "status": "complete",
+            "payment_preimage": "cb791daf001a8f180d5964b2bd7e79e1a7bd8940g071775855f1015cdb8385ae",
+            "description": "lightning fast"
         },
         {
-          "id": 3,
-          "payment_hash": "b97349je9ed477e45btbd773725e1c3f64bkj0153667y85f06da4d3dd1b18910",
-          "destination": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
-          "msatoshi": 1000000,
-          "msatoshi_sent": 1002354,
-          "created_at": 1548681049,
-          "status": "complete",
-          "payment_preimage": "6438421aaba463ada45jb6168ccbd07da68e0f87je5771cb5c1bd71f8c569c0c",
-          "description": "lighter"
-        }
+            "id": 3,
+            "payment_hash": "b97349je9ed477e45btbd773725e1c3f64bkj0153667y85f06da4d3dd1b18910",
+            "destination": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
+            "msatoshi": 1000000,
+            "msatoshi_sent": 1002354,
+            "created_at": 1548681049,
+            "status": "complete",
+            "payment_preimage": "6438421aaba463ada45jb6168ccbd07da68e0f87je5771cb5c1bd71f8c569c0c",
+            "description": "lighter"
+        },
+        { 
+            "id": 4,
+            "payment_hash": "cb3cb39de742ced7b553445902c89c2f085c1dbd68de68a8d98edb6aad45956e",
+            "destination": "03035ba026129c629e0f11d8fd655e3acc360062bddd646c1935dd9232c5ed564c",                                                                                                                                                           "msatoshi": 700000,
+            "amount_msat": "700000msat",                                                                                                                                                                                                                   "msatoshi_sent": 702086,                                                                                                                                                                                                                       "amount_sent_msat": "702086msat",
+            "created_at": 1559664432,
+            "status": "failed",
+            "bolt11": "lntb7u1pw0d95ppp5ev7t8808gt8d0d2ng3vs9jyu9uy9c8dadr0x32xe3mdk4t29j4hqdqdv4ex2cm9d9mx2xqruyqrzjqgvtjtgem6fhaa6qz4xjp5ax7d7yfe3crjnjh9tcj22swdnyelwnv9c625qqqxsqqqqqqqlgqqqqqeqqjqrzjqwfn3p9278ttzzpe0e00uhyxhned3j5d9acqak5emwfpflp8z2cng95n6sqqqpsqqqqqqqlgqqqqqeqqjqrzjq2rrsp2pfed6mhr09nx3wnxp3amxk96f8yrsaktnkju55j5klccls944eqqqp9gqqqqqqqlgqqqqqeqqjqqdyvw4ftg9y7hskqz86zaaln4xqqttehg0ksp7ltgc5d7rgupk996yndv2vrjjxmu4xflafru8r9s3gla4znrjlvqnuy3tqd4dtfsjcqddlsw7"
+    }
     ]
 }
 

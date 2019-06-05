@@ -421,6 +421,8 @@ def _add_channel(context, response, cl_peer, cl_chan):
 
 def _add_payment(context, response, cl_payment):
     """ Adds a payment to a ListPaymentsResponse """
+    if 'status' in cl_payment and cl_payment['status'] == 'failed':
+        return
     grpc_payment = response.payments.add()
     if 'payment_hash' in cl_payment:
         grpc_payment.payment_hash = cl_payment['payment_hash']

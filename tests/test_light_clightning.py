@@ -756,6 +756,13 @@ class LightClightningTests(TestCase):
                          cl_payment['payment_hash'])
         mocked_conv.assert_called_once_with(CTX, Enf.MSATS,
                                             cl_payment['msatoshi_sent'])
+        # Failed payment case
+        reset_mocks(vars())
+        response = pb.ListPaymentsResponse()
+        cl_payment = fix.PAYMENTS['payments'][3]
+        MOD._add_payment(CTX, response, cl_payment)
+        self.assertEqual(response.ListFields(), [])
+        assert not mocked_conv.called
 
     def test_add_route_hint(self):
         response = pb.DecodeInvoiceResponse()
