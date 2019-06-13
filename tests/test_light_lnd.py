@@ -352,12 +352,15 @@ class LightLndTests(TestCase):
         lnd_res = ln.ListPeersResponse()
         lnd_res.peers.add(pub_key='pubkey', address='address')
         stub.ListPeers.return_value = lnd_res
+        lnd_res = ln.NodeInfo(node=ln.LightningNode(alias='alias'))
+        stub.GetNodeInfo.return_value = lnd_res
         res = MOD.ListPeers('request', CTX)
         stub.ListPeers.assert_called_once_with(
             ln.ListPeersRequest(), timeout=settings.IMPL_TIMEOUT)
         assert not mocked_handle.called
         self.assertEqual(res.peers[0].pubkey, 'pubkey')
         self.assertEqual(res.peers[0].address, 'address')
+        self.assertEqual(res.peers[0].alias, 'alias')
         assert not mocked_handle.called
         # Empty case
         reset_mocks(vars())

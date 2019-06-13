@@ -339,9 +339,12 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
     with _connect(context) as stub:
         lnd_res = stub.ListPeers(lnd_req, timeout=settings.IMPL_TIMEOUT)
         for lnd_peer in lnd_res.peers:
+            lnd_req = ln.NodeInfoRequest(pub_key=lnd_peer.pub_key)
+            lnd_res = stub.GetNodeInfo(lnd_req, timeout=settings.IMPL_TIMEOUT)
             response.peers.add(  # pylint: disable=no-member
                 pubkey=lnd_peer.pub_key,
-                address=lnd_peer.address)
+                address=lnd_peer.address,
+                alias=lnd_res.node.alias)
     return response
 
 
