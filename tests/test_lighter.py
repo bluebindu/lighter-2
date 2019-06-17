@@ -43,15 +43,25 @@ class LighterTests(TestCase):
                                mocked_db, mocked_baker, mocked_import,
                                mocked_slow_exit, mocked_check_password):
         password = 'password'
-        # with root_key
+        # with macaroon enabled but no implementation secrets
+        request = pb.UnlockLighterRequest(password=password)
+        mocked_db.get_salt_from_db.return_value = [(1, 'salt')]
+        mocked_db.get_secret_from_db.return_value = (1, 'secret', 1)
+        mocked_check_password.return_value = True
+        res = MOD.UnlockerServicer().UnlockLighter(request, CTX)
+        mocked_import.return_value.update_settings.assert_called_once_with(
+            None)
+        # with macaroon enabled and implementation secrets
+        reset_mocks(vars())
+        settings.IMPLEMENTATION_SECRETS = True
         request = pb.UnlockLighterRequest(password=password)
         mocked_db.get_salt_from_db.return_value = [(1, 'salt')]
         mocked_db.get_secret_from_db.return_value = (1, 'secret', 1)
         mocked_crypter.decrypt.return_value = 'plain_data'
         mocked_check_password.return_value = True
         res = MOD.UnlockerServicer().UnlockLighter(request, CTX)
-        mocked_import.return_value.update_settings\
-            .assert_called_once_with('plain_data')
+        mocked_import.return_value.update_settings.assert_called_once_with(
+            'plain_data')
 
 
 
@@ -257,10 +267,9 @@ class LighterTests(TestCase):
         mocked_slow_exit.side_effect = Exception()
         # with secrets case
         settings.ENABLE_UNLOCKER = True
-        mocked_db.is_old_version.return_value = False
-        mocked_db.get_token_from_db.return_value = "not_none"
+        mocked_db.has_token.return_value = True
         MOD.start()
-        mocked_get_start_opt.assert_called_once_with(warning=True)
+        mocked_get_start_opt.assert_called_once_with(warning=True, detect=True)
         mocked_serve_unlocker.assert_called_once_with()
         mocked_serve_lightning.assert_called_once_with()
         assert not mocked_slow_exit.called
@@ -269,7 +278,7 @@ class LighterTests(TestCase):
         settings.ENABLE_UNLOCKER = False
         settings.IMPLEMENTATION = 'asd'
         MOD.start()
-        mocked_get_start_opt.assert_called_once_with(warning=True)
+        mocked_get_start_opt.assert_called_once_with(warning=True, detect=True)
         mocked_import.assert_called_once_with('lighter.light_asd')
         mocked_import.return_value.update_settings.assert_called_once_with(None)
         mocked_thread.assert_called_once_with(target=utils.check_connection)
@@ -279,22 +288,21 @@ class LighterTests(TestCase):
         # no encrypted token in db
         reset_mocks(vars())
         settings.ENABLE_UNLOCKER = True
-        mocked_db.get_token_from_db.return_value = None
+        mocked_db.has_token.return_value = False
         settings.DISABLE_MACAROONS = False
         with self.assertRaises(Exception):
             MOD.start()
         assert mocked_slow_exit.called
         # old db version case
         reset_mocks(vars())
-        mocked_db.is_old_version.return_value = True
+        mocked_db.has_token.return_value = False
         with self.assertRaises(Exception):
             MOD.start()
         assert mocked_slow_exit.called
-        assert not mocked_get_start_opt.called
+        mocked_get_start_opt.assert_called_once_with(warning=True, detect=True)
         # Exceptions handling case
         reset_mocks(vars())
         mocked_slow_exit.side_effect = None
-        mocked_db.is_old_version.return_value = False
         exceptions = [ImportError, KeyError, RuntimeError, FileNotFoundError]
         for exc in exceptions:
             reset_mocks(vars())
@@ -302,7 +310,7 @@ class LighterTests(TestCase):
             MOD.start()
             assert mocked_slow_exit.called
         reset_mocks(vars())
-        mocked_db.return_value.get_token_from_db.return_value = None
+        mocked_db.return_value.has_token.return_value = None
         MOD.start()
         assert mocked_slow_exit.called
 

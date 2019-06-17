@@ -142,7 +142,13 @@ def secure():
     rm_db = environ.get('RM_DB')
     if rm_db: _remove_files()
     get_start_options()
+    new = False
     if no_db or rm_db:
+        new = True
+    else:
+        if not DbHandler.has_token(FakeContext()):
+            _exit('Detected an incomplete configuration. Delete database.')
+    if new:
         password = getpass('Insert a safe password for Lighter: ')
         password_check = getpass('Repeat password: ')
         if password != password_check:

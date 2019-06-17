@@ -99,7 +99,7 @@ def check_connection():
             LOGGER.info('Using %s', sett.IMPLEMENTATION)
 
 
-def get_start_options(warning=False):
+def get_start_options(warning=False, detect=False):
     """ Sets Lighter start options """
     sett.IMPLEMENTATION = env['IMPLEMENTATION'].lower()
     bool_opt = {
@@ -114,12 +114,15 @@ def get_start_options(warning=False):
     else:
         sett.SERVER_KEY = env.get('SERVER_KEY', sett.SERVER_KEY)
         sett.SERVER_CRT = env.get('SERVER_CRT', sett.SERVER_CRT)
+    if detect:
+        sett.IMPLEMENTATION_SECRETS = _detect_impl_secret()
     if sett.DISABLE_MACAROONS:
-        sett.ENABLE_UNLOCKER = _detect_impl_secret()
+        sett.ENABLE_UNLOCKER = sett.IMPLEMENTATION_SECRETS
         if warning:
             LOGGER.warning('Disabling macaroons is not safe, '
                            'do not disable them in production')
     else:
+        sett.ENABLE_UNLOCKER = True
         sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
     if not sett.ENABLE_UNLOCKER and warning:
@@ -133,15 +136,21 @@ def _detect_impl_secret():
     """ Detects if implementation has a secret stored """
     if sett.IMPLEMENTATION == 'clightning':
         return False
-    if not path.isfile(path.join(sett.DB_DIR, sett.DB_NAME)):
-        return False
+    detected = False
+    error = False
     _, secret, active = DbHandler.get_secret_from_db(
         FakeContext(), sett.IMPLEMENTATION)
-    if not active:
-        return False
-    if active and not secret:
+    if sett.IMPLEMENTATION == 'eclair':
+        detected = True  # secret always necessary when using eclair
+        if not secret:
+            error = True
+    if sett.IMPLEMENTATION == 'lnd' and active:
+        detected = True
+        if not secret:
+            error = True
+    if error:
         slow_exit('Cannot obtain implementation secret (hint: make secure)')
-    return True
+    return detected
 
 
 def str2bool(string, force_true=False):
@@ -420,27 +429,26 @@ class DbHandler():
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def is_old_version(context):
+    def has_token(context):
         """
-        It returns wheter the db is in an old version
+        It returns wheter the db contains the table with the crypted token
         """
-        table = DbHandler.TABLE_TOKEN
         # pylint: enable=unused-argument
+        table = DbHandler.TABLE_TOKEN
+        if not path.isfile(DbHandler.DATABASE):
+            return False
         with connect(DbHandler.DATABASE) as connection:
             cursor = connection.cursor()
             cursor.execute('''SELECT count(*) FROM sqlite_master
                            WHERE type="table"
                            AND name="{}"'''.format(table))
-            entry = cursor.fetchone()[0]
-            return not entry
+            return cursor.fetchone()[0]
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
     def _get_from_db(context, table, get_all=False):
-        """
-        returns the content of table ordered by version
-        """
+        """ Returns the content of table ordered by version """
         # pylint: enable=unused-argument
         with connect(DbHandler.DATABASE) as connection:
             cursor = connection.cursor()
@@ -462,9 +470,7 @@ class DbHandler():
     @_handle_db_errors
     # pylint: disable=unused-argument
     def _save_in_db(context, table, version, data):
-        """
-        stores data into table setting the version to the db
-        """
+        """ Stores data into table setting its version to the db """
         # pylint: enable=unused-argument
         with connect(DbHandler.DATABASE) as connection:
             connection.execute(
@@ -521,23 +527,21 @@ class DbHandler():
     def get_secret_from_db(context, implementation):
         """ Gets implementation's secret from database """
         # pylint: enable=unused-argument
+        if not path.isfile(DbHandler.DATABASE):
+            return None, None, None
         table = DbHandler.TABLE_SECRETS
         with connect(DbHandler.DATABASE) as connection:
             cursor = connection.cursor()
             cursor.execute('''SELECT count(*) FROM sqlite_master
                   WHERE type="table" AND name="{}"'''.format(table))
-            entry = cursor.fetchone()[0]
-            if not entry:
+            if not cursor.fetchone()[0]:
                 return None, None, None
             cursor.execute('''SELECT * FROM {} WHERE implementation="{}"
                 ORDER BY version DESC LIMIT 1'''.format(table, implementation))
-            entry = cursor.fetchone()[0]
+            entry = cursor.fetchone()
             if not entry:
                 return None, None, None
-            cursor.execute('SELECT version FROM {}'.format(table))
-            version = cursor.fetchone()[0]
-            cursor.execute('SELECT secret FROM {}'.format(table))
-            secret = cursor.fetchone()[0]
-            cursor.execute('SELECT active FROM {}'.format(table))
-            active = cursor.fetchone()[0]
+            version = entry[0]
+            secret = entry[3]
+            active = entry[2]
             return version, secret, active

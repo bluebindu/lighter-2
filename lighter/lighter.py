@@ -39,8 +39,10 @@ LOGGER = getLogger(__name__)
 
 class UnlockerServicer(pb_grpc.UnlockerServicer):
     """
-    UnlockerServicer implements a service which does not require authentication
-    but
+    UnlockerServicer provides an implementation of the Unlocker service
+    defined with protobuf.
+
+    This service does not require macaroons authentication.
     """
 
     # pylint: disable=too-few-public-methods
@@ -60,10 +62,11 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
             baker = get_baker(settings.ACCESS_KEY_V1, put_ops=True)
             settings.LIGHTNING_BAKERY = baker
         plain_secret = None
-        version, secret, active = DbHandler.get_secret_from_db(
-            context, settings.IMPLEMENTATION)
-        if secret and active:
-            plain_secret = Crypter.decrypt(context, version, secret)
+        if settings.IMPLEMENTATION_SECRETS:
+            version, secret, active = DbHandler.get_secret_from_db(
+                context, settings.IMPLEMENTATION)
+            if secret and active:
+                plain_secret = Crypter.decrypt(context, version, secret)
         # Checks if implementation is supported, could throw an ImportError
         mod = import_module('lighter.light_{}'.format(settings.IMPLEMENTATION))
         # Calls the implementation specific update method
@@ -242,17 +245,12 @@ def start():
     Any raised exception will be handled with a slow exit.
     """
     try:
-        if DbHandler.is_old_version(FakeContext()):
-            slow_exit('The key generation data is stored in a old version of '
-                      'the db. Update it by running make secure (and deleting '
-                      'db)')
-        get_start_options(warning=True)
-        if not settings.DISABLE_MACAROONS:
-            enc_token = DbHandler.get_token_from_db(FakeContext())
-            if not enc_token:
-                slow_exit('Parameters for key generation are not set'
-                          '(hint: make secure)', wait=False)
+        get_start_options(warning=True, detect=True)
         if settings.ENABLE_UNLOCKER:
+            if not DbHandler.has_token(FakeContext()):
+                slow_exit('Your database configuration results incomplete or '
+                          'old. Update it by running make secure (and '
+                          'deleting db)')
             _serve_unlocker()
         else:
             # Checks if implementation is supported, could throw an ImportError

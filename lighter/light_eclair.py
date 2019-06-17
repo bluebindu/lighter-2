@@ -43,6 +43,9 @@ ERRORS = {
     },
     'route not found': {
         'fun': 'route_not_found'
+    },
+    'The supplied authentication is invalid': {
+        'fun': 'node_error'
     }
 }
 
