@@ -43,6 +43,8 @@ LOGGER = getLogger(__name__)
 
 def update_logger():
     """ Activate logs on file """
+    sett.LOGS_LEVEL = env.get('LOGS_LEVEL', sett.LOG_LEVEL_CONSOLE).upper()
+    sett.LOGGING['handlers']['console']['level'] = sett.LOGS_LEVEL
     sett.LOGS_DIR = env.get('LOGS_DIR', sett.LOGS_DIR)
     log_path = path.join(path.abspath(sett.LOGS_DIR), 'lighter.log')
     sett.LOGGING['handlers'].update(sett.FILE_LOGGING)

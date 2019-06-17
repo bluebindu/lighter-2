@@ -89,6 +89,8 @@ DEFAULT_DESCRIPTION = 'Lighter invoice'
 
 LOG_TIMEFMT = '%Y-%m-%d %H:%M:%S %z'
 LOG_TIMEFMT_SIMPLE = '%d %b %H:%M:%S'
+LOG_LEVEL_CONSOLE = 'INFO'
+LOG_LEVEL_FILE = 'DEBUG'
 
 LOGGING = {
     'version': 1,
@@ -106,7 +108,7 @@ LOGGING = {
     },
     'handlers': {
         'console': {
-            'level': 'DEBUG',
+            'level': LOG_LEVEL_CONSOLE,
             'class': 'logging.StreamHandler',
             'formatter': 'simple'
         }
@@ -114,14 +116,14 @@ LOGGING = {
     'loggers': {
         '': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': 'DEBUG'
         }
     }
 }
 
 FILE_LOGGING = {
     'file': {
-        'level': 'INFO',
+        'level': LOG_LEVEL_FILE,
         'class': 'logging.handlers.RotatingFileHandler',
         'filename': './lighter-data/logs/lighter.log',
         'maxBytes': 1048576,

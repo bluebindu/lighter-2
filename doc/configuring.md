@@ -17,6 +17,7 @@ Paths are relative to the project directory, unless otherwise stated.
 | `SERVER_KEY` <sup>2</sup>     | Private key path (default `./lighter-data/certs/server.key`)               |
 | `SERVER_CRT` <sup>2</sup>     | Certificate (chain) path (default `./lighter-data/certs/server.crt`)       |
 | `LOGS_DIR`                    | Location <sup>4</sup> to hold log files (default `./lighter-data/logs`)    |
+| `LOGS_LEVEL`                  | Desired console log level (possible values: `critical`, `error`, `warning`, `info`, `debug`; default `info`) |
 | `DB_DIR`                      | Location to hold the database (default `./lighter-data/db`)                |
 | `MACAROONS_DIR`               | Location to hold macaroons (default `./lighter-data/macaroons`)            |
 | `DISABLE_MACAROONS` <sup>3</sup> | Set to `1` to disable macaroons authentication (default `0`)            |
