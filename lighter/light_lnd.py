@@ -537,6 +537,7 @@ def _add_channel(context, response, lnd_chan, open_chan=False):
             channel.remote_pubkey = lnd_chan.remote_pubkey
             channel.channel_id = str(lnd_chan.chan_id)
             channel.to_self_delay = lnd_chan.csv_delay
+            channel.private = lnd_chan.private
         else:
             channel.remote_pubkey = lnd_chan.remote_node_pub
 

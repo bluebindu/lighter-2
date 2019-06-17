@@ -356,6 +356,10 @@ message Channel {
     CSV delay (relative) to wait when initiating a force close of the channel
     */
     uint32 to_self_delay = 8;
+    /**
+    Wheter the channel is private or public (announced to the network, available for routing)
+    */
+    bool private = 9;
 }
 
 message ListInvoicesRequest {

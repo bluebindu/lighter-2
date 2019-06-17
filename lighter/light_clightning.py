@@ -417,6 +417,8 @@ def _add_channel(context, response, cl_peer, cl_chan):
                                           cl_chan['msatoshi_to_us'])
     if grpc_chan.capacity and grpc_chan.local_balance:
         grpc_chan.remote_balance = grpc_chan.capacity - grpc_chan.local_balance
+    if 'private' in cl_chan:
+        grpc_chan.private = cl_chan['private']
 
 
 def _add_payment(context, response, cl_payment):

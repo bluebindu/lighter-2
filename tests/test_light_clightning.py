@@ -251,8 +251,8 @@ class LightClightningTests(TestCase):
         mocked_command.assert_called_once_with(CTX, api)
         mocked_handle.assert_called_once_with(
             CTX, fix.LISTPEERS, always_abort=False)
-        self.assertEqual(res.peers[0].pubkey, '02212d3ec887188b284dbb7b222d2e')
-        self.assertEqual(res.peers[0].alias, 'yalls.org')
+        self.assertEqual(res.peers[0].pubkey, fix.LISTPEERS['peers'][1]['id'])
+        self.assertEqual(res.peers[0].alias, 'lighter')
         self.assertEqual(res.peers[0].address, '54.236.55.50:9735')
         # No peers case
         reset_mocks(vars())
@@ -723,28 +723,18 @@ class LightClightningTests(TestCase):
         response = pb.ListChannelsResponse()
         cl_peer = fix.LISTPEERS['peers'][0]
         cl_chan = cl_peer['channels'][0]
-        mocked_conv.side_effect = [50000.0, 48.0]
         res = MOD._add_channel(CTX, response, cl_peer, cl_chan)
-        calls = [
-            call(CTX, Enf.MSATS, 5000000000),
-            call(CTX, Enf.MSATS, 4800000)
-        ]
-        mocked_conv.assert_has_calls(calls)
+        self.assertEqual(mocked_conv.call_count, 2)
         self.assertEqual(res, None)
         self.assertEqual(res, None)
-        self.assertEqual(response.channels[0].remote_pubkey,
-                         '0322deb288d430d3165af3d7456432111ff6cff3f431c9ae1')
-        self.assertEqual(response.channels[0].short_channel_id, '1323814:55:0')
-        self.assertEqual(
-            response.channels[0].channel_id,
-            'd32457de4d654931271272c1d8aa2a73576891e9cc918afacfa54f6bdfb8')
-        self.assertEqual(
-            response.channels[0].funding_txid,
-            'b8df6b4fa5ffa8a91cce9916857aaad8c1777212273149654dde5724d3bd')
-        self.assertEqual(response.channels[0].to_self_delay, 144)
-        self.assertEqual(response.channels[0].capacity, 50000.0)
-        self.assertEqual(response.channels[0].local_balance, 48.0)
-        self.assertEqual(response.channels[0].remote_balance, 50000 - 48)
+        self.assertEqual(response.channels[0].remote_pubkey, cl_peer['id'])
+        self.assertEqual(response.channels[0].short_channel_id, cl_chan['short_channel_id'])
+        self.assertEqual(response.channels[0].channel_id, cl_chan['channel_id'])
+        self.assertEqual(response.channels[0].funding_txid, cl_chan['funding_txid'])
+        self.assertEqual(response.channels[0].to_self_delay, cl_chan['our_to_self_delay'])
+        self.assertEqual(response.channels[0].capacity, 1.0)
+        self.assertEqual(response.channels[0].local_balance, 1.0)
+        self.assertEqual(response.channels[0].remote_balance, 0.0)
 
     @patch('lighter.light_clightning.convert', autospec=True)
     def test_add_payment(self, mocked_conv):
