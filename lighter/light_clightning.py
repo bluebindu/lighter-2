@@ -15,14 +15,21 @@
 
 """ Implementation of lighter.proto defined methods for c-lightning """
 
+from ast import literal_eval
+from concurrent.futures import TimeoutError as TimeoutFutError, \
+    ThreadPoolExecutor
 from datetime import datetime
+from logging import getLogger
 from os import environ, path
 
 from . import lighter_pb2 as pb
 from . import settings
 from .utils import check_req_params, command, convert, Enforcer as Enf, \
+    FakeContext, get_close_timeout, get_thread_timeout, handle_thread, \
     has_amount_encoded
 from .errors import Err
+
+LOGGER = getLogger(__name__)
 
 ERRORS = {
     'Bad bech32 string': {
@@ -31,6 +38,10 @@ ERRORS = {
     },
     'Cannot afford transaction': {
         'fun': 'insufficient_funds'
+    },
+    'Channel ID not found': {
+        'fun': 'invalid',
+        'params': 'channel_id'
     },
     'Connection refused': {
         'fun': 'node_error'
@@ -52,6 +63,10 @@ ERRORS = {
         'fun': 'invalid',
         'params': 'fallback_addr'
     },
+    'Given id is not a channel ID or short channel ID': {
+        'fun': 'invalid',
+        'params': 'channel_id'
+    },
     # this error happens when giving a short fallback address (e.g. "sd")
     'Incorrect \'id\' in response': {
         'fun': 'invalid',
@@ -67,10 +82,10 @@ ERRORS = {
         'fun': 'missing_parameter',
         'params': 'description'
     },
-    'Peer already CHANNELD_AWAITING_LOCKIN': {
+    'Parsing accept_channel': {
         'fun': 'openchannel_failed'
     },
-    'Peer already CHANNELD_NORMAL': {
+    'Peer already': {
         'fun': 'openchannel_failed'
     },
     'They sent error': {
@@ -417,6 +432,38 @@ def OpenChannel(request, context):
     return response
 
 
+def CloseChannel(request, context):
+    """ Tries to close a LN chanel """
+    cl_req = ['close']
+    check_req_params(context, request, 'channel_id')
+    cl_req.append('id="{}"'.format(request.channel_id))
+    response = pb.CloseChannelResponse()
+    close_timeout = get_close_timeout(context)
+    if request.force:
+        cl_req.append('force=true')
+        # setting a zero timeout to force an immediate unilateral close
+        cl_req.append('timeout=0')
+    else:
+        cl_req.append('timeout={}'.format(close_timeout))
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(_close_channel, cl_req, close_timeout)
+    try:
+        cl_res = future.result(timeout=get_thread_timeout(context))
+        if cl_res:
+            if 'txid' in cl_res:
+                response.closing_txid = cl_res['txid']
+            return response
+    except RuntimeError as cl_err:
+        try:
+            error = literal_eval(str(cl_err))
+            _handle_error(context, error)
+        except (SyntaxError, ValueError):
+            Err().report_error(context, str(cl_err))
+    except TimeoutFutError:
+        executor.shutdown(wait=False)
+    return pb.CloseChannelResponse()
+
+
 # pylint: disable=too-many-arguments
 def _add_channel(context, response, cl_peer, cl_chan, state, active_only):
     """ Adds a channel to a ListChannelsResponse """
@@ -487,6 +534,27 @@ def _add_route_hint(response, cl_route):
                 'fee_proportional_millionths']
         if 'cltv_expiry_delta' in cl_hop:
             grpc_hop.cltv_expiry_delta = cl_hop['cltv_expiry_delta']
+
+
+@handle_thread
+def _close_channel(cl_req, close_timeout):
+    """ Returns close channel response or raises exception to caller """
+    cl_res = error = None
+    try:
+        # adding a little delay to allow implementation to answer before
+        # command times out
+        cl_res = command(FakeContext(), *cl_req, timeout=close_timeout + 0.1)
+        if 'message' in cl_res and 'code' in cl_res:
+            error = cl_res['message']
+        else:
+            LOGGER.debug('[ASYNC] CloseChannel terminated with response: %s',
+                         cl_res)
+    except RuntimeError as err:
+        error = str(err)
+    if error:
+        LOGGER.debug('[ASYNC] CloseChannel terminated with error: %s', error)
+        raise RuntimeError(error)
+    return cl_res
 
 
 def _create_label():

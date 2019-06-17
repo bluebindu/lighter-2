@@ -57,8 +57,10 @@ ENTROPY_BLOCKING = 1
 
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
 GRPC_WORKERS = 10
-GRPC_GRACE_TIME = 7
+GRPC_GRACE_TIME = 40
 RESTART_THROTTLE = 3
+
+THREADS = []
 
 # Lit-cli settings
 CLI_HOST = '127.0.0.1'
@@ -92,6 +94,9 @@ LND_MAC = ''
 
 # Common settings
 IMPL_TIMEOUT = 7
+RESPONSE_RESERVED_TIME = 0.3
+THREAD_TIMEOUT = 3
+CLOSE_TIMEOUT_NODE = 15
 MAX_INVOICES = 200
 INVOICES_TIMES = 3
 DEFAULT_DESCRIPTION = 'Lighter invoice'
@@ -149,6 +154,10 @@ ALL_PERMS = {
     '/lighter.Lightning/CheckInvoice': {
         'entity': 'invoice',
         'action': 'read'
+    },
+    '/lighter.Lightning/CloseChannel': {
+        'entity': 'channel',
+        'action': 'write'
     },
     '/lighter.Lightning/CreateInvoice': {
         'entity': 'invoice',

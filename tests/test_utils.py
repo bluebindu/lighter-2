@@ -33,6 +33,7 @@ from lighter.utils import Enforcer as Enf, check_password
 MOD = import_module('lighter.utils')
 CTX = 'context'
 
+
 class UtilsTests(TestCase):
     """ Tests for the utils module """
 
@@ -366,8 +367,39 @@ class UtilsTests(TestCase):
         mocked_logger.error.assert_called_once_with(msg)
         assert not mocked_sleep.called
 
+    def test_get_close_timeout(self):
+        # Client without timeout
+        ctx = Mock()
+        ctx.time_remaining.return_value = None
+        res = MOD.get_close_timeout(ctx)
+        self.assertEqual(res, settings.CLOSE_TIMEOUT_NODE)
+        # Client with long timeout
+        ctx.time_remaining.return_value = 100
+        res = MOD.get_close_timeout(ctx)
+        self.assertEqual(res, 100 - settings.RESPONSE_RESERVED_TIME)
+        # Client with not enough timeout
+        ctx.time_remaining.return_value = 0.01
+        res = MOD.get_close_timeout(ctx)
+        self.assertEqual(res, settings.CLOSE_TIMEOUT_NODE)
+
+    def test_get_thread_timeout(self):
+        # Client without timeout
+        ctx = Mock()
+        ctx.time_remaining.return_value = None
+        res = MOD.get_thread_timeout(ctx)
+        self.assertEqual(res, settings.THREAD_TIMEOUT)
+        # Client with enough timeout
+        ctx.time_remaining.return_value = 10
+        res = MOD.get_thread_timeout(ctx)
+        self.assertEqual(res, 10 - settings.RESPONSE_RESERVED_TIME)
+        # Client with not enough timeout
+        ctx.time_remaining.return_value = 0.01
+        res = MOD.get_thread_timeout(ctx)
+        self.assertEqual(res, 0)
+
     @patch('lighter.utils.slow_exit', autospec=True)
-    def test_handle_keyboardinterrupt(self, mocked_slow_exit):
+    @patch('lighter.utils.sleep', autospec=True)
+    def test_handle_keyboardinterrupt(self, mocked_sleep, mocked_slow_exit):
         grpc_server = Mock()
         # Correct case
         func = Mock()
@@ -378,12 +410,32 @@ class UtilsTests(TestCase):
         # KeyboardInterrupt case
         reset_mocks(vars())
         func.side_effect = KeyboardInterrupt()
+        close_event = Mock()
+        close_event.is_set.side_effect = [False, True]
+        grpc_server.stop.return_value = close_event
         wrapped = MOD.handle_keyboardinterrupt(func)
         res = wrapped(grpc_server)
+        assert mocked_sleep.called
         self.assertEqual(res, None)
         self.assertEqual(func.call_count, 1)
         grpc_server.stop.assert_called_once_with(settings.GRPC_GRACE_TIME)
         assert mocked_slow_exit.called
+
+    def test_handle_thread(self):
+        # return case
+        response = 'response'
+        func = Mock(return_value=response)
+        req = 'request'
+        wrapped = MOD.handle_thread(func)
+        res = wrapped(req)
+        self.assertEqual(res, response)
+        self.assertEqual(func.call_count, 1)
+        # raise case
+        func.side_effect = RuntimeError()
+        with self.assertRaises(RuntimeError):
+            wrapped = MOD.handle_thread(func)
+            res = wrapped(req)
+            self.assertEqual(res, None)
 
     @patch('lighter.utils._has_numbers', autospec=True)
     def test_has_amount_encoded(self, mocked_has_num):

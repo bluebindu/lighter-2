@@ -6,6 +6,7 @@ Here's a table of Lighter APIs availability for each implementation:
 | ---------------- | :---------: | :----: | :-: |
 | ChannelBalance   |      ☇      |    ☇   |  ☇  |
 | CheckInvoice     |      ☇      |    ☇   |  ☇  |
+| CloseChannel     |      ☇      |    ☇   |  ☇  |
 | CreateInvoice    |      ☇      |    ☇   |  ☇  |
 | DecodeInvoice    |      ☇      |    ☇   |  ☇  |
 | GetInfo          |      ☇      |    ☇   |  ☇  |

@@ -46,6 +46,15 @@ service Lightning {
     rpc CheckInvoice (CheckInvoiceRequest) returns (CheckInvoiceResponse);
 
     /**
+    CloseChannel closes a LN channel.
+    If the operation succeds it returns the ID of the closing transaction.
+    If the operation takes more than the client timeout, it returns an empty
+    response. The operation could still complete.
+    In the other cases the operation will fail with an appropriate message.
+    */
+    rpc CloseChannel (CloseChannelRequest) returns (CloseChannelResponse);
+
+    /**
     CreateInvoice creates a LN invoice (BOLT 11).
     */
     rpc CreateInvoice (CreateInvoiceRequest) returns (CreateInvoiceResponse);
@@ -150,6 +159,24 @@ message CheckInvoiceResponse {
     Whether the invoice has been paid
     */
     bool settled = 1;
+}
+
+message CloseChannelRequest {
+    /**
+    Channel ID of the channel to be closed
+    */
+    string channel_id = 1;
+    /**
+    Whether to force a unilateral close (necessary if peer's offline)
+    */
+    bool force = 2;
+}
+
+message CloseChannelResponse {
+    /**
+    Transaction ID of the closing transaction
+    */
+    string closing_txid = 1;
 }
 
 message CreateInvoiceRequest {

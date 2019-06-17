@@ -123,6 +123,7 @@ At the moment, we provide 3 different macaroons:
 | ---------------- | ----- | -------- | -------- |
 | ChannelBalance   |   ☇   |     ☇    |          |
 | CheckInvoice     |   ☇   |     ☇    |     ☇    |
+| CloseChannel     |   ☇   |          |          |
 | CreateInvoice    |   ☇   |          |     ☇    |
 | DecodeInvoice    |   ☇   |     ☇    |     ☇    |
 | GetInfo          |   ☇   |     ☇    |     ☇    |

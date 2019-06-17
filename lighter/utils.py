@@ -27,6 +27,7 @@ from logging.config import dictConfig
 from os import environ as env, path
 from sqlite3 import connect, Error
 from subprocess import PIPE, Popen, TimeoutExpired
+from threading import active_count, current_thread
 from time import sleep, strftime
 
 from nacl.secret import SecretBox
@@ -186,12 +187,13 @@ def command(context, *args_cmd, **kwargs):
         raise RuntimeError
     cmd = sett.CMD_BASE + list(args_cmd)
     envi = kwargs.get('env', None)
+    wait_time = kwargs.get('timeout', sett.IMPL_TIMEOUT)
     # universal_newlines ensures bytes are returned
     proc = Popen(
         cmd, env=envi, stdout=PIPE, stderr=PIPE, universal_newlines=False)
     out = err = b''
     try:
-        out, err = proc.communicate(timeout=sett.IMPL_TIMEOUT)
+        out, err = proc.communicate(timeout=wait_time)
     except TimeoutExpired:
         proc.kill()
         Err().node_error(context, 'Timeout')
@@ -204,7 +206,7 @@ def command(context, *args_cmd, **kwargs):
         res = loads(dumps(out))
     if res is None or res == "":
         if err:
-            Err().report_error(context, err)
+            Err().report_error(context, err.strip())
         LOGGER.debug('Empty result from command')
     return res
 
@@ -315,19 +317,65 @@ def slow_exit(message, wait=True):
     sys.exit(exit_code)
 
 
+def get_close_timeout(context):
+    """ Calculates timeout for channel close """
+    node_timeout = sett.CLOSE_TIMEOUT_NODE
+    client_time = context.time_remaining()
+    if client_time and client_time > node_timeout:
+        # giving more time for implementation to answer if client has set a
+        # longer timeout than our default
+        node_timeout = client_time - sett.RESPONSE_RESERVED_TIME
+    return node_timeout
+
+
+def get_thread_timeout(context):
+    """ Calculates timeout for future.result() """
+    wait_time = sett.THREAD_TIMEOUT
+    if context.time_remaining():
+        # subtracting time to do the request and answer to the client
+        wait_time = context.time_remaining() - sett.RESPONSE_RESERVED_TIME
+    if wait_time < 0:
+        wait_time = 0
+    return wait_time
+
+
 def handle_keyboardinterrupt(func):
     """ Handles KeyboardInterrupt stopping the gRPC server and exiting """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
+        close_event = None
         try:
             func(*args, **kwargs)
         except KeyboardInterrupt:
             with suppress(IndexError):
-                args[0].stop(sett.GRPC_GRACE_TIME)
+                close_event = args[0].stop(sett.GRPC_GRACE_TIME)
                 print()
-            slow_exit('Keyboard interrupt detected. Waiting for threads to '
-                      'complete...', wait=False)
+
+            LOGGER.error('Keyboard interrupt detected.')
+            if close_event:
+                while not close_event.is_set() or sett.THREADS:
+                    LOGGER.error('Waiting for %s threads to complete...',
+                                 active_count())
+                    sleep(3)
+            slow_exit('All threads shutdown correctly', wait=False)
+
+    return wrapper
+
+
+def handle_thread(func):
+    """ Adds and removes async threads from global list """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        sett.THREADS.append(current_thread())
+        try:
+            res = func(*args, **kwargs)
+            sett.THREADS.remove(current_thread())
+            return res
+        except Exception as exc:
+            sett.THREADS.remove(current_thread())
+            raise exc
 
     return wrapper
 

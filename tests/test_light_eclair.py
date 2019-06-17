@@ -14,9 +14,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """ Tests for light_eclair module """
 
+from concurrent.futures import TimeoutError as TimeoutFutError
 from importlib import import_module
 from unittest import TestCase
-from unittest.mock import call, patch
+from unittest.mock import call, Mock, patch
 
 from lighter import lighter_pb2 as pb
 from lighter import settings
@@ -584,20 +585,66 @@ class LightEclairTests(TestCase):
         res = MOD.OpenChannel(request, CTX)
         self.assertEqual(res, pb.OpenChannelResponse())
 
-    def test_defined(self):
+    @patch('lighter.light_eclair.Err')
+    @patch('lighter.light_eclair._handle_error', autospec=True)
+    @patch('lighter.light_eclair.get_thread_timeout', autospec=True)
+    @patch('lighter.light_eclair.get_close_timeout', autospec=True)
+    @patch('lighter.light_eclair.ThreadPoolExecutor', autospec=True)
+    @patch('lighter.light_eclair.check_req_params', autospec=True)
+    def test_CloseChannel(self, mocked_check_par, mocked_thread,
+                          mocked_close_time, mocked_thread_time,
+                          mocked_handle, mocked_err):
+        mocked_err().report_error.side_effect = Exception()
+        mocked_close_time.return_value = 30
+        mocked_thread_time.return_value = 2
+        txid = 'txid'
+        # Correct case
+        future = Mock()
+        executor = Mock()
+        future.result.return_value = txid
+        executor.submit.return_value = future
+        mocked_thread.return_value = executor
+        request = pb.CloseChannelRequest(channel_id='777', force=True)
+        ctx = Mock()
+        ctx.time_remaining.return_value = 10
+        res = MOD.CloseChannel(request, ctx)
+        self.assertEqual(res.closing_txid, txid)
+        mocked_check_par.assert_called_once_with(ctx, request, 'channel_id')
+        # Result times out
+        reset_mocks(vars())
+        future.result.side_effect = TimeoutFutError()
+        res = MOD.CloseChannel(request, ctx)
+        executor.shutdown.assert_called_once_with(wait=False)
+        self.assertEqual(res, pb.CloseChannelResponse())
+        # Result throws RuntimeError
+        reset_mocks(vars())
+        future.result.side_effect = RuntimeError(fix.BADRESPONSE)
+        MOD.CloseChannel(request, ctx)
+        mocked_handle.assert_called_once_with(ctx, fix.BADRESPONSE)
+        # literal_eval throws SyntaxError
+        reset_mocks(vars())
+        err = 'err'
+        future.result.side_effect = RuntimeError(err)
+        with self.assertRaises(Exception):
+            MOD.CloseChannel(request, ctx)
+        assert not mocked_handle.called
+        mocked_err().report_error.assert_called_once_with(ctx, err)
+        future.result.side_effect = None
+
+    def test_def(self):
         """
         This method is so simple that it will not be mocked in other tests
         """
         # Correct case
         data = {'key': 'value'}
-        res = MOD._defined(data, 'key')
+        res = MOD._def(data, 'key')
         self.assertEqual(res, True)
         # None case
         data = {'key': None}
-        res = MOD._defined(data, 'key')
+        res = MOD._def(data, 'key')
         self.assertEqual(res, False)
         # Unexistent key case
-        res = MOD._defined(data, 'not a key')
+        res = MOD._def(data, 'not a key')
         self.assertEqual(res, False)
 
     def test_is_description_hash(self):
@@ -642,6 +689,49 @@ class LightEclairTests(TestCase):
         mocked_state.return_value = pb.OPEN
         res = MOD._add_channel(CTX, response, fix.CHANNEL_OFFLINE, True)
         self.assertEqual(response, pb.ListChannelsResponse())
+
+    @patch('lighter.light_eclair.sleep', autospec=True)
+    @patch('lighter.light_eclair.LOGGER', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
+    @patch('lighter.light_eclair.time', autospec=True)
+    def test_close_channel(self, mocked_time, mocked_command, mocked_log,
+                           mocked_sleep):
+        client_time = 9
+        time = 1563205664.6555452
+        mocked_time.return_value = time
+        ecl_req = ['close', '--channelId=aa7cc']
+        # Correct case
+        mocked_command.side_effect = [fix.CLOSE, fix.CHANNEL_MUTUAL]
+        res = MOD._close_channel(ecl_req, client_time, time + 3)
+        assert mocked_log.debug.called
+        self.assertEqual(
+            res, fix.CHANNEL_MUTUAL['data']['mutualClosePublished'][0]['txid'])
+        # Error response case
+        reset_mocks(vars())
+        mocked_command.side_effect = None
+        mocked_command.return_value = fix.BADRESPONSE
+        with self.assertRaises(RuntimeError):
+            res = MOD._close_channel(ecl_req, client_time, time + 3)
+            self.assertEqual(res, None)
+        assert mocked_log.debug.called
+        # RuntimeError case
+        reset_mocks(vars())
+        err = 'err'
+        mocked_command.side_effect = RuntimeError(err)
+        with self.assertRaises(RuntimeError):
+            res = MOD._close_channel(ecl_req, client_time, time + 3)
+            self.assertEqual(res, None)
+        assert mocked_log.debug.called
+        # No data field in first response from channel call
+        reset_mocks(vars())
+        mocked_command.side_effect = [fix.CLOSE, fix.ERROR,
+                                      fix.CHANNEL_UNILATERAL]
+        res = MOD._close_channel(ecl_req, client_time, time + 3)
+        assert mocked_sleep.called
+        self.assertEqual(mocked_command.call_count, 3)
+        self.assertEqual(
+            res, fix.CHANNEL_UNILATERAL['data']['localCommitPublished']\
+                ['commitTx']['txid'])
 
     def test_get_state(self):
         res = MOD._get_state(fix.CHANNEL_WAITING_FUNDING)

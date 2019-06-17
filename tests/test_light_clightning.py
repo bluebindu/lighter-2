@@ -14,9 +14,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """ Tests for light_clightning module """
 
+from concurrent.futures import TimeoutError as TimeoutFutError
 from importlib import import_module
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from lighter import lighter_pb2 as pb
 from lighter import light_clightning, settings
@@ -729,6 +730,57 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
 
+    @patch('lighter.light_clightning.Err')
+    @patch('lighter.light_clightning._handle_error', autospec=True)
+    @patch('lighter.light_clightning.get_thread_timeout', autospec=True)
+    @patch('lighter.light_clightning.ThreadPoolExecutor', autospec=True)
+    @patch('lighter.light_clightning.get_close_timeout', autospec=True)
+    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    def test_CloseChannel(self, mocked_check_par, mocked_close_time,
+                          mocked_thread, mocked_thread_time, mocked_handle,
+                          mocked_err):
+        mocked_err().report_error.side_effect = Exception()
+        mocked_thread_time.return_value = 2
+        mocked_close_time.return_value = 30
+        # Unilateral close
+        future = Mock()
+        executor = Mock()
+        future.result.return_value = fix.CLOSE_FORCED
+        executor.submit.return_value = future
+        mocked_thread.return_value = executor
+        request = pb.CloseChannelRequest(channel_id='777', force=True)
+        res = MOD.CloseChannel(request, CTX)
+        mocked_check_par.assert_called_once_with(CTX, request, 'channel_id')
+        self.assertEqual(res.closing_txid, fix.CLOSE_FORCED['txid'])
+        # Mutual close
+        reset_mocks(vars())
+        future.result.return_value = fix.CLOSE_MUTUAL
+        executor.submit.return_value = future
+        mocked_thread.return_value = executor
+        request = pb.CloseChannelRequest(channel_id='777')
+        res = MOD.CloseChannel(request, CTX)
+        self.assertEqual(res.closing_txid, fix.CLOSE_MUTUAL['txid'])
+        # Result times out
+        reset_mocks(vars())
+        future.result.side_effect = TimeoutFutError()
+        res = MOD.CloseChannel(request, CTX)
+        executor.shutdown.assert_called_once_with(wait=False)
+        self.assertEqual(res, pb.CloseChannelResponse())
+        # Result throws RuntimeError
+        reset_mocks(vars())
+        future.result.side_effect = RuntimeError(fix.BADRESPONSE)
+        MOD.CloseChannel(request, CTX)
+        mocked_handle.assert_called_once_with(CTX, fix.BADRESPONSE)
+        # literal_eval throws SyntaxError
+        reset_mocks(vars())
+        err = 'err'
+        future.result.side_effect = RuntimeError(err)
+        with self.assertRaises(Exception):
+            MOD.CloseChannel(request, CTX)
+        assert not mocked_handle.called
+        mocked_err().report_error.assert_called_once_with(CTX, err)
+        future.result.side_effect = None
+
     @patch('lighter.light_clightning.convert', autospec=True)
     def test_add_channel(self, mocked_conv):
         # Add channel case
@@ -754,7 +806,6 @@ class LightClightningTests(TestCase):
             CTX, response, cl_peer, fix.CHANNEL_AWAITING_LOCKIN,
             pb.PENDING_OPEN, True)
         self.assertEqual(response, pb.ListChannelsResponse())
-
 
     @patch('lighter.light_clightning.convert', autospec=True)
     def test_add_payment(self, mocked_conv):
@@ -803,6 +854,32 @@ class LightClightningTests(TestCase):
             30)
         self.assertEqual(
             response.route_hints[0].hop_hints[1].cltv_expiry_delta, 4)
+
+    @patch('lighter.light_clightning.LOGGER', autospec=True)
+    @patch('lighter.light_clightning.command', autospec=True)
+    def test_close_channel(self, mocked_command, mocked_log):
+        cl_req = ['close']
+        node_timeout = 30
+        # Correct case
+        mocked_command.return_value = fix.CLOSE_MUTUAL
+        res = MOD._close_channel(cl_req, node_timeout)
+        assert mocked_log.debug.called
+        self.assertEqual(res, fix.CLOSE_MUTUAL)
+        # Error response case
+        reset_mocks(vars())
+        mocked_command.return_value = fix.BADRESPONSE
+        with self.assertRaises(RuntimeError):
+            res = MOD._close_channel(cl_req, node_timeout)
+            self.assertEqual(res, None)
+        assert mocked_log.debug.called
+        # RuntimeError case
+        reset_mocks(vars())
+        err = 'err'
+        mocked_command.side_effect = RuntimeError(err)
+        with self.assertRaises(RuntimeError):
+            res = MOD._close_channel(cl_req, node_timeout)
+            self.assertEqual(res, None)
+        assert mocked_log.debug.called
 
     @patch('lighter.light_clightning.datetime', autospec=True)
     def test_create_label(self, mocked_datetime):

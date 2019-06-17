@@ -13,18 +13,26 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Implementation of lighter.proto _defined methods for eclair """
+""" Implementation of lighter.proto defined methods for eclair """
 
+from ast import literal_eval
+from concurrent.futures import TimeoutError as TimeoutFutError, \
+    ThreadPoolExecutor
 from fileinput import FileInput
+from logging import getLogger
 from os import environ, path
 from re import sub
 from string import ascii_lowercase, digits  # pylint: disable=deprecated-module
+from time import time, sleep
 
 from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
 from .utils import check_req_params, command, convert, Enforcer as Enf, \
+    FakeContext, get_close_timeout, get_thread_timeout, handle_thread, \
     has_amount_encoded
+
+LOGGER = getLogger(__name__)
 
 ERRORS = {
     'bech32 address does not match our blockchain': {
@@ -36,6 +44,9 @@ ERRORS = {
     },
     'cannot route to self': {
         'fun': 'route_not_found'
+    },
+    'closing already in progress': {
+        'fun': 'closechannel_failed'
     },
     'Connection refused': {
         'fun': 'node_error'
@@ -52,6 +63,9 @@ ERRORS = {
     },
     'manually specify an amount': {
         'fun': 'amount_required'
+    },
+    'peer sent error: ascii=': {
+        'fun': 'openchannel_failed'
     },
     'Recv failure: Connection reset by peer': {
         'fun': 'node_error'
@@ -96,16 +110,16 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
     ecl_req = ['getinfo']
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     response = pb.GetInfoResponse()
-    if _defined(ecl_res, 'nodeId'):
+    if _def(ecl_res, 'nodeId'):
         response.identity_pubkey = ecl_res['nodeId']
-        if _defined(ecl_res, 'publicAddresses'):
+        if _def(ecl_res, 'publicAddresses'):
             response.node_uri = '{}@{}'.format(
                 ecl_res['nodeId'], ecl_res['publicAddresses'][0])
-    if _defined(ecl_res, 'alias'):
+    if _def(ecl_res, 'alias'):
         response.alias = ecl_res['alias']
-    if _defined(ecl_res, 'blockHeight'):
+    if _def(ecl_res, 'blockHeight'):
         response.blockheight = ecl_res['blockHeight']
-    if _defined(ecl_res, 'chainHash'):
+    if _def(ecl_res, 'chainHash'):
         if ecl_res['chainHash'] == settings.TEST_HASH:
             network = 'testnet'
         elif ecl_res['chainHash'] == settings.MAIN_HASH:
@@ -124,14 +138,14 @@ def ChannelBalance(request, context):  # pylint: disable=unused-argument
     _handle_error(context, ecl_res, always_abort=False)
     funds = 0.0
     for channel in ecl_res:
-        if _defined(channel, 'data') \
-                and _defined(channel['data'], 'commitments'):
+        if _def(channel, 'data') \
+                and _def(channel['data'], 'commitments'):
             commitments = channel['data']['commitments']
-            if _defined(commitments, 'localCommit'):
+            if _def(commitments, 'localCommit'):
                 local_commit = commitments['localCommit']
-                if _defined(local_commit, 'spec'):
+                if _def(local_commit, 'spec'):
                     spec = commitments['localCommit']['spec']
-                    if _defined(spec, 'toLocalMsat'):
+                    if _def(spec, 'toLocalMsat'):
                         funds += spec['toLocalMsat']
     return pb.ChannelBalanceResponse(
         balance=convert(context, Enf.MSATS, funds))
@@ -145,12 +159,12 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
     response = pb.ListPeersResponse()
     for peer in ecl_res:
         # Filtering disconnected peers
-        if _defined(peer, 'state') and peer['state'] == 'DISCONNECTED':
+        if _def(peer, 'state') and peer['state'] == 'DISCONNECTED':
             continue
         grpc_peer = response.peers.add()  # pylint: disable=no-member
-        if _defined(peer, 'nodeId'):
+        if _def(peer, 'nodeId'):
             grpc_peer.pubkey = peer['nodeId']
-        if _defined(peer, 'address'):
+        if _def(peer, 'address'):
             grpc_peer.address = peer['address']
     ecl_req = ['allnodes']
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
@@ -194,13 +208,13 @@ def CreateInvoice(request, context):
         ecl_req.append('--fallbackAddress="{}"'.format(request.fallback_addr))
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     response = pb.CreateInvoiceResponse()
-    if _defined(ecl_res, 'serialized'):
+    if _def(ecl_res, 'serialized'):
         response.payment_request = ecl_res['serialized']
     else:
         _handle_error(context, ecl_res, always_abort=True)
-    if _defined(ecl_res, 'paymentHash'):
+    if _def(ecl_res, 'paymentHash'):
         response.payment_hash = ecl_res['paymentHash']
-    if _defined(ecl_res, 'timestamp') and _defined(ecl_res, 'expiry'):
+    if _def(ecl_res, 'timestamp') and _def(ecl_res, 'expiry'):
         expires_at = int(ecl_res['timestamp']) + int(ecl_res['expiry'])
         response.expires_at = expires_at
     return response
@@ -213,7 +227,7 @@ def CheckInvoice(request, context):
     ecl_req.append('--paymentHash="{}"'.format(request.payment_hash))
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     settled = False
-    if _defined(ecl_res, 'receivedAt'):
+    if _def(ecl_res, 'receivedAt'):
         settled = True
     elif 'Not found' not in ecl_res:
         Err().invalid(context, 'payment_hash')
@@ -251,11 +265,11 @@ def PayInvoice(request, context):
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     response = pb.PayInvoiceResponse()
     payment = ecl_res[0]
-    if _defined(payment, 'preimage'):
+    if _def(payment, 'preimage'):
         response.payment_preimage = payment['preimage']
-    elif _defined(payment, 'status') and payment['status'] == 'FAILED':
+    elif _def(payment, 'status') and payment['status'] == 'FAILED':
         Err().payinvoice_failed(context)
-    elif _defined(payment, 'status') and payment['status'] == 'PENDING':
+    elif _def(payment, 'status') and payment['status'] == 'PENDING':
         Err().payinvoice_pending(context)
     else:
         _handle_error(context, ecl_res, always_abort=True)
@@ -273,24 +287,24 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
         # checking manually as error is not in json
         Err().invalid(context, 'payment_request')
     response = pb.DecodeInvoiceResponse()
-    if _defined(ecl_res, 'amount'):
+    if _def(ecl_res, 'amount'):
         response.amount_bits = convert(context, Enf.MSATS, ecl_res['amount'])
-    if _defined(ecl_res, 'timestamp'):
+    if _def(ecl_res, 'timestamp'):
         response.timestamp = ecl_res['timestamp']
-    if _defined(ecl_res, 'nodeId'):
+    if _def(ecl_res, 'nodeId'):
         response.destination_pubkey = ecl_res['nodeId']
-    if _defined(ecl_res, 'paymentHash'):
+    if _def(ecl_res, 'paymentHash'):
         response.payment_hash = ecl_res['paymentHash']
     else:
         _handle_error(context, ecl_res, always_abort=True)
-    if _defined(ecl_res, 'description'):
+    if _def(ecl_res, 'description'):
         if _is_description_hash(ecl_res['description']):
             response.description_hash = ecl_res['description']
         else:
             response.description = ecl_res['description']
-    if _defined(ecl_res, 'expiry'):
+    if _def(ecl_res, 'expiry'):
         response.expiry_time = ecl_res['expiry']
-    if _defined(ecl_res, 'minFinalCltvExpiry'):
+    if _def(ecl_res, 'minFinalCltvExpiry'):
         response.min_final_cltv_expiry = ecl_res['minFinalCltvExpiry']
     return response
 
@@ -327,13 +341,13 @@ def OpenChannel(request, context):
         channel_id = ecl_res.split(' ')[2]
         ecl_req.append('--channelId={}'.format(channel_id))
         ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
-        if _defined(ecl_res, 'data'):
+        if _def(ecl_res, 'data'):
             data = ecl_res['data']
-            if _defined(data, 'commitments'):
+            if _def(data, 'commitments'):
                 commitments = data['commitments']
-                if _defined(commitments, 'commitInput'):
+                if _def(commitments, 'commitInput'):
                     commit_input = commitments['commitInput']
-                    if _defined(commit_input, 'outPoint'):
+                    if _def(commit_input, 'outPoint'):
                         funding_txid = commit_input['outPoint'].split(':')[0]
                         response.funding_txid = funding_txid
     except IndexError:
@@ -341,7 +355,34 @@ def OpenChannel(request, context):
     return response
 
 
-def _defined(dictionary, key):
+def CloseChannel(request, context):
+    """ Tries to close a LN chanel """
+    check_req_params(context, request, 'channel_id')
+    ecl_req = ['close']
+    if request.force:
+        ecl_req = ['forceclose']
+    ecl_req.append('--channelId="{}"'.format(request.channel_id))
+    executor = ThreadPoolExecutor(max_workers=1)
+    client_expiry_time = context.time_remaining() + time()
+    close_timeout = get_close_timeout(context)
+    future = executor.submit(
+        _close_channel, ecl_req, close_timeout, client_expiry_time)
+    try:
+        ecl_res = future.result(timeout=get_thread_timeout(context))
+        if ecl_res:
+            return pb.CloseChannelResponse(closing_txid=ecl_res)
+    except TimeoutFutError:
+        executor.shutdown(wait=False)
+    except RuntimeError as ecl_err:
+        try:
+            error = literal_eval(str(ecl_err))
+            _handle_error(context, error)
+        except (SyntaxError, ValueError):
+            Err().report_error(context, str(ecl_err))
+    return pb.CloseChannelResponse()
+
+
+def _def(dictionary, key):
     """ Checks if key is in dictionary and that it's not None """
     return key in dictionary and dictionary[key] is not None
 
@@ -357,12 +398,12 @@ def _add_channel(context, response, ecl_chan, active_only):
     """ Adds a channel to a ListChannelsResponse """
     # pylint: disable=too-many-branches,too-many-locals
     state = None
-    if _defined(ecl_chan, 'state'):
+    if _def(ecl_chan, 'state'):
         state = _get_state(ecl_chan)
         if state < 0:
             return
     connected = True
-    if _defined(ecl_chan, 'state'):
+    if _def(ecl_chan, 'state'):
         connected = False
         if ecl_chan['state'] == 'NORMAL':
             connected = True
@@ -372,44 +413,89 @@ def _add_channel(context, response, ecl_chan, active_only):
     grpc_chan.active = connected
     if state:
         grpc_chan.state = state
-    if _defined(ecl_chan, 'nodeId'):
+    if _def(ecl_chan, 'nodeId'):
         grpc_chan.remote_pubkey = ecl_chan['nodeId']
-    if _defined(ecl_chan, 'channelId'):
+    if _def(ecl_chan, 'channelId'):
         grpc_chan.channel_id = ecl_chan['channelId']
-    if _defined(ecl_chan, 'data'):
+    if _def(ecl_chan, 'data'):
         data = ecl_chan['data']
-        if _defined(data, 'shortChannelId'):
+        if _def(data, 'shortChannelId'):
             grpc_chan.short_channel_id = data['shortChannelId']
-        if _defined(data, 'commitments'):
+        if _def(data, 'commitments'):
             commitments = data['commitments']
-            if _defined(commitments, 'commitInput'):
+            if _def(commitments, 'commitInput'):
                 commit_input = commitments['commitInput']
-                if _defined(commit_input, 'outPoint'):
+                if _def(commit_input, 'outPoint'):
                     funding_txid = commit_input['outPoint'].split(':')[0]
                     grpc_chan.funding_txid = funding_txid
-            if _defined(commitments, 'localParams'):
+            if _def(commitments, 'localParams'):
                 local_params = commitments['localParams']
-                if _defined(local_params, 'toSelfDelay'):
+                if _def(local_params, 'toSelfDelay'):
                     grpc_chan.to_self_delay = local_params['toSelfDelay']
-            if _defined(commitments, 'localCommit'):
+            if _def(commitments, 'localCommit'):
                 local_commit = commitments['localCommit']
-                if _defined(local_commit, 'spec'):
+                if _def(local_commit, 'spec'):
                     spec = local_commit['spec']
                     local_balance = remote_balance = False
-                    if _defined(spec, 'toLocalMsat'):
+                    if _def(spec, 'toLocalMsat'):
                         grpc_chan.local_balance = convert(
                             context, Enf.MSATS, spec['toLocalMsat'])
                         local_balance = True
-                    if _defined(spec, 'toRemoteMsat'):
+                    if _def(spec, 'toRemoteMsat'):
                         grpc_chan.remote_balance = convert(
                             context, Enf.MSATS, spec['toRemoteMsat'])
                         remote_balance = True
                     if local_balance and remote_balance:
                         grpc_chan.capacity = \
                             grpc_chan.local_balance + grpc_chan.remote_balance
-            if _defined(commitments, 'channelFlags') and \
+            if _def(commitments, 'channelFlags') and \
                     commitments['channelFlags'] == 0:
                 grpc_chan.private = True
+
+
+@handle_thread
+def _close_channel(ecl_req, close_timeout, client_expiry_time):
+    """ Returns close channel response or raises exception to caller """
+    ecl_res = error = None
+    try:
+        # subtracting timeout to channel call to retrieve closing txid
+        close_timeout = close_timeout - settings.IMPL_TIMEOUT
+        if close_timeout < settings.IMPL_TIMEOUT:
+            close_timeout = settings.IMPL_TIMEOUT
+        ecl_res = command(FakeContext(), *ecl_req, env=settings.ECL_ENV,
+                          timeout=close_timeout)
+        if isinstance(ecl_res, str) and ecl_res.strip() == 'ok':
+            LOGGER.debug('[ASYNC] CloseChannel terminated with response: %s',
+                         ecl_res.strip())
+            ecl_req = ['channel', ecl_req[1]]
+            ecl_res = None
+            # while client has still time we check if txid is available
+            while client_expiry_time > time() and not ecl_res:
+                sleep(1)
+                ecl_chan = command(
+                    FakeContext(), *ecl_req, env=settings.ECL_ENV,
+                    timeout=settings.IMPL_TIMEOUT)
+                if not _def(ecl_chan, 'data'):
+                    continue
+                data = ecl_chan['data']
+                if _def(data, 'mutualClosePublished') and \
+                        data['mutualClosePublished'] and \
+                        _def(data['mutualClosePublished'][0], 'txid'):
+                    ecl_res = data['mutualClosePublished'][0]['txid']
+                if _def(data, 'localCommitPublished') and \
+                        _def(data['localCommitPublished'], 'commitTx') and \
+                        _def(data['localCommitPublished']['commitTx'], 'txid'):
+                    ecl_res = data['localCommitPublished']['commitTx']['txid']
+        else:
+            error = ecl_res
+    except RuntimeError as err:
+        error = str(err)
+    if error:
+        if isinstance(error, str):
+            error = error.strip()
+        LOGGER.debug('[ASYNC] CloseChannel terminated with error: %s', error)
+        raise RuntimeError(error)
+    return ecl_res
 
 
 def _get_state(ecl_chan):
@@ -423,14 +509,14 @@ def _get_state(ecl_chan):
         return pb.PENDING_OPEN
     if ecl_state in ('NORMAL', 'OFFLINE'):
         return pb.OPEN
-    if _defined(ecl_chan, 'data'):
+    if _def(ecl_chan, 'data'):
         data = ecl_chan['data']
-        if _defined(data, 'mutualClosePublished') and \
+        if _def(data, 'mutualClosePublished') and \
                 data['mutualClosePublished']:
             return pb.PENDING_MUTUAL_CLOSE
-        if (_defined(data, 'localCommitPublished') and
+        if (_def(data, 'localCommitPublished') and
                 data['localCommitPublished']) or \
-                (_defined(data, 'remoteCommitPublished') and
+                (_def(data, 'remoteCommitPublished') and
                  data['remoteCommitPublished']):
             return pb.PENDING_FORCE_CLOSE
     return pb.UNKNOWN
@@ -438,7 +524,7 @@ def _get_state(ecl_chan):
 
 def _handle_error(context, ecl_res, always_abort=True):
     """ Checks for errors in a eclair cli response """
-    if _defined(ecl_res, 'failures'):
+    if _def(ecl_res, 'failures'):
         errors = []
         for failure in ecl_res['failures']:
             for value in failure.values():

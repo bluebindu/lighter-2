@@ -17,6 +17,8 @@
 
 from binascii import hexlify
 from codecs import encode
+from concurrent.futures import TimeoutError as TimeoutFutError, \
+    ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 from datetime import datetime
 from functools import wraps
@@ -32,8 +34,8 @@ from . import rpc_pb2_grpc as lnrpc
 from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
-from .utils import check_req_params, convert, Enforcer as Enf, \
-    has_amount_encoded
+from .utils import check_req_params, convert, Enforcer as Enf, FakeContext, \
+    get_close_timeout, get_thread_timeout, handle_thread, has_amount_encoded
 
 LOGGER = getLogger(__name__)
 
@@ -64,6 +66,10 @@ ERRORS = {
     'decoded address is of unknown format': {
         'fun': 'invalid',
         'params': 'address'
+    },
+    'edge not found': {
+        'fun': 'invalid',
+        'params': 'channel_id'
     },
     'encoding/hex': {
         'fun': 'invalid',
@@ -120,8 +126,14 @@ ERRORS = {
     'unable to find a path to destination': {
         'fun': 'route_not_found'
     },
+    'unable to find arbitrator': {
+        'fun': 'closechannel_failed'
+    },
     'unable to get best block info': {
         'fun': 'node_error'
+    },
+    'unable to gracefully close channel while peer is offline': {
+        'fun': 'closechannel_failed'
     },
     'unable to locate invoice': {
         'fun': 'invoice_not_found'
@@ -550,6 +562,40 @@ def OpenChannel(request, context):
     return response
 
 
+@_handle_rpc_errors
+def CloseChannel(request, context):
+    """ Tries to close a LN chanel """
+    check_req_params(context, request, 'channel_id')
+    response = pb.CloseChannelResponse()
+    channel_id = 0
+    try:
+        channel_id = int(request.channel_id)
+    except ValueError as err:
+        Err().invalid(context, 'channel_id')
+    lnd_req = ln.ChanInfoRequest(chan_id=channel_id)
+    with _connect(context) as stub:
+        lnd_res = stub.GetChanInfo(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        txid, vout = lnd_res.chan_point.split(':')
+        chan_point = ln.ChannelPoint(
+            funding_txid_str=txid, output_index=int(vout))
+        lnd_req = ln.CloseChannelRequest(
+            channel_point=chan_point, force=request.force)
+        executor = ThreadPoolExecutor(max_workers=1)
+        close_timeout = get_close_timeout(context)
+        future = executor.submit(_close_channel, lnd_req, close_timeout)
+        try:
+            lnd_res = future.result(timeout=get_thread_timeout(context))
+            if lnd_res:
+                response.closing_txid = lnd_res.closing_txid.decode()
+        except TimeoutFutError:
+            executor.shutdown(wait=False)
+        except RpcError as err:
+            _handle_error(context, err)
+        except RuntimeError as err:
+            _handle_error(context, str(err))
+    return response
+
+
 # pylint: disable=too-many-arguments
 def _add_channel(context, response, lnd_chan, state, active_only=False,
                  open_chan=False):
@@ -607,6 +653,27 @@ def _check_timestamp(request, lnd_invoice):
             if lnd_invoice.creation_date <= request.search_timestamp:
                 return True
     return False
+
+
+@handle_thread
+def _close_channel(lnd_req, close_timeout):
+    """ Returns close channel response or raises exception to caller """
+    final_res = lnd_res = None
+    try:
+        with _connect(FakeContext()) as stub:
+            for lnd_res in stub.CloseChannel(lnd_req, timeout=close_timeout):
+                LOGGER.debug('[ASYNC] CloseChannel released response: %s',
+                             str(lnd_res).replace('\n', ''))
+                if lnd_res.chan_close.closing_txid:
+                    final_res = lnd_res.chan_close
+    except RpcError as err:
+        # pylint: disable=no-member
+        error = err.details() if hasattr(err, 'details') else err
+        LOGGER.debug('[ASYNC] CloseChannel terminated with error: %s', error)
+        raise err
+    except RuntimeError as err:
+        raise err
+    return final_res
 
 
 def _parse_invoices(context, response, invoices, request):

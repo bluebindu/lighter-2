@@ -15,6 +15,7 @@
 """ Tests for light_lnd module """
 
 from codecs import encode
+from concurrent.futures import TimeoutError as TimeoutFutError
 from importlib import import_module
 from unittest import TestCase
 from unittest.mock import call, Mock, mock_open, patch
@@ -717,6 +718,89 @@ class LightLndTests(TestCase):
         assert not stub.OpenChannelSync.called
         assert not mocked_conv.called
         assert not mocked_handle.called
+
+    @patch('lighter.light_lnd._handle_error', autospec=True)
+    @patch('lighter.light_lnd.get_thread_timeout', autospec=True)
+    @patch('lighter.light_lnd.get_close_timeout', autospec=True)
+    @patch('lighter.light_lnd.ThreadPoolExecutor', autospec=True)
+    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch('lighter.light_lnd.Err')
+    @patch('lighter.light_lnd.check_req_params', autospec=True)
+    def test_CloseChannel(self, mocked_check_par, mocked_err, mocked_connect,
+                          mocked_thread, mocked_close_time, mocked_thread_time,
+                          mocked_handle):
+        mocked_err().invalid.side_effect = Exception()
+        mocked_close_time.return_value = 30
+        mocked_thread_time.return_value = 2
+        txid = 'closed'
+        # Correct case
+        stub = mocked_connect.return_value.__enter__.return_value
+        stub.GetChanInfo.return_value = ln.ChannelEdge(chan_point='1rtfm:0')
+        future = Mock()
+        executor = Mock()
+        future.result.return_value = ln.ChannelCloseUpdate(
+            closing_txid=txid.encode())
+        executor.submit.return_value = future
+        mocked_thread.return_value = executor
+        request = pb.CloseChannelRequest(channel_id='777')
+        ctx = Mock()
+        ctx.time_remaining.return_value = 300
+        res = MOD.CloseChannel(request, ctx)
+        self.assertEqual(res.closing_txid, txid)
+        mocked_check_par.assert_called_once_with(ctx, request, 'channel_id')
+        # Invalid channel_id case
+        reset_mocks(vars())
+        bad_request = pb.CloseChannelRequest(channel_id='aa7')
+        with self.assertRaises(Exception):
+            MOD.CloseChannel(bad_request, ctx)
+        mocked_err().invalid.assert_called_once_with(ctx, 'channel_id')
+        # Result times out
+        reset_mocks(vars())
+        future.result.side_effect = TimeoutFutError()
+        res = MOD.CloseChannel(request, ctx)
+        executor.shutdown.assert_called_once_with(wait=False)
+        self.assertEqual(res, pb.CloseChannelResponse())
+        # Result throws RuntimeError
+        # (could be triggered by _connect in _close_channel)
+        reset_mocks(vars())
+        err = 'err'
+        future.result.side_effect = RuntimeError(err)
+        MOD.CloseChannel(request, ctx)
+        mocked_handle.assert_called_once_with(ctx, err)
+        # Result throws RpcError (could be triggered _close_channel)
+        reset_mocks(vars())
+        error = RpcError(err)
+        future.result.side_effect = error
+        MOD.CloseChannel(request, ctx)
+        mocked_handle.assert_called_once_with(ctx, error)
+
+    @patch('lighter.light_lnd.LOGGER', autospec=True)
+    @patch('lighter.light_lnd._connect', autospec=True)
+    def test_close_channel(self, mocked_connect, mocked_log):
+        stub = mocked_connect.return_value.__enter__.return_value
+        pending_update = ln.PendingUpdate(txid=b'txid')
+        channel_close_update = ln.ChannelCloseUpdate(closing_txid=b'ctxid')
+        stub.CloseChannel.return_value = [
+            ln.CloseStatusUpdate(close_pending=pending_update),
+            ln.CloseStatusUpdate(chan_close=channel_close_update)
+        ]
+        chan_point = ln.ChannelPoint(funding_txid_str='txid', output_index=0)
+        lnd_req = ln.CloseChannelRequest(channel_point=chan_point)
+        res = MOD._close_channel(lnd_req, 15)
+        self.assertEqual(mocked_log.debug.call_count, 2)
+        self.assertEqual(res, channel_close_update)
+        # stub throws RpcError
+        reset_mocks(vars())
+        stub.CloseChannel.side_effect = CalledRpcError()
+        with self.assertRaises(CalledRpcError):
+            MOD._close_channel(lnd_req, 15)
+        assert mocked_log.debug.called
+        # _connect throws RuntimeError
+        reset_mocks(vars())
+        mocked_connect.side_effect = RuntimeError()
+        with self.assertRaises(RuntimeError):
+            MOD._close_channel(lnd_req, 15)
+        assert not mocked_log.called
 
     @patch('lighter.light_lnd.convert', autospec=True)
     def test_add_channel(self, mocked_conv):

@@ -34,6 +34,10 @@ ERRORS = {
         'code': 'CANCELLED',
         'msg': 'Connection to peer failed'
     },
+    'closechannel_failed': {
+        'code': 'CANCELLED',
+        'msg': 'Failed to close channel'
+    },
     'db_error': {
         'code': 'CANCELLED',
         'msg': 'Error accessing database'

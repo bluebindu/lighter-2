@@ -201,6 +201,7 @@ def channelbalance():
     req = pb.ChannelBalanceRequest()
     return 'ChannelBalance', req
 
+
 @entrypoint.command()
 @argument('payment_hash', nargs=1)
 @handle_call
@@ -208,6 +209,24 @@ def checkinvoice(payment_hash):
     """ CheckInvoice checks if a LN invoice has been paid. """
     req = pb.CheckInvoiceRequest(payment_hash=payment_hash)
     return 'CheckInvoice', req
+
+
+@entrypoint.command()
+@argument('channel_id')
+@option('--force', is_flag=True, help="Whether to force a unilateral close "
+        "(necessary if peer's offline)")
+@handle_call
+def closechannel(channel_id, force):
+    """
+    CloseChannel closes a LN channel.
+    If the operation succeds it returns the ID of the closing transaction.
+    If the operation takes more than the client timeout, it returns an empty
+    response. The operation could still complete.
+    In the other cases the operation will fail with an appropriate message.
+    """
+    req = pb.CloseChannelRequest(channel_id=channel_id, force=force)
+    return 'CloseChannel', req
+
 
 @entrypoint.command()
 @option('--amount_bits', nargs=1, type=float, help='Invoice amount, in bits')
@@ -255,7 +274,7 @@ def getinfo():
 
 @entrypoint.command()
 @option('--active_only', is_flag=True, help='Whether to return active '
-        'channels only (peer is online)')
+        'channels only (channel is open and peer is online)')
 @handle_call
 def listchannels(active_only):
     """ ListChannels returns a list of channels of the connected LN node. """
@@ -343,7 +362,7 @@ def newaddress(type):
 @argument('funding_bits', nargs=1, type=float)
 @option('--push_bits', nargs=1, type=float, help='Amount (taken '
         'from funding_bits) to be pushed to peer, in bits')
-@option('--private', is_flag=True, help='Wheter the channel will be private '
+@option('--private', is_flag=True, help='Whether the channel will be private '
         '(not anonunced)')
 @handle_call
 def openchannel(node_uri, funding_bits, push_bits, private):
