@@ -387,8 +387,9 @@ def OpenChannel(request, context):
     cl_req.append('id="{}"'.format(pubkey))
     cl_req.append('satoshi="{}"'.format(
         convert(context, Enf.SATS, request.funding_bits,
-                enforce=Enf.FUNDING_SATOSHIS)))
-    cl_req.append('announce="{}"'.format(request.private))
+                enforce=Enf.FUNDING_SATOSHIS, max_precision=Enf.SATS)))
+    if request.private:
+        cl_req.append('announce=true')
     cl_res = command(context, *cl_req)
     if 'txid' in cl_res:
         response.funding_txid = cl_res['txid']

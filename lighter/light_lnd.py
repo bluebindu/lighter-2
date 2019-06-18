@@ -90,7 +90,7 @@ ERRORS = {
         'params': 'payment_request'
     },
     'is not online': {
-        'fun': 'openchannel_failed'
+        'fun': 'connect_failed'
     },
     'Name resolution failure': {
         'fun': 'node_error'
@@ -510,7 +510,13 @@ def OpenChannel(request, context):
     peer_address = ln.LightningAddress(pubkey=pubkey, host=host)
     lnd_req = ln.ConnectPeerRequest(addr=peer_address, perm=True)
     with _connect(context) as stub:
-        lnd_res = stub.ConnectPeer(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        try:
+            lnd_res = stub.ConnectPeer(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        except RpcError as err:
+            # pylint: disable=no-member
+            if 'already connected to peer' not in err.details():
+                # pylint: enable=no-member
+                Err().connect_failed(context)
         lnd_req = ln.OpenChannelRequest(
             node_pubkey_string=pubkey, private=request.private,
             local_funding_amount=convert(

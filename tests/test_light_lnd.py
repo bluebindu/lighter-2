@@ -682,6 +682,41 @@ class LightLndTests(TestCase):
             push_sat=amt, private=True)
         stub.OpenChannelSync.assert_called_once_with(
             lnd_req, timeout=settings.IMPL_TIMEOUT)
+        # already connected peer case
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest(
+            funding_bits=amt, node_uri=fix.NODE_URI, push_bits=amt,
+            private=True)
+        stub.ConnectPeer.side_effect = CalledRpcError()
+        mocked_err().connect_failed.side_effect = Exception
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        mocked_connect.assert_called_once_with(CTX)
+        peer_address = ln.LightningAddress(
+            pubkey=fix.NODE_ID, host='{}:{}'.format(fix.HOST, fix.PORT))
+        lnd_req = ln.ConnectPeerRequest(addr=peer_address, perm=True)
+        stub.ConnectPeer.assert_called_once_with(
+            lnd_req, timeout=settings.IMPL_TIMEOUT)
+        assert not stub.OpenChannelSync.called
+        # Filled with peer already connected
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest(
+            funding_bits=amt, node_uri=fix.NODE_URI, push_bits=amt,
+            private=True)
+        stub.ConnectPeer.side_effect = ConnectRpcError()
+        mocked_conv.return_value = amt
+        MOD.OpenChannel(request, CTX)
+        mocked_connect.assert_called_once_with(CTX)
+        peer_address = ln.LightningAddress(
+            pubkey=fix.NODE_ID, host='{}:{}'.format(fix.HOST, fix.PORT))
+        lnd_req = ln.ConnectPeerRequest(addr=peer_address, perm=True)
+        stub.ConnectPeer.assert_called_once_with(
+            lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_req = ln.OpenChannelRequest(
+            node_pubkey_string=fix.NODE_ID, local_funding_amount=amt,
+            push_sat=amt, private=True)
+        stub.OpenChannelSync.assert_called_once_with(
+            lnd_req, timeout=settings.IMPL_TIMEOUT)
         # invalid node_uri case
         reset_mocks(vars())
         request = pb.OpenChannelRequest(funding_bits=amt, node_uri='wrong')
@@ -918,6 +953,11 @@ class LightLndTests(TestCase):
 class CalledRpcError(RpcError):
     def details(self):
         return 'no error message'
+
+
+class ConnectRpcError(RpcError):
+    def details(self):
+        return 'already connected to peer'
 
 
 def reset_mocks(params):
