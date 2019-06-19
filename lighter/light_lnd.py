@@ -531,7 +531,7 @@ def _add_channel(context, response, lnd_chan, open_chan=False):
     """ Adds an open or pending channel to a ListChannelsResponse """
     if lnd_chan.ListFields():
         channel = response.channels.add(
-            funding_txid=lnd_chan.channel_point,
+            funding_txid=lnd_chan.channel_point.split(':')[0],
             capacity=convert(context, Enf.SATS, lnd_chan.capacity),
             local_balance=convert(context, Enf.SATS, lnd_chan.local_balance),
             remote_balance=convert(context, Enf.SATS, lnd_chan.remote_balance))
