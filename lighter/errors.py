@@ -140,6 +140,7 @@ class Err():  # pylint: disable=too-few-public-methods
                 if name == 'unexpected_error':
                     msg = param
                     LOGGER.error('Unexpected error: %s', msg)
+                LOGGER.error('> {}'.format(msg))
                 context.abort(scode, msg)
             else:
                 LOGGER.error('Unmapped error key')
