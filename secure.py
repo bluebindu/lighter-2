@@ -65,7 +65,7 @@ def _set_eclair(secret):
     """ Handles storage of eclair's password """
     if not secret:
         return _get_eclair_secret()
-    rm_sec = input("A passwprd for eclair is already stored, "
+    rm_sec = input("A password for eclair is already stored, "
                    "do you want to update it? [y/N] ")
     if str2bool(rm_sec):
         return _get_eclair_secret()
@@ -138,10 +138,10 @@ def _create_lightning_macaroons():
 def secure():
     """ Handles Lighter and implementation secrets """
     update_logger()
-    get_start_options()
     no_db = environ.get('NO_DB')
     rm_db = environ.get('RM_DB')
     if rm_db: _remove_files()
+    get_start_options()
     if no_db or rm_db:
         password = getpass('Insert a safe password for Lighter: ')
         password_check = getpass('Repeat password: ')
@@ -159,7 +159,7 @@ def secure():
         check_password(FakeContext())
         ecl_sec, lnd_sec = _recover_secrets(password)
     create_mac = input('Do you want to create macaroon files (warning:'
-        'macaroons should not be kept in this host)? [Y/n]')
+                       'macaroons should not be kept in this host)? [Y/n]')
     if str2bool(create_mac, force_true=True):
         _create_lightning_macaroons()
     data = crypt_data = None
@@ -171,5 +171,5 @@ def secure():
     if data:
         crypt_data = Crypter.crypt(Crypter.LATEST_VERSION, data)
         DbHandler.save_secret_in_db(FakeContext(), Crypter.LATEST_VERSION,
-            settings.IMPLEMENTATION, activate_secret, crypt_data)
+                    settings.IMPLEMENTATION, activate_secret, crypt_data)
     _exit('All done!')

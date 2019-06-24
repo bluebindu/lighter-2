@@ -24,7 +24,6 @@ from importlib import import_module
 from json import dumps, loads, JSONDecodeError
 from logging import getLogger
 from logging.config import dictConfig
-from marshal import dumps as mdumps, loads as mloads
 from os import environ as env, path, urandom
 from sqlite3 import connect, Error
 from subprocess import PIPE, Popen, TimeoutExpired
@@ -136,7 +135,7 @@ def _detect_impl_secret():
         return False
     if not path.isfile(path.join(sett.DB_DIR, sett.DB_NAME)):
         return False
-    secret, active = DbHandler.get_secret_from_db(
+    _, secret, active = DbHandler.get_secret_from_db(
         FakeContext(), sett.IMPLEMENTATION)
     if not active:
         return False
@@ -329,6 +328,10 @@ def gen_random_data(key_len):
 
 
 def check_password(context):
+    """
+    Checks the inserted password by generating an access key and trying 
+    to decrypt the token in the db
+    """
     version, encrypted_token = DbHandler.get_token_from_db(context)
     clear_token = Crypter.decrypt(context, version, encrypted_token)
     if clear_token != sett.ACCESS_TOKEN:
@@ -347,7 +350,7 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
     When decrypting, it returns only the plain data that was crypted.
     """
 
-    LATEST_VERSION = 1
+    LATEST_VERSION = sett.LATEST_VERSION
 
     V1_PARAMS = {
         'cost_factor': 2**14,
@@ -417,20 +420,40 @@ class DbHandler():
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def _get_from_db(context, table, get_all=False):
+    def is_old_version(context):
+        """
+        It returns wheter the db is in an old version
+        """
+        table = DbHandler.TABLE_TOKEN
         # pylint: enable=unused-argument
         with connect(DbHandler.DATABASE) as connection:
             cursor = connection.cursor()
             cursor.execute('''SELECT count(*) FROM sqlite_master
-                              WHERE type="table"
-                              AND name="{}"'''.format(table))
+                           WHERE type="table"
+                           AND name="{}"'''.format(table))
+            entry = cursor.fetchone()[0]
+            return not entry
+
+    @staticmethod
+    @_handle_db_errors
+    # pylint: disable=unused-argument
+    def _get_from_db(context, table, get_all=False):
+        """
+        returns the content of table ordered by version
+        """
+        # pylint: enable=unused-argument
+        with connect(DbHandler.DATABASE) as connection:
+            cursor = connection.cursor()
+            cursor.execute('''SELECT count(*) FROM sqlite_master
+                           WHERE type="table"
+                           AND name="{}"'''.format(table))
             entry = cursor.fetchone()[0]
             if not entry and not get_all:
                 return None, None
             if not entry and get_all:
                 return [(None, None,)]
             cursor.execute('SELECT * FROM {} ORDER BY version DESC'
-                .format(table))
+                           .format(table))
             if get_all:
                 return cursor.fetchall()
             return cursor.fetchone()
@@ -439,14 +462,16 @@ class DbHandler():
     @_handle_db_errors
     # pylint: disable=unused-argument
     def _save_in_db(context, table, version, data):
+        """
+        stores data into table setting the version to the db
+        """
         # pylint: enable=unused-argument
         with connect(DbHandler.DATABASE) as connection:
-            connection.execute('''CREATE TABLE IF NOT EXISTS {}
-                (version INTEGER, data BLOB)'''.format(table))
-            connection.execute('''CREATE UNIQUE INDEX IF NOT EXISTS
-                id_version ON {}(version)'''.format(table))
-            connection.execute('INSERT OR REPLACE INTO {} VALUES (?,?)'
-                .format(table), (version, data,))
+           connection.execute('''CREATE TABLE IF NOT EXISTS {}
+               (version INTEGER, data BLOB, PRIMARY KEY(version))'''
+               .format(table))
+           connection.execute('INSERT OR REPLACE INTO {} VALUES (?,?)'
+               .format(table), (version, data,))
 
     @staticmethod
     def save_token_in_db(context, version, token):
@@ -479,11 +504,12 @@ class DbHandler():
         # pylint: enable=unused-argument
         table = DbHandler.TABLE_SECRETS
         with connect(DbHandler.DATABASE) as connection:
-            connection.execute('''CREATE TABLE IF NOT EXISTS {}
-                (version INTEGER, implementation TEXT, active INTEGER,
-                secret BLOB)'''.format(table))
-            connection.execute('INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?)'
-                .format(table), (version, implementation, active, data,))
+           connection.execute('''CREATE TABLE IF NOT EXISTS {}
+               (version INTEGER, implementation TEXT, active INTEGER,
+               secret BLOB, PRIMARY KEY(version, implementation))'''
+               .format(table))
+           connection.execute('INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?)'
+               .format(table), (version, implementation, active, data,))
 
     @staticmethod
     @_handle_db_errors
@@ -506,8 +532,8 @@ class DbHandler():
                 return None, None, None
             cursor.execute('SELECT version FROM {}'.format(table))
             version = cursor.fetchone()[0]
-            cursor.execute('SELECT active FROM {}'.format(table))
-            active = cursor.fetchone()[0]
             cursor.execute('SELECT secret FROM {}'.format(table))
             secret = cursor.fetchone()[0]
+            cursor.execute('SELECT active FROM {}'.format(table))
+            active = cursor.fetchone()[0]
             return version, secret, active

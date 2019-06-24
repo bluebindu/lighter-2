@@ -242,6 +242,10 @@ def start():
     Any raised exception will be handled with a slow exit.
     """
     try:
+        if DbHandler.is_old_version(FakeContext()):
+            slow_exit('The key generation data is stored in a old version of '
+                      'the db. Update it by running make secure (and deleting '
+                      'db)')
         get_start_options(warning=True)
         if not settings.DISABLE_MACAROONS:
             enc_token = DbHandler.get_token_from_db(FakeContext())

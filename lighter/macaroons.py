@@ -17,7 +17,6 @@
 
 from codecs import decode
 from logging import getLogger
-from os import path
 
 from macaroonbakery.bakery import Bakery, canonical_ops, \
     DischargeRequiredError, LATEST_VERSION, MemoryKeyStore, \
@@ -27,7 +26,6 @@ from pymacaroons import Macaroon
 from pymacaroons.exceptions import MacaroonDeserializationException
 
 from . import settings
-from .utils import Crypter, DbHandler, FakeContext, gen_random_data
 
 LOGGER = getLogger(__name__)
 
