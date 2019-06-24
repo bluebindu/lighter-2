@@ -159,7 +159,7 @@ def secure():
         check_password(FakeContext())
         ecl_sec, lnd_sec = _recover_secrets(password)
     create_mac = input('Do you want to create macaroon files (warning:'
-                       'macaroons should not be kept in this host)? [Y/n]')
+                       'macaroons should not be kept in this host)? [Y/n] ')
     if str2bool(create_mac, force_true=True):
         _create_lightning_macaroons()
     data = crypt_data = None

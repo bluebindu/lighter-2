@@ -329,7 +329,7 @@ def gen_random_data(key_len):
 
 def check_password(context):
     """
-    Checks the inserted password by generating an access key and trying 
+    Checks the inserted password by generating an access key and trying
     to decrypt the token in the db
     """
     version, encrypted_token = DbHandler.get_token_from_db(context)
@@ -467,11 +467,13 @@ class DbHandler():
         """
         # pylint: enable=unused-argument
         with connect(DbHandler.DATABASE) as connection:
-           connection.execute('''CREATE TABLE IF NOT EXISTS {}
-               (version INTEGER, data BLOB, PRIMARY KEY(version))'''
-               .format(table))
-           connection.execute('INSERT OR REPLACE INTO {} VALUES (?,?)'
-               .format(table), (version, data,))
+            connection.execute(
+                '''CREATE TABLE IF NOT EXISTS {}
+                (version INTEGER, data BLOB, PRIMARY KEY(version))'''
+                .format(table))
+            connection.execute(
+                'INSERT OR REPLACE INTO {} VALUES (?,?)'
+                .format(table), (version, data,))
 
     @staticmethod
     def save_token_in_db(context, version, token):
@@ -504,12 +506,14 @@ class DbHandler():
         # pylint: enable=unused-argument
         table = DbHandler.TABLE_SECRETS
         with connect(DbHandler.DATABASE) as connection:
-           connection.execute('''CREATE TABLE IF NOT EXISTS {}
-               (version INTEGER, implementation TEXT, active INTEGER,
-               secret BLOB, PRIMARY KEY(version, implementation))'''
-               .format(table))
-           connection.execute('INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?)'
-               .format(table), (version, implementation, active, data,))
+            connection.execute(
+                '''CREATE TABLE IF NOT EXISTS {}
+                (version INTEGER, implementation TEXT, active INTEGER,
+                secret BLOB, PRIMARY KEY(version, implementation))'''
+                .format(table))
+            connection.execute(
+                'INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?)'
+                .format(table), (version, implementation, active, data,))
 
     @staticmethod
     @_handle_db_errors
