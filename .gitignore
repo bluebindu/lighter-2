@@ -12,6 +12,7 @@
 /complete-lit-cli.sh
 /.bashrc_tmp
 /lit_cli.egg-info/
+*.swp
 
 # Tests coverage, lint and cache
 /.coverage

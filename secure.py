@@ -18,14 +18,15 @@
 import sys
 
 from contextlib import suppress
+from datetime import datetime, timedelta, timezone
 from getpass import getpass
 from logging import getLogger
 from os import environ, path, remove
 
 from lighter import settings
-from lighter.macaroons import create_lightning_macaroons, MACAROONS
-from lighter.utils import Crypter, DbHandler, FakeContext, get_start_options, \
-    str2bool, update_logger
+from lighter.macaroons import get_baker, MACAROONS, MAC_VERSION
+from lighter.utils import check_password, Crypter, DbHandler, FakeContext, \
+    gen_random_data, get_start_options, str2bool, update_logger
 
 LOGGER = getLogger(__name__)
 
@@ -64,7 +65,7 @@ def _set_eclair(secret):
     """ Handles storage of eclair's password """
     if not secret:
         return _get_eclair_secret()
-    rm_sec = input("A passwprd for eclair is already stored, "
+    rm_sec = input("A password for eclair is already stored, "
                    "do you want to update it? [y/N] ")
     if str2bool(rm_sec):
         return _get_eclair_secret()
@@ -93,53 +94,74 @@ def _set_lnd(secret):
     return data, activate_secret
 
 
-def _set_macaroons(password):
-    """ Handles macaroons and their root key """
-    try:
-        crypt_root_key = DbHandler.get_key_from_db(FakeContext())
-        if crypt_root_key:  # verify password
-            crypter = Crypter(password)
-            crypter.decrypt(FakeContext(), crypt_root_key)
-        elif not settings.DISABLE_MACAROONS:
-            create_lightning_macaroons(password)
-    except RuntimeError as err:
-        _exit(err)
+def _encrypt_token():
+    encrypted_token = Crypter.crypt(
+        Crypter.LATEST_VERSION, settings.ACCESS_TOKEN)
+    DbHandler.save_token_in_db(
+        FakeContext(), Crypter.LATEST_VERSION, encrypted_token)
+    LOGGER.info('Scrypt parameters and encrypted token stored in the DB')
 
 
 def _recover_secrets(password):
     """ Recovers secrets from db, making sure password is correct """
     ecl_sec = lnd_sec = None
-    crypter = Crypter(password)
     try:
-        ecl_sec, _ = DbHandler.get_secret_from_db(FakeContext(), 'eclair_data')
+        version, ecl_sec, _ = DbHandler.get_secret_from_db(
+            FakeContext(), settings.IMPLEMENTATION)
         if ecl_sec:
-            ecl_sec = crypter.decrypt(FakeContext(), ecl_sec)
-        lnd_sec, _ = DbHandler.get_secret_from_db(FakeContext(), 'lnd_data')
+            ecl_sec = Crypter.decrypt(FakeContext(), version, ecl_sec)
+        version, lnd_sec, _ = DbHandler.get_secret_from_db(
+            FakeContext(), settings.IMPLEMENTATION)
         if lnd_sec:
-            lnd_sec = crypter.decrypt(FakeContext(), lnd_sec)
+            lnd_sec = Crypter.decrypt(FakeContext(), version, lnd_sec)
     except RuntimeError as err:
         _exit(err)
     return ecl_sec, lnd_sec
 
 
+def _create_lightning_macaroons():
+    """ Creates macaroon files to use the LightningServicer """
+    LOGGER.info('Creating macaroons...')
+    baker = get_baker(settings.ACCESS_KEY_V1)
+    for file_name, permitted_ops in MACAROONS.items():
+        macaroon_file = path.join(settings.MACAROONS_DIR, file_name)
+        expiration_time = datetime.now(tz=timezone.utc) + timedelta(days=365)
+        caveats = None
+        mac = baker.oven.macaroon(
+            MAC_VERSION, expiration_time, caveats, permitted_ops)
+        serialized_macaroon = mac.macaroon.serialize()
+        with open(macaroon_file, 'wb') as file:
+            file.write(serialized_macaroon.encode())
+        LOGGER.info('%s written to %s', file_name, settings.MACAROONS_DIR)
+
+
 def secure():
     """ Handles Lighter and implementation secrets """
     update_logger()
-    get_start_options()
     no_db = environ.get('NO_DB')
     rm_db = environ.get('RM_DB')
     if rm_db: _remove_files()
+    get_start_options()
     if no_db or rm_db:
         password = getpass('Insert a safe password for Lighter: ')
         password_check = getpass('Repeat password: ')
         if password != password_check:
             _exit("Passwords do not match")
-        _set_macaroons(password)
+        salt = gen_random_data(settings.SALT_LEN)
+        DbHandler.save_salt_in_db(FakeContext(), Crypter.LATEST_VERSION, salt)
+        Crypter.gen_access_key(Crypter.LATEST_VERSION, password, salt)
+        _encrypt_token()
         ecl_sec = lnd_sec = None
     else:
         password = getpass("Insert Lighter's password: ")
-        _set_macaroons(password)
+        for version, salt in DbHandler.get_salt_from_db(FakeContext()):
+            Crypter.gen_access_key(version, password, salt)
+        check_password(FakeContext())
         ecl_sec, lnd_sec = _recover_secrets(password)
+    create_mac = input('Do you want to create macaroon files (warning:'
+                       'macaroons should not be kept in this host)? [Y/n] ')
+    if str2bool(create_mac, force_true=True):
+        _create_lightning_macaroons()
     data = crypt_data = None
     activate_secret = 1
     if settings.IMPLEMENTATION == 'eclair':
@@ -147,9 +169,7 @@ def secure():
     if settings.IMPLEMENTATION == 'lnd':
         data, activate_secret = _set_lnd(lnd_sec)
     if data:
-        crypter = Crypter(password)
-        crypt_data = crypter.crypt(data)
-    table = '{}_data'.format(settings.IMPLEMENTATION)
-    DbHandler.save_secret_in_db(
-        FakeContext(), table, activate_secret, crypt_data)
+        crypt_data = Crypter.crypt(Crypter.LATEST_VERSION, data)
+        DbHandler.save_secret_in_db(FakeContext(), Crypter.LATEST_VERSION,
+                    settings.IMPLEMENTATION, activate_secret, crypt_data)
     _exit('All done!')

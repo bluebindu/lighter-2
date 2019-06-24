@@ -30,8 +30,9 @@ from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
-from .utils import check_connection, check_req_params, Crypter, DbHandler, \
-    FakeContext, get_start_options, handle_keyboardinterrupt, slow_exit
+from .utils import check_connection, check_password, check_req_params, \
+    Crypter, DbHandler, FakeContext, get_start_options, \
+    handle_keyboardinterrupt, slow_exit
 
 LOGGER = getLogger(__name__)
 
@@ -46,23 +47,23 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
 
     def UnlockLighter(self, request, context):
         """
-        If passsword is correct, unlocks Lighter database, checks connection
+        If password is correct, unlocks Lighter database, checks connection
         to node (continuing even if node is not reachable) and finally stops
         the UnlockerServicer.
         """
         check_req_params(context, request, 'password')
         password = request.password
-        crypter = Crypter(password)
+        for version, salt in DbHandler.get_salt_from_db(context):
+            Crypter.gen_access_key(version, password, salt)
+        check_password(context)
         if not settings.DISABLE_MACAROONS:
-            serialized_data = DbHandler.get_key_from_db(context)
-            root_key = crypter.decrypt(context, serialized_data)
-            baker = get_baker(root_key, put_ops=True)
+            baker = get_baker(settings.ACCESS_KEY_V1, put_ops=True)
             settings.LIGHTNING_BAKERY = baker
         plain_secret = None
-        table = '{}_data'.format(settings.IMPLEMENTATION)
-        secret, active = DbHandler.get_secret_from_db(context, table)
+        version, secret, active = DbHandler.get_secret_from_db(
+            context, settings.IMPLEMENTATION)
         if secret and active:
-            plain_secret = crypter.decrypt(context, secret)
+            plain_secret = Crypter.decrypt(context, version, secret)
         # Checks if implementation is supported, could throw an ImportError
         mod = import_module('lighter.light_{}'.format(settings.IMPLEMENTATION))
         # Calls the implementation specific update method
@@ -241,12 +242,16 @@ def start():
     Any raised exception will be handled with a slow exit.
     """
     try:
+        if DbHandler.is_old_version(FakeContext()):
+            slow_exit('The key generation data is stored in a old version of '
+                      'the db. Update it by running make secure (and deleting '
+                      'db)')
         get_start_options(warning=True)
         if not settings.DISABLE_MACAROONS:
-            serialized_data = DbHandler.get_key_from_db(FakeContext())
-            if not serialized_data:
-                slow_exit("Cannot obtain macaroon root key (hint: make "
-                          "secure)", wait=False)
+            enc_token = DbHandler.get_token_from_db(FakeContext())
+            if not enc_token:
+                slow_exit('Parameters for key generation are not set'
+                          '(hint: make secure)', wait=False)
         if settings.ENABLE_UNLOCKER:
             _serve_unlocker()
         else:

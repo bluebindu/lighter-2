@@ -46,6 +46,12 @@ MAC_ADMIN = 'admin.macaroon'
 MAC_READONLY = 'readonly.macaroon'
 MAC_INVOICES = 'invoices.macaroon'
 
+# Security settings
+ACCESS_KEY_V1 = None
+SALT_LEN = 32
+ACCESS_TOKEN = b'lighter'
+LATEST_VERSION = 1
+
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
 GRPC_WORKERS = 10
 GRPC_GRACE_TIME = 7

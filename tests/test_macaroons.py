@@ -111,17 +111,6 @@ class MacaroonsTests(TestCase):
             ops = res.oven.ops_store.get_ops(entity)
             self.assertTrue(isinstance(ops, list))
 
-    @patch('lighter.macaroons.LOGGER')
-    @patch('lighter.macaroons.DbHandler', autospec=True)
-    def test_create_lightning_macaroons(self, mocked_db, mocked_logger):
-        password = 'password'
-        mopen = mock_open()
-        with patch('lighter.macaroons.open', mopen, create=True) as mocked_open:
-            MOD.create_lightning_macaroons(password)
-            handle = mopen()
-            assert handle.write.called
-
-
 def reset_mocks(params):
     for _key, value in params.items():
         try:
