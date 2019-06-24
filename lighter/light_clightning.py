@@ -100,7 +100,7 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
     if 'alias' in cl_res:
         response.alias = cl_res['alias']
     if 'color' in cl_res:
-        response.color = cl_res['color']
+        response.color = '#{}'.format(cl_res['color'])
     if 'version' in cl_res:
         response.version = cl_res['version']
     if 'blockheight' in cl_res:

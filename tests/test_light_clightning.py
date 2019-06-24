@@ -65,7 +65,7 @@ class LightClightningTests(TestCase):
             CTX, fix.GETINFO, always_abort=False)
         self.assertEqual(res.identity_pubkey, '022d558f74f2ab2a78d29ebf')
         self.assertEqual(res.alias, fix.GETINFO['alias'])
-        self.assertEqual(res.color, fix.GETINFO['color'])
+        self.assertEqual(res.color, '#{}'.format(fix.GETINFO['color']))
         self.assertEqual(res.version, fix.GETINFO['version'])
         self.assertEqual(res.blockheight, fix.GETINFO['blockheight'])
         self.assertEqual(res.network, 'mainnet')
