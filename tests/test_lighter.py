@@ -256,6 +256,7 @@ class LighterTests(TestCase):
                    mocked_slow_exit):
         # with secrets case
         settings.ENABLE_UNLOCKER = True
+        mocked_db.get_token_from_db.return_value = "not_none" 
         MOD.start()
         mocked_get_start_opt.assert_called_once_with(warning=True)
         mocked_serve_unlocker.assert_called_once_with()
@@ -288,7 +289,10 @@ class LighterTests(TestCase):
             mocked_get_start_opt.side_effect = exc('msg')
             MOD.start()
             assert mocked_slow_exit.called
-
+        reset_mocks(vars())
+        mocked_db.return_value.get_token_from_db.return_value = None
+        MOD.start()
+        assert mocked_slow_exit.called
 
 def reset_mocks(params):
     for _key, value in params.items():

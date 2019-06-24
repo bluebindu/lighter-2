@@ -439,6 +439,21 @@ class UtilsTests(TestCase):
             res = MOD.DbHandler._save_in_db(CTX, 'table', version, data)
             self.assertEqual(connection.execute.call_count, 3)
 
+    def test_is_old_version(self):
+        with patch('lighter.utils.connect') as mocked_connect:
+            connection = mocked_connect.return_value.__enter__.return_value
+            cursor = connection.cursor.return_value
+            cursor.fetchone.side_effect = [(1,)]
+            res = MOD.DbHandler.is_old_version(CTX)
+            self.assertEqual(res, False)
+        # missing entry case
+        with patch('lighter.utils.connect') as mocked_connect:
+            connection = mocked_connect.return_value.__enter__.return_value
+            cursor = connection.cursor.return_value
+            cursor.fetchone.side_effect = [(0,)]
+            res = MOD.DbHandler.is_old_version(CTX)
+            self.assertEqual(res, True))
+
     def test_get_from_db(self):
         get_all = False
         with patch('lighter.utils.connect') as mocked_connect:
