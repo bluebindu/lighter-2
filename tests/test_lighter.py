@@ -254,9 +254,11 @@ class LighterTests(TestCase):
     def test_start(self, mocked_get_start_opt, mocked_db, mocked_import,
                    mocked_thread, mocked_serve_unlocker, mocked_serve_lightning,
                    mocked_slow_exit):
+        mocked_slow_exit.side_effect = Exception()
         # with secrets case
         settings.ENABLE_UNLOCKER = True
-        mocked_db.get_token_from_db.return_value = "not_none" 
+        mocked_db.is_old_version.return_value = False
+        mocked_db.get_token_from_db.return_value = "not_none"
         MOD.start()
         mocked_get_start_opt.assert_called_once_with(warning=True)
         mocked_serve_unlocker.assert_called_once_with()
@@ -274,15 +276,25 @@ class LighterTests(TestCase):
         mocked_thread.return_value.start.assert_called_once_with()
         mocked_serve_lightning.assert_called_once_with()
         assert not mocked_slow_exit.called
-        # no root key in db
+        # no encrypted token in db
         reset_mocks(vars())
         settings.ENABLE_UNLOCKER = True
         mocked_db.get_token_from_db.return_value = None
         settings.DISABLE_MACAROONS = False
-        MOD.start()
+        with self.assertRaises(Exception):
+            MOD.start()
         assert mocked_slow_exit.called
+        # old db version case
+        reset_mocks(vars())
+        mocked_db.is_old_version.return_value = True
+        with self.assertRaises(Exception):
+            MOD.start()
+        assert mocked_slow_exit.called
+        assert not mocked_get_start_opt.called
         # Exceptions handling case
         reset_mocks(vars())
+        mocked_slow_exit.side_effect = None
+        mocked_db.is_old_version.return_value = False
         exceptions = [ImportError, KeyError, RuntimeError, FileNotFoundError]
         for exc in exceptions:
             reset_mocks(vars())

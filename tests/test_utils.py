@@ -157,13 +157,13 @@ class UtilsTests(TestCase):
         res = MOD._detect_impl_secret()
         self.assertEqual(res, False)
         mocked_isfile.return_value = True
-        mocked_db.get_secret_from_db.return_value = None, None
+        mocked_db.get_secret_from_db.return_value = None, None, None
         res = MOD._detect_impl_secret()
         self.assertEqual(res, False)
-        mocked_db.get_secret_from_db.return_value = None, True
+        mocked_db.get_secret_from_db.return_value = None, None, True
         res = MOD._detect_impl_secret()
         assert mocked_exit.called
-        mocked_db.get_secret_from_db.return_value = 'data', True
+        mocked_db.get_secret_from_db.return_value = None, 'data', True
         res = MOD._detect_impl_secret()
         self.assertEqual(res, True)
 
@@ -437,7 +437,7 @@ class UtilsTests(TestCase):
         with patch('lighter.utils.connect') as mocked_connect:
             connection = mocked_connect.return_value.__enter__.return_value
             res = MOD.DbHandler._save_in_db(CTX, 'table', version, data)
-            self.assertEqual(connection.execute.call_count, 3)
+            self.assertEqual(connection.execute.call_count, 2)
 
     def test_is_old_version(self):
         with patch('lighter.utils.connect') as mocked_connect:
@@ -452,7 +452,7 @@ class UtilsTests(TestCase):
             cursor = connection.cursor.return_value
             cursor.fetchone.side_effect = [(0,)]
             res = MOD.DbHandler.is_old_version(CTX)
-            self.assertEqual(res, True))
+            self.assertEqual(res, True)
 
     def test_get_from_db(self):
         get_all = False
@@ -496,7 +496,7 @@ class UtilsTests(TestCase):
         with patch('lighter.utils.DbHandler._get_from_db') as mocked_get:
             mocked_get.return_value = data
             res = MOD.DbHandler.get_token_from_db(CTX)
-            self.assertEquals(res, data)
+            self.assertEqual(res, data)
 
     @patch('lighter.utils.DbHandler._save_in_db')
     def test_save_salt_in_db(self, mocked_save):
@@ -509,7 +509,7 @@ class UtilsTests(TestCase):
         with patch('lighter.utils.DbHandler._get_from_db') as mocked_get:
             mocked_get.return_value = data
             res = MOD.DbHandler.get_salt_from_db(CTX)
-            self.assertEquals(res, data)
+            self.assertEqual(res, data)
 
     def test_save_secret_in_db(self):
         data = b'data'
@@ -568,7 +568,8 @@ class UtilsTests(TestCase):
             self.assertEqual(ver, version)
             self.assertEqual(sec, secret)
             self.assertEqual(active, inactive)
-        
+
+
 def reset_mocks(params):
     for _key, value in params.items():
         try:
