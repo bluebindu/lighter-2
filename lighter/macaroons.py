@@ -95,13 +95,10 @@ def get_baker(root_key, put_ops=False):
     return baker
 
 
-def create_lightning_macaroons(password):
+def create_lightning_macaroons(crypter):
     """ Creates macaroon files to use the LightningServicer """
-    root_key = gen_random_data(32)
-    crypter = Crypter(password)
-    crypted_entry = crypter.crypt(root_key)
-    DbHandler.save_key_in_db(FakeContext(), crypted_entry)
-    LOGGER.info('Crypted macaroon root key saved in database')
+    root_key = crypter.gen_derived_key()
+    LOGGER.info('Macaroons root key generated')
     baker = get_baker(root_key)
     for file_name, permitted_ops in MACAROONS.items():
         macaroon_file = path.join(settings.MACAROONS_DIR, file_name)

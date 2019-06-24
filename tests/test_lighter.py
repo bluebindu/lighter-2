@@ -269,7 +269,7 @@ class LighterTests(TestCase):
         # no root key in db
         reset_mocks(vars())
         settings.ENABLE_UNLOCKER = True
-        mocked_db.get_key_from_db.return_value = None
+        mocked_db.get_token_from_db.return_value = None
         settings.DISABLE_MACAROONS = False
         MOD.start()
         assert mocked_slow_exit.called

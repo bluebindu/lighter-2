@@ -30,8 +30,9 @@ from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
-from .utils import check_connection, check_req_params, Crypter, DbHandler, \
-    FakeContext, get_start_options, handle_keyboardinterrupt, slow_exit
+from .utils import check_connection, check_password, check_req_params, \
+    Crypter, DbHandler, FakeContext, get_start_options, \
+    handle_keyboardinterrupt, slow_exit
 
 LOGGER = getLogger(__name__)
 
@@ -46,16 +47,16 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
 
     def UnlockLighter(self, request, context):
         """
-        If passsword is correct, unlocks Lighter database, checks connection
+        If password is correct, unlocks Lighter database, checks connection
         to node (continuing even if node is not reachable) and finally stops
         the UnlockerServicer.
         """
         check_req_params(context, request, 'password')
         password = request.password
         crypter = Crypter(password)
+        check_password(context, crypter)
         if not settings.DISABLE_MACAROONS:
-            serialized_data = DbHandler.get_key_from_db(context)
-            root_key = crypter.decrypt(context, serialized_data)
+            root_key = crypter.gen_derived_key()
             baker = get_baker(root_key, put_ops=True)
             settings.LIGHTNING_BAKERY = baker
         plain_secret = None
@@ -243,9 +244,9 @@ def start():
     try:
         get_start_options(warning=True)
         if not settings.DISABLE_MACAROONS:
-            serialized_data = DbHandler.get_key_from_db(FakeContext())
+            serialized_data = DbHandler.get_token_from_db(FakeContext())
             if not serialized_data:
-                slow_exit("Cannot obtain macaroon root key (hint: make "
+                slow_exit("Parameters for key generation are not set (hint: make "
                           "secure)", wait=False)
         if settings.ENABLE_UNLOCKER:
             _serve_unlocker()

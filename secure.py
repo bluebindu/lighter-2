@@ -24,8 +24,8 @@ from os import environ, path, remove
 
 from lighter import settings
 from lighter.macaroons import create_lightning_macaroons, MACAROONS
-from lighter.utils import Crypter, DbHandler, FakeContext, get_start_options, \
-    str2bool, update_logger
+from lighter.utils import check_password, Crypter, DbHandler, FakeContext, \
+    get_start_options, str2bool, update_logger
 
 LOGGER = getLogger(__name__)
 
@@ -95,15 +95,14 @@ def _set_lnd(secret):
 
 def _set_macaroons(password):
     """ Handles macaroons and their root key """
-    try:
-        crypt_root_key = DbHandler.get_key_from_db(FakeContext())
-        if crypt_root_key:  # verify password
-            crypter = Crypter(password)
-            crypter.decrypt(FakeContext(), crypt_root_key)
-        elif not settings.DISABLE_MACAROONS:
-            create_lightning_macaroons(password)
-    except RuntimeError as err:
-        _exit(err)
+
+
+
+def _encrypt_token(crypter):
+    encrypted_token = crypter.crypt(settings.ACCESS_TOKEN)
+    DbHandler.save_token_in_db(FakeContext(), encrypted_token)
+    LOGGER.info('Root key generation parameters and encrypted token '
+                'stored in the DB')
 
 
 def _recover_secrets(password):
@@ -134,12 +133,16 @@ def secure():
         password_check = getpass('Repeat password: ')
         if password != password_check:
             _exit("Passwords do not match")
-        _set_macaroons(password)
+        crypter = Crypter(password)
+        _encrypt_token(crypter)
         ecl_sec = lnd_sec = None
     else:
         password = getpass("Insert Lighter's password: ")
-        _set_macaroons(password)
+        crypter = Crypter(password)
+        check_password(FakeContext(), crypter)
         ecl_sec, lnd_sec = _recover_secrets(password)
+    if not settings.DISABLE_MACAROONS:
+        create_lightning_macaroons(crypter)
     data = crypt_data = None
     activate_secret = 1
     if settings.IMPLEMENTATION == 'eclair':

@@ -113,11 +113,13 @@ class MacaroonsTests(TestCase):
 
     @patch('lighter.macaroons.LOGGER')
     @patch('lighter.macaroons.DbHandler', autospec=True)
+    @patch('lighter.utils.Crypter')
     def test_create_lightning_macaroons(self, mocked_db, mocked_logger):
         password = 'password'
         mopen = mock_open()
         with patch('lighter.macaroons.open', mopen, create=True) as mocked_open:
-            MOD.create_lightning_macaroons(password)
+            crypter = MOD.Crypter(password)
+            MOD.create_lightning_macaroons(crypter)
             handle = mopen()
             assert handle.write.called
 

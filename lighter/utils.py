@@ -328,6 +328,14 @@ def gen_random_data(key_len):
     return urandom(key_len)
 
 
+def check_password(context, crypter):
+    encrypted_token = DbHandler.get_token_from_db(context)
+    if not crypter.decrypt(context, encrypted_token) == sett.ACCESS_TOKEN:
+        Err().wrong_password(context)
+        return False
+    return True
+
+
 class Crypter():  # pylint: disable=too-many-instance-attributes
     """
     Crypter provides methods to crypt and decrypt data.
@@ -348,8 +356,7 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
     default_version = b'v1'
 
     v1_format = [
-        'crypt_data', 'salt', 'cost_factor', 'block_size_factor',
-        'parallelization_factor']
+        'crypt_data', 'salt', 'cost_factor', 'block_size_factor', 'parallelization_factor']
 
     def __init__(self, password):
         self.password = bytes(password, 'utf-8')
@@ -365,8 +372,10 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
 
     def gen_derived_key(self):
         """ Derives a key from a password """
-        if not self.salt:
+        if not self.serialized_data:
             self.salt = gen_random_data(Crypter.key_len)
+        else:
+            self.deserialize()
         self.derived_key = scrypt(
             self.password,
             self.salt,
@@ -378,7 +387,9 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
     def crypt(self, data):
         """
         Crypts data with a newly generated key and returns serialized
-        data
+        data.
+        If data is not provided it crypts a default token to later perform a
+        check on the password
         """
         self.gen_derived_key()
         self.crypt_data = SecretBox(self.derived_key).encrypt(data)
@@ -443,27 +454,34 @@ class DbHandler():
     """
 
     DATABASE = path.join(sett.DB_DIR, sett.DB_NAME)
+    SCRYPT_PARAMS_TABLE = 'scrypt_params'
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def save_key_in_db(context, root_key):
+    def save_token_in_db(context, serialized_params):
         # pylint: enable=unused-argument
-        """ Saves data in database to given table and index """
-        table = 'macrootkey'
+        """
+        Saves serialized key generation parameters in database to given
+        table and index
+        """
+        table = DbHandler.SCRYPT_PARAMS_TABLE
         with connect(DbHandler.DATABASE) as connection:
             connection.execute('DROP TABLE IF EXISTS {}'.format(table))
-            connection.execute('CREATE TABLE {} (root_key BLOB)'.format(table))
+            connection.execute('CREATE TABLE {} (root_salt BLOB)'.format(table))
             connection.execute('INSERT INTO {} VALUES (?)'.format(table),
-                               (root_key,))
+                               (serialized_params,))
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def get_key_from_db(context):
+    def get_token_from_db(context):
         # pylint: enable=unused-argument
-        """ Retrieves data from given table and index in database """
-        table = 'macrootkey'
+        """
+        Retrieves serialized key generation parameters from given
+        table and index in database
+        """
+        table = DbHandler.SCRYPT_PARAMS_TABLE
         with connect(DbHandler.DATABASE) as connection:
             cursor = connection.cursor()
             cursor.execute('''SELECT count(*) FROM sqlite_master
