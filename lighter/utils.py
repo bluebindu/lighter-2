@@ -136,8 +136,8 @@ def _detect_impl_secret():
         return False
     if not path.isfile(path.join(sett.DB_DIR, sett.DB_NAME)):
         return False
-    table = '{}_data'.format(sett.IMPLEMENTATION)
-    secret, active = DbHandler.get_secret_from_db(FakeContext(), table)
+    secret, active = DbHandler.get_secret_from_db(
+        FakeContext(), sett.IMPLEMENTATION)
     if not active:
         return False
     if active and not secret:
@@ -328,12 +328,11 @@ def gen_random_data(key_len):
     return urandom(key_len)
 
 
-def check_password(context, crypter):
-    encrypted_token = DbHandler.get_token_from_db(context)
-    if not crypter.decrypt(context, encrypted_token) == sett.ACCESS_TOKEN:
+def check_password(context):
+    version, encrypted_token = DbHandler.get_token_from_db(context)
+    clear_token = Crypter.decrypt(context, version, encrypted_token)
+    if clear_token != sett.ACCESS_TOKEN:
         Err().wrong_password(context)
-        return False
-    return True
 
 
 class Crypter():  # pylint: disable=too-many-instance-attributes
@@ -348,91 +347,48 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
     When decrypting, it returns only the plain data that was crypted.
     """
 
-    key_len = 32
+    LATEST_VERSION = 1
 
-    default_block_size_factor = 8
-    default_cost_factor = 2**14
-    default_parallelization_factor = 1
-    default_version = b'v1'
+    V1_PARAMS = {
+        'cost_factor': 2**14,
+        'block_size_factor': 8,
+        'parallelization_factor': 1,
+        'key_len': 32
+    }
 
-    v1_format = [
-        'crypt_data', 'salt', 'cost_factor', 'block_size_factor', 'parallelization_factor']
+    @staticmethod
+    def gen_access_key(version, password, salt):
+        """ Derives a key from a password using Scrypt """
+        params = getattr(Crypter, 'V{}_PARAMS'.format(version))
+        access_key = scrypt(
+            bytes(password, 'utf-8'),
+            salt,
+            N=params['cost_factor'],
+            r=params['block_size_factor'],
+            p=params['parallelization_factor'],
+            olen=params['key_len'])
+        setattr(sett, 'ACCESS_KEY_V{}'.format(version), access_key)
 
-    def __init__(self, password):
-        self.password = bytes(password, 'utf-8')
-        self.derived_key = None
-        self.plain_data = None
-        self.crypt_data = None
-        self.serialized_data = None
-        self.version = ''
-        self.salt = None
-        self.cost_factor = Crypter.default_block_size_factor
-        self.block_size_factor = Crypter.default_block_size_factor
-        self.parallelization_factor = Crypter.default_parallelization_factor
-
-    def gen_derived_key(self):
-        """ Derives a key from a password """
-        if not self.serialized_data:
-            self.salt = gen_random_data(Crypter.key_len)
-        else:
-            self.deserialize()
-        self.derived_key = scrypt(
-            self.password,
-            self.salt,
-            N=self.cost_factor,
-            r=self.block_size_factor,
-            p=self.parallelization_factor,
-            olen=self.key_len)
-
-    def crypt(self, data):
+    @staticmethod
+    def crypt(version, clear_data):
         """
-        Crypts data with a newly generated key and returns serialized
-        data.
-        If data is not provided it crypts a default token to later perform a
-        check on the password
+        Crypts data using Secretbox and the access key.
+        It returns the encrypted data in a serialized form
         """
-        self.gen_derived_key()
-        self.crypt_data = SecretBox(self.derived_key).encrypt(data)
-        self.serialized_data = self.serialize()
-        return self.serialized_data
+        access_key = getattr(sett, 'ACCESS_KEY_V{}'.format(version))
+        return SecretBox(access_key).encrypt(clear_data)
 
-    def decrypt(self, context, data):
+    @staticmethod
+    def decrypt(context, version, encrypted_data):
         """
-        Decrypts serialized data, throwing an error when password is wrong
+        Decrypts serialized data using Secretbox and the access key.
+        Throws an error when password is wrong
         """
-        self.serialized_data = data
-        self.deserialize()
-        self.gen_derived_key()
-        box = SecretBox(self.derived_key)
+        access_key = getattr(sett, 'ACCESS_KEY_V{}'.format(version))
         try:
-            self.plain_data = box.decrypt(self.crypt_data)
-            return self.plain_data
+            return SecretBox(access_key).decrypt(encrypted_data)
         except CryptoError:
             Err().wrong_password(context)
-
-    def serialize(self):
-        """ Serializes data prepending the default version string """
-        keys_format = getattr(
-            self, '{}_format'.format(self.default_version.decode()))
-        keys_list = [getattr(self, key_name) for key_name in keys_format]
-        return self.default_version + mdumps(keys_list)
-
-    def deserialize(self):
-        """
-        Deserializes data checking version string and defferring operation to
-        the correct deserialize method
-        """
-        self.version = self.serialized_data[:2]
-        if self.version > self.default_version:
-            raise RuntimeError('Unsupported macaroon key version')
-        getattr(self, 'deserialize_{}'.format(self.version.decode()))()
-
-    def deserialize_v1(self):
-        """ Deserializes version 1 data """
-        keys_list = mloads(self.serialized_data[2:])
-        keys_format = getattr(self, '{}_format'.format(self.version.decode()))
-        for index, key_name in enumerate(keys_format):
-            setattr(self, key_name, keys_list[index])
 
 
 def _handle_db_errors(func):
@@ -454,74 +410,104 @@ class DbHandler():
     """
 
     DATABASE = path.join(sett.DB_DIR, sett.DB_NAME)
-    SCRYPT_PARAMS_TABLE = 'scrypt_params'
+    TABLE_TOKEN = 'access_token_table'
+    TABLE_SALT = 'salt_table'
+    TABLE_SECRETS = 'implementation_secrets'
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def save_token_in_db(context, serialized_params):
+    def _get_from_db(context, table, get_all=False):
         # pylint: enable=unused-argument
-        """
-        Saves serialized key generation parameters in database to given
-        table and index
-        """
-        table = DbHandler.SCRYPT_PARAMS_TABLE
-        with connect(DbHandler.DATABASE) as connection:
-            connection.execute('DROP TABLE IF EXISTS {}'.format(table))
-            connection.execute('CREATE TABLE {} (root_salt BLOB)'.format(table))
-            connection.execute('INSERT INTO {} VALUES (?)'.format(table),
-                               (serialized_params,))
-
-    @staticmethod
-    @_handle_db_errors
-    # pylint: disable=unused-argument
-    def get_token_from_db(context):
-        # pylint: enable=unused-argument
-        """
-        Retrieves serialized key generation parameters from given
-        table and index in database
-        """
-        table = DbHandler.SCRYPT_PARAMS_TABLE
         with connect(DbHandler.DATABASE) as connection:
             cursor = connection.cursor()
             cursor.execute('''SELECT count(*) FROM sqlite_master
                               WHERE type="table"
                               AND name="{}"'''.format(table))
             entry = cursor.fetchone()[0]
-            if not entry:
-                return None
-            cursor.execute('SELECT root_key FROM {}'.format(table))
-            return cursor.fetchone()[0]
+            if not entry and not get_all:
+                return None, None
+            if not entry and get_all:
+                return [(None, None,)]
+            cursor.execute('SELECT * FROM {} ORDER BY version DESC'
+                .format(table))
+            if get_all:
+                return cursor.fetchall()
+            return cursor.fetchone()
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def save_secret_in_db(context, table, active, data):
+    def _save_in_db(context, table, version, data):
+        # pylint: enable=unused-argument
+        with connect(DbHandler.DATABASE) as connection:
+            connection.execute('''CREATE TABLE IF NOT EXISTS {}
+                (version INTEGER, data BLOB)'''.format(table))
+            connection.execute('''CREATE UNIQUE INDEX IF NOT EXISTS
+                id_version ON {}(version)'''.format(table))
+            connection.execute('INSERT OR REPLACE INTO {} VALUES (?,?)'
+                .format(table), (version, data,))
+
+    @staticmethod
+    def save_token_in_db(context, version, token):
+        """ Saves the encrypted token in database """
+        DbHandler._save_in_db(
+            context, DbHandler.TABLE_TOKEN, version, token)
+
+    @staticmethod
+    def get_token_from_db(context):
+        """ Gets the encrypted token from database """
+        return DbHandler._get_from_db(context, DbHandler.TABLE_TOKEN)
+
+    @staticmethod
+    def save_salt_in_db(context, version, salt):
+        """ Saves Scrypt salt in database """
+        DbHandler._save_in_db(
+            context, DbHandler.TABLE_SALT, version, salt)
+
+    @staticmethod
+    def get_salt_from_db(context):
+        """ Gets Scrypt salt from database """
+        return DbHandler._get_from_db(
+            context, DbHandler.TABLE_SALT, get_all=True)
+
+    @staticmethod
+    @_handle_db_errors
+    # pylint: disable=unused-argument
+    def save_secret_in_db(context, version, implementation, active, data):
         """ Saves implementation's secret in database """
         # pylint: enable=unused-argument
+        table = DbHandler.TABLE_SECRETS
         with connect(DbHandler.DATABASE) as connection:
-            connection.execute('DROP TABLE IF EXISTS {}'.format(table))
-            connection.execute('CREATE TABLE {} (active integer, secret BLOB)'
-                               .format(table))
-            connection.execute('INSERT INTO {} VALUES (?, ?)'
-                               .format(table), (active, data,))
+            connection.execute('''CREATE TABLE IF NOT EXISTS {}
+                (version INTEGER, implementation TEXT, active INTEGER,
+                secret BLOB)'''.format(table))
+            connection.execute('INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?)'
+                .format(table), (version, implementation, active, data,))
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def get_secret_from_db(context, table):
+    def get_secret_from_db(context, implementation):
         """ Gets implementation's secret from database """
         # pylint: enable=unused-argument
+        table = DbHandler.TABLE_SECRETS
         with connect(DbHandler.DATABASE) as connection:
             cursor = connection.cursor()
             cursor.execute('''SELECT count(*) FROM sqlite_master
-                              WHERE type="table"
-                              AND name="{}"'''.format(table))
+                  WHERE type="table" AND name="{}"'''.format(table))
             entry = cursor.fetchone()[0]
             if not entry:
-                return None, None
+                return None, None, None
+            cursor.execute('''SELECT * FROM {} WHERE implementation="{}"
+                ORDER BY version DESC LIMIT 1'''.format(table, implementation))
+            entry = cursor.fetchone()[0]
+            if not entry:
+                return None, None, None
+            cursor.execute('SELECT version FROM {}'.format(table))
+            version = cursor.fetchone()[0]
             cursor.execute('SELECT active FROM {}'.format(table))
             active = cursor.fetchone()[0]
             cursor.execute('SELECT secret FROM {}'.format(table))
             secret = cursor.fetchone()[0]
-            return secret, active
+            return version, secret, active

@@ -16,7 +16,6 @@
 """ Macaroons management (creation and validation) class """
 
 from codecs import decode
-from datetime import datetime, timedelta, timezone
 from logging import getLogger
 from os import path
 
@@ -31,6 +30,8 @@ from . import settings
 from .utils import Crypter, DbHandler, FakeContext, gen_random_data
 
 LOGGER = getLogger(__name__)
+
+MAC_VERSION = LATEST_VERSION
 
 ALL_OPS = canonical_ops(
     [Op(op['entity'], op['action']) for op in settings.ALL_PERMS.values()])
@@ -93,20 +94,3 @@ def get_baker(root_key, put_ops=False):
             entity = baker.oven.ops_entity(permitted_ops)
             baker.oven.ops_store.put_ops(entity, None, permitted_ops)
     return baker
-
-
-def create_lightning_macaroons(crypter):
-    """ Creates macaroon files to use the LightningServicer """
-    root_key = crypter.gen_derived_key()
-    LOGGER.info('Macaroons root key generated')
-    baker = get_baker(root_key)
-    for file_name, permitted_ops in MACAROONS.items():
-        macaroon_file = path.join(settings.MACAROONS_DIR, file_name)
-        expiration_time = datetime.now(tz=timezone.utc) + timedelta(days=365)
-        caveats = None
-        mac = baker.oven.macaroon(
-            LATEST_VERSION, expiration_time, caveats, permitted_ops)
-        serialized_macaroon = mac.macaroon.serialize()
-        with open(macaroon_file, 'wb') as file:
-            file.write(serialized_macaroon.encode())
-        LOGGER.info('%s written to %s', file_name, settings.MACAROONS_DIR)

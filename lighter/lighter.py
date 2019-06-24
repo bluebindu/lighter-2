@@ -53,17 +53,17 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
         """
         check_req_params(context, request, 'password')
         password = request.password
-        crypter = Crypter(password)
-        check_password(context, crypter)
+        for version, salt in DbHandler.get_salt_from_db(context):
+            Crypter.gen_access_key(version, password, salt)
+        check_password(context)
         if not settings.DISABLE_MACAROONS:
-            root_key = crypter.gen_derived_key()
-            baker = get_baker(root_key, put_ops=True)
+            baker = get_baker(settings.ACCESS_KEY_V1, put_ops=True)
             settings.LIGHTNING_BAKERY = baker
         plain_secret = None
-        table = '{}_data'.format(settings.IMPLEMENTATION)
-        secret, active = DbHandler.get_secret_from_db(context, table)
+        version, secret, active = DbHandler.get_secret_from_db(
+            context, settings.IMPLEMENTATION)
         if secret and active:
-            plain_secret = crypter.decrypt(context, secret)
+            plain_secret = Crypter.decrypt(context, version, secret)
         # Checks if implementation is supported, could throw an ImportError
         mod = import_module('lighter.light_{}'.format(settings.IMPLEMENTATION))
         # Calls the implementation specific update method
@@ -244,10 +244,10 @@ def start():
     try:
         get_start_options(warning=True)
         if not settings.DISABLE_MACAROONS:
-            serialized_data = DbHandler.get_token_from_db(FakeContext())
-            if not serialized_data:
-                slow_exit("Parameters for key generation are not set (hint: make "
-                          "secure)", wait=False)
+            enc_token = DbHandler.get_token_from_db(FakeContext())
+            if not enc_token:
+                slow_exit('Parameters for key generation are not set'
+                          '(hint: make secure)', wait=False)
         if settings.ENABLE_UNLOCKER:
             _serve_unlocker()
         else:

@@ -46,17 +46,10 @@ MAC_ADMIN = 'admin.macaroon'
 MAC_READONLY = 'readonly.macaroon'
 MAC_INVOICES = 'invoices.macaroon'
 
-# Crypter settings
-KEY_LEN = 32
-
-BLOCK_SIZE_FACTOR = 8
-COST_FACTOR = 2 ** 14
-PARALLELIZATION_FACTOR = 1
-SERIALIZE_VERSION = b'v1'
-LATEST_FORMAT = [
-    'crypt_data', 'salt', 'cost_factor', 'block_size_factor',
-    'parallelization_factor']
-ACCESS_TOKEN = b'lighter_' + SERIALIZE_VERSION
+# Security settings
+ACCESS_KEY_V1 = None
+SALT_LEN = 32
+ACCESS_TOKEN = b'lighter'
 
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
 GRPC_WORKERS = 10
