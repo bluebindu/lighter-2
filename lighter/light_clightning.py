@@ -62,6 +62,12 @@ ERRORS = {
     'no description to check': {
         'fun': 'missing_parameter',
         'params': 'description'
+    },
+    'Peer already CHANNELD_AWAITING_LOCKIN': {
+        'fun': 'openchannel_failed'
+    },
+    'Peer already CHANNELD_NORMAL': {
+        'fun': 'openchannel_failed'
     }
 }
 
@@ -374,7 +380,7 @@ def OpenChannel(request, context):
     response = pb.OpenChannelResponse()
     check_req_params(context, request, 'node_uri', 'funding_bits')
     if request.push_bits:
-        Err().unimplemented_parameter(context)
+        Err().unimplemented_parameter(context, 'push_bits')
     try:
         pubkey, _host = request.node_uri.split("@")
     except ValueError:
@@ -382,14 +388,14 @@ def OpenChannel(request, context):
     cl_req.append('id="{}"'.format(request.node_uri))
     cl_res = command(context, *cl_req)
     if 'id' not in cl_res:
-        _handle_error(context, cl_res, always_abort=True)
+        Err().connect_failed(context)
     cl_req = ['fundchannel']
     cl_req.append('id="{}"'.format(pubkey))
     cl_req.append('satoshi="{}"'.format(
         convert(context, Enf.SATS, request.funding_bits,
                 enforce=Enf.FUNDING_SATOSHIS, max_precision=Enf.SATS)))
     if request.private:
-        cl_req.append('announce=true')
+        cl_req.append('announce=false')
     cl_res = command(context, *cl_req)
     if 'txid' in cl_res:
         response.funding_txid = cl_res['txid']

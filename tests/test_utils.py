@@ -209,9 +209,10 @@ class UtilsTests(TestCase):
         res = MOD.str2bool('p', force_true=True)
         self.assertEqual(res, True)
 
+    @patch('lighter.utils.LOGGER', autospec=True)
     @patch('lighter.utils.Err')
     @patch('lighter.utils.Popen', autospec=True)
-    def test_command(self, mocked_popen, mocked_err):
+    def test_command(self, mocked_popen, mocked_err, mocked_logger):
         # Correct case
         mocked_popen.return_value.communicate.return_value = (b'mocked!', b'')
         settings.CMD_BASE = ['eclair-cli']
@@ -252,8 +253,8 @@ class UtilsTests(TestCase):
         mocked_popen.assert_called_with(
             CMD, env=None, stdout=PIPE, stderr=PIPE, universal_newlines=False)
         mocked_popen.return_value.kill.assert_called_with()
-        mocked_err().unexpected_error.assert_called_once_with(
-            'context', 'Empty result from command')
+        mocked_logger.debug.assert_called_once_with(
+            'Empty result from command')
         # Command empty case
         reset_mocks(vars())
         settings.CMD_BASE = []

@@ -676,6 +676,9 @@ class LightClightningTests(TestCase):
     def test_OpenChannel(self, mocked_check_par, mocked_err, mocked_command,
                          mocked_handle, mocked_conv):
         amt = 7
+        mocked_err().invalid.side_effect = Exception()
+        mocked_err().unimplemented_parameter.side_effect = Exception()
+        mocked_err().connect_failed.side_effect = Exception()
         # Filled
         request = pb.OpenChannelRequest(
             funding_bits=amt, node_uri=fix.NODE_URI,
@@ -686,7 +689,6 @@ class LightClightningTests(TestCase):
         # invalid node_uri case
         reset_mocks(vars())
         request = pb.OpenChannelRequest(funding_bits=amt, node_uri='wrong')
-        mocked_err().invalid.side_effect = Exception
         with self.assertRaises(Exception):
             MOD.OpenChannel(request, CTX)
         mocked_err().invalid.assert_called_once_with(CTX, 'node_uri')
@@ -702,21 +704,29 @@ class LightClightningTests(TestCase):
         mocked_check_par.side_effect = None
         request = pb.OpenChannelRequest(
             node_uri=fix.NODE_URI, funding_bits=amt, push_bits=amt)
-        mocked_err().unimplemented_parameter.side_effect = Exception()
         with self.assertRaises(Exception):
             MOD.OpenChannel(request, CTX)
         assert not mocked_command.called
+        # Connect failed case
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest(
+            funding_bits=amt, node_uri=fix.NODE_URI,
+            private=True)
+        mocked_command.side_effect = ["", None]
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        mocked_err().connect_failed.assert_called_once_with(CTX)
         # Error case
         reset_mocks(vars())
         request = pb.OpenChannelRequest(
             funding_bits=amt, node_uri=fix.NODE_URI,
             private=True)
-        mocked_command.side_effect = [fix.BADRESPONSE, None]
+        mocked_command.side_effect = [fix.CONNECT, fix.BADRESPONSE]
         mocked_handle.side_effect = Exception()
         with self.assertRaises(Exception):
             MOD.OpenChannel(request, CTX)
         mocked_handle.assert_called_once_with(
-            CTX, fix.BADRESPONSE, always_abort=True)
+            CTX, fix.BADRESPONSE, always_abort=False)
 
     @patch('lighter.light_clightning.convert', autospec=True)
     def test_add_channel(self, mocked_conv):

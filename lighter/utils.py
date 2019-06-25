@@ -204,7 +204,7 @@ def command(context, *args_cmd, **kwargs):
     if res is None or res == "":
         if err:
             Err().report_error(context, err)
-        Err().unexpected_error(context, 'Empty result from command')
+        LOGGER.debug('Empty result from command')
     return res
 
 
