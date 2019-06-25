@@ -300,7 +300,7 @@ def slow_exit(message, wait=True):
         sleep(sett.RESTART_THROTTLE)
         exit_code = 1
     else:
-        LOGGER.info(message)
+        LOGGER.error(message)
     log_outro()
     sys.exit(exit_code)
 

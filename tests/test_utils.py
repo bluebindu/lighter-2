@@ -341,7 +341,7 @@ class UtilsTests(TestCase):
         reset_mocks(vars())
         with self.assertRaises(SystemExit):
             MOD.slow_exit(msg, wait=False)
-        mocked_logger.info.assert_called_once_with(msg)
+        mocked_logger.error.assert_called_once_with(msg)
         assert not mocked_sleep.called
 
     @patch('lighter.utils.slow_exit', autospec=True)

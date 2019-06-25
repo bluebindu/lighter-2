@@ -60,7 +60,7 @@ RESTART_THROTTLE = 3
 # Lit-cli settings
 CLI_HOST = '127.0.0.1'
 CLI_ADDR = ''
-CLI_TIMEOUT = 3
+CLI_TIMEOUT = 10
 
 ENFORCE = True
 
