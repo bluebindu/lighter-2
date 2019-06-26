@@ -171,8 +171,8 @@ def ListChannels(request, context):
             if 'channels' in cl_peer:
                 for cl_chan in cl_peer['channels']:
                     # False if not specified in request
-                    if request.active_only and 'state' in cl_chan \
-                            and cl_chan['state'] == 'CHANNELD_NORMAL':
+                    if request.active_only and 'connected' in cl_peer \
+                            and cl_peer['connected'] is True:
                         _add_channel(context, response, cl_peer, cl_chan)
                     elif not request.active_only:
                         _add_channel(context, response, cl_peer, cl_chan)
