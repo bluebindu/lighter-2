@@ -16,6 +16,33 @@
 """ Fixtures for test_light_eclair module """
 
 
+ALLNODES = [
+  {
+    "signature": "3044022072537adb1a10dab3a4630b578e678f0b5b7f2916af65b5e2a1f71e751b8dddc802200903b8a33fc154b4542acee481446dd674238256d354249d7d10408c413201f201",
+    "features": "",
+    "timestamp": 1553000829,
+    "nodeId": "0322deb288d430d3165a261d1e1bb11833a36f3d7456432111ff6cff3f431c9ae1",
+    "rgbColor": "#33cccc",
+    "alias": "cosmicApotheosis",
+    "addresses": [
+      "138.229.205.237:9735"
+    ]
+  },
+  {
+    "signature": "304502210080e1836a98f69133873a35bea4b9b9d5f5abdad376d526fb2f6ee46aaa77f62b022026ba53b630d76ae9d6c1beec134244a79669a31eb5e6a7cc2038aaefff84382b01",
+    "features": "",
+    "timestamp": 1553008703,
+    "nodeId": "03ad4870c7a9dd0b429958cf9659b1330afbe33df8207cd1c882798cdad1dfb039",
+    "rgbColor": "#1d236b",
+    "alias": "capacity.network",
+    "addresses": [
+      "95.216.16.21:9735",
+      "[2a01:4f9:2a:106a:0:0:0:2]:9736"
+    ]
+  }
+]
+
+
 BADRESPONSE = {
     "failures": [
         {

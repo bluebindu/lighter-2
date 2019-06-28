@@ -244,11 +244,12 @@ class LightClightningTests(TestCase):
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
     def test_ListPeers(self, mocked_command, mocked_handle):
-        api = 'listpeers'
+        listpeers = 'listpeers'
+        listnodes = 'listnodes'
         # Correct case
-        mocked_command.return_value = fix.LISTPEERS
+        mocked_command.side_effect = [fix.LISTPEERS, fix.LISTNODES]
         res = MOD.ListPeers('request', CTX)
-        mocked_command.assert_called_once_with(CTX, api)
+        self.assertEqual(mocked_command.call_count, 2)
         mocked_handle.assert_called_once_with(
             CTX, fix.LISTPEERS, always_abort=False)
         self.assertEqual(res.peers[0].pubkey, fix.LISTPEERS['peers'][1]['id'])
@@ -256,17 +257,17 @@ class LightClightningTests(TestCase):
         self.assertEqual(res.peers[0].address, '54.236.55.50:9735')
         # No peers case
         reset_mocks(vars())
-        mocked_command.return_value = fix.LISTPEERS_EMPTY
+        mocked_command.side_effect = [fix.LISTPEERS_EMPTY, fix.LISTNODES]
         res = MOD.ListPeers('request', CTX)
-        mocked_command.assert_called_once_with(CTX, api)
+        mocked_command.assert_called_once_with(CTX, listpeers)
         mocked_handle.assert_called_once_with(
             CTX, fix.LISTPEERS_EMPTY, always_abort=False)
         self.assertEqual(res, pb.ListPeersResponse())
         # Error case
         reset_mocks(vars())
-        mocked_command.return_value = fix.BADRESPONSE
+        mocked_command.side_effect = [fix.BADRESPONSE, fix.LISTNODES]
         res = MOD.ListPeers('request', CTX)
-        mocked_command.assert_called_once_with(CTX, api)
+        mocked_command.assert_called_once_with(CTX, listpeers)
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
 

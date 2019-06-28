@@ -531,6 +531,10 @@ message Peer {
     Address of the peer
     */
     string address = 3;
+    /**
+    RGB color of the peer
+    */
+    string color = 4;
 }
 
 message ListTransactionsRequest {

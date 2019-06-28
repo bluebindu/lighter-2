@@ -122,6 +122,7 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
     """ Returns a list of peers connected to the running LN node """
     ecl_req = ['peers']
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
+    _handle_error(context, ecl_res, always_abort=False)
     response = pb.ListPeersResponse()
     for peer in ecl_res:
         # Filtering disconnected peers
@@ -132,7 +133,15 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
             grpc_peer.pubkey = peer['nodeId']
         if _defined(peer, 'address'):
             grpc_peer.address = peer['address']
-    _handle_error(context, ecl_res, always_abort=False)
+    ecl_req = ['allnodes']
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
+    for node in ecl_res:
+        for peer in response.peers:  # pylint: disable=no-member
+            if 'nodeId' in node and node['nodeId'] == peer.pubkey:
+                if 'alias' in node:
+                    peer.alias = node['alias']
+                if 'rgbColor' in node:
+                    peer.color = node['rgbColor']
     return response
 
 

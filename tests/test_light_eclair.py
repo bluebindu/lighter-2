@@ -124,20 +124,28 @@ class LightEclairTests(TestCase):
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair.command', autospec=True)
     def test_ListPeers(self, mocked_command, mocked_handle):
-        cmd = 'peers'
-        mocked_command.return_value = fix.PEERS
+        peers = 'peers'
+        allnodes = 'allnodes'
+        mocked_command.side_effect = fix.PEERS, fix.ALLNODES
         res = MOD.ListPeers('request', CTX)
-        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
+        calls = [
+            call(CTX, peers, env=settings.ECL_ENV),
+            call(CTX, allnodes, env=settings.ECL_ENV)
+        ]
+        mocked_command.assert_has_calls(calls)
         mocked_handle.assert_called_once_with(
-            CTX, mocked_command.return_value, always_abort=False)
+            CTX, fix.PEERS, always_abort=False)
         self.assertEqual(res.peers[0].pubkey, fix.PEERS[0]['nodeId'])
         # Empty case
         reset_mocks(vars())
-        mocked_command.return_value = []
+        mocked_command.side_effect = [[], fix.ALLNODES]
         res = MOD.ListPeers('request', CTX)
-        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
-        mocked_handle.assert_called_once_with(
-            CTX, mocked_command.return_value, always_abort=False)
+        calls = [
+            call(CTX, peers, env=settings.ECL_ENV),
+            call(CTX, allnodes, env=settings.ECL_ENV)
+        ]
+        mocked_command.assert_has_calls(calls)
+        mocked_handle.assert_called_once_with(CTX, [], always_abort=False)
         self.assertEqual(res, pb.ListPeersResponse())
 
     @patch('lighter.light_eclair._handle_error', autospec=True)

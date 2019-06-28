@@ -196,6 +196,7 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
     """ Returns a list of peers connected to the running LN node """
     cl_req = ['listpeers']
     cl_res = command(context, *cl_req)
+    _handle_error(context, cl_res, always_abort=False)
     response = pb.ListPeersResponse()
     if 'peers' in cl_res:
         for peer in cl_res['peers']:
@@ -205,14 +206,19 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
             grpc_peer = response.peers.add()  # pylint: disable=no-member
             if 'id' in peer:
                 grpc_peer.pubkey = peer['id']
-            if 'alias' in peer:
-                grpc_peer.alias = peer['alias']
+                cl_req = ['listnodes', 'id={}'.format(peer['id'])]
+                cl_res = command(context, *cl_req)
+                if 'nodes' in cl_res:
+                    node = cl_res['nodes'][0]
+                    if 'alias' in node:
+                        grpc_peer.alias = node['alias']
+                    if 'color' in node:
+                        grpc_peer.color = '#{}'.format(node['color'])
             if 'netaddr' in peer:
                 address = []
                 for addr in peer['netaddr']:
                     address.append(addr)
                 grpc_peer.address = ' + '.join(address)
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 

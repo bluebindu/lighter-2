@@ -254,6 +254,27 @@ LISTINVOICES = {
 }
 
 
+LISTNODES = {
+    "nodes": [
+        {
+            "nodeid": "02fbjkld9119979caedvvmkf0ada883ff614c6dfnv97382e25d73ec5fnhjbd62df2",
+            "alias": "lighter",
+            "color": "3399ff",
+            "last_timestamp": 1561363407,
+            "globalfeatures": "",
+            "global_features": "",
+            "addresses": [
+                {
+                    "type": "ipv4",
+                    "address": "77.86.231.1",
+                    "port": 9735
+                }
+            ]
+        }
+    ]
+}
+
+
 LISTPEERS = {
    "peers" : [
       {
@@ -321,7 +342,6 @@ LISTPEERS = {
       {
          "id" : "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7",
          "connected" : True,
-         "alias": "lighter", # missing from 0.7.0
          "netaddr" : [
             "54.236.55.50:9735"
          ],

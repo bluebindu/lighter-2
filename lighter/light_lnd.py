@@ -347,6 +347,7 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
                 lnd_res = stub.GetNodeInfo(
                     lnd_req, timeout=settings.IMPL_TIMEOUT)
                 peer.alias = lnd_res.node.alias
+                peer.color = lnd_res.node.color
     return response
 
 
