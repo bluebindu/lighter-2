@@ -429,7 +429,7 @@ def _add_channel(context, response, cl_peer, cl_chan):
     if 'msatoshi_to_us' in cl_chan:
         grpc_chan.local_balance = convert(context, Enf.MSATS,
                                           cl_chan['msatoshi_to_us'])
-    if grpc_chan.capacity and grpc_chan.local_balance:
+    if grpc_chan.capacity and grpc_chan.local_balance != None:
         grpc_chan.remote_balance = grpc_chan.capacity - grpc_chan.local_balance
     if 'private' in cl_chan:
         grpc_chan.private = cl_chan['private']
