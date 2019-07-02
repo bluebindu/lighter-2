@@ -218,7 +218,7 @@ class UtilsTests(TestCase):
         settings.CMD_BASE = ['eclair-cli']
         cmd = ['getinfo']
         CMD = settings.CMD_BASE + list(cmd)
-        res = MOD.command('context', *cmd)
+        res = MOD.command(CTX, *cmd)
         mocked_popen.assert_called_with(
             CMD, env=None, stdout=PIPE, stderr=PIPE, universal_newlines=False)
         mocked_popen.return_value.communicate.assert_called_with(
@@ -233,14 +233,21 @@ class UtilsTests(TestCase):
         cmd = ['getinfo']
         CMD = settings.CMD_BASE + list(cmd)
         with self.assertRaises(RuntimeError):
-            res = MOD.command('context', *cmd)
+            res = MOD.command(CTX, *cmd)
         mocked_popen.assert_called_with(
             CMD, env=None, stdout=PIPE, stderr=PIPE, universal_newlines=False)
         mocked_popen.return_value.communicate.assert_called_with(
             timeout=settings.IMPL_TIMEOUT)
+        # Empty result from command
+        reset_mocks(vars())
+        mocked_popen.return_value.communicate.return_value = (b'', b'')
+        res = MOD.command(CTX, *cmd)
+        mocked_logger.debug.assert_called_once_with(
+            'Empty result from command')
         # Timeout case
         reset_mocks(vars())
         mocked_err.side_effect = None
+        mocked_err().node_error.side_effect = Exception()
         settings.CMD_BASE = ['eclair-cli']
         cmd = ['getinfo']
         CMD = settings.CMD_BASE + list(cmd)
@@ -249,17 +256,17 @@ class UtilsTests(TestCase):
             raise TimeoutExpired(cmd, settings.IMPL_TIMEOUT)
 
         mocked_popen.return_value.communicate = slow_func
-        res = MOD.command('context', *cmd)
+        with self.assertRaises(Exception):
+            res = MOD.command(CTX, *cmd)
         mocked_popen.assert_called_with(
             CMD, env=None, stdout=PIPE, stderr=PIPE, universal_newlines=False)
         mocked_popen.return_value.kill.assert_called_with()
-        mocked_logger.debug.assert_called_once_with(
-            'Empty result from command')
+        mocked_err().node_error.assert_called_once_with(CTX, 'Timeout')
         # Command empty case
         reset_mocks(vars())
         settings.CMD_BASE = []
         with self.assertRaises(RuntimeError):
-            MOD.command('context', 'command')
+            MOD.command(CTX, 'command')
 
     @patch('lighter.utils.Enforcer.check_value')
     @patch('lighter.utils._convert_value', autospec=True)

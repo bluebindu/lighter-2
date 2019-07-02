@@ -194,6 +194,7 @@ def command(context, *args_cmd, **kwargs):
         out, err = proc.communicate(timeout=sett.IMPL_TIMEOUT)
     except TimeoutExpired:
         proc.kill()
+        Err().node_error(context, 'Timeout')
     out = out.decode('utf-8')
     err = err.decode('utf-8')
     res = None
