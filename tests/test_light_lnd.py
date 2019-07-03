@@ -142,37 +142,25 @@ class LightLndTests(TestCase):
     def test_GetInfo(self, mocked_connect, mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
         # Testnet case
-        lnd_res = ln.GetInfoResponse(
-            identity_pubkey='asd', chains=[ln.Chain(network="testnet")],
-            uris=['uri'])
+        lnd_res = fix.GETINFO_TESTNET
         stub.GetInfo.return_value = lnd_res
-        node = ln.LightningNode(color='#DCDCDC')
-        stub.GetNodeInfo.return_value = ln.NodeInfo(node=node)
         res = MOD.GetInfo('request', CTX)
         stub.GetInfo.assert_called_once_with(
             ln.GetInfoRequest(), timeout=settings.IMPL_TIMEOUT)
         lnd_req = ln.NodeInfoRequest(pub_key='asd')
-        stub.GetNodeInfo.assert_called_once_with(
-            lnd_req, timeout=settings.IMPL_TIMEOUT)
         assert not mocked_handle.called
         self.assertEqual(res.identity_pubkey, 'asd')
         self.assertEqual(res.network, 'testnet')
         self.assertEqual(res.color, '#DCDCDC')
         # Mainnet case
         reset_mocks(vars())
-        lnd_res = ln.GetInfoResponse(identity_pubkey='asd', chains=[ln.Chain(network="mainnet")])
+        lnd_res = fix.GETINFO_MAINNET
         stub.GetInfo.return_value = lnd_res
-        node = ln.LightningNode(color='#DCDCDC')
-        stub.GetNodeInfo.return_value = ln.NodeInfo(node=node)
         res = MOD.GetInfo('request', CTX)
         self.assertEqual(res.identity_pubkey, 'asd')
         self.assertEqual(res.network, 'mainnet')
-        self.assertEqual(res.color, '#DCDCDC')
         stub.GetInfo.assert_called_once_with(
             ln.GetInfoRequest(), timeout=settings.IMPL_TIMEOUT)
-        lnd_req = ln.NodeInfoRequest(pub_key='asd')
-        stub.GetNodeInfo.assert_called_once_with(
-            lnd_req, timeout=settings.IMPL_TIMEOUT)
 
     @patch('lighter.light_lnd._handle_error', autospec=True)
     @patch('lighter.light_lnd._connect', autospec=True)

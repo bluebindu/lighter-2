@@ -60,6 +60,10 @@ ERRORS = {
     'Deadline Exceeded': {
         'fun': 'node_error'
     },
+    'decoded address is of unknown format': {
+        'fun': 'invalid',
+        'params': 'address'
+    },
     'encoding/hex': {
         'fun': 'invalid',
         'params': 'payment_hash'
@@ -94,6 +98,9 @@ ERRORS = {
     },
     'Name resolution failure': {
         'fun': 'node_error'
+    },
+    'Number of pending channels exceed maximum': {
+        'fun': 'openchannel_failed'
     },
     'payment hash must': {
         'fun': 'invalid',
@@ -204,15 +211,12 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
         response = pb.GetInfoResponse(
             identity_pubkey=lnd_res.identity_pubkey,
             alias=lnd_res.alias,
+            color=lnd_res.color,
             version=lnd_res.version,
             blockheight=lnd_res.block_height,
             network=network)
         if lnd_res.uris:
             response.node_uri = lnd_res.uris[0]
-        if lnd_res.identity_pubkey:
-            lnd_req = ln.NodeInfoRequest(pub_key=lnd_res.identity_pubkey)
-            lnd_res = stub.GetNodeInfo(lnd_req, timeout=settings.IMPL_TIMEOUT)
-            response.color = lnd_res.node.color
     return response
 
 

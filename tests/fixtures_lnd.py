@@ -18,6 +18,13 @@
 from lighter import rpc_pb2 as ln
 
 
+GETINFO_MAINNET = ln.GetInfoResponse(
+    identity_pubkey='asd', chains=[ln.Chain(network="mainnet")])
+
+GETINFO_TESTNET = ln.GetInfoResponse(
+    identity_pubkey='asd', chains=[ln.Chain(network="testnet")],
+    uris=['uri'], color='#DCDCDC', alias='lighter')
+
 TXID = "3cd3ffcbe695e53f92b057baec9a6fff3f936702512769129eb1053b0350e351"
 ADDRESS = "n1ER93kV9ox9ccrA4fxGZa9JXEGnhLDGnF"
 
