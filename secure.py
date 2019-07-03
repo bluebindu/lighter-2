@@ -99,7 +99,7 @@ def _encrypt_token():
         Crypter.LATEST_VERSION, settings.ACCESS_TOKEN)
     DbHandler.save_token_in_db(
         FakeContext(), Crypter.LATEST_VERSION, encrypted_token)
-    LOGGER.info('Scrypt parameters and encrypted token stored in the DB')
+    LOGGER.info('Encrypted token stored in the DB')
 
 
 def _recover_secrets(password):

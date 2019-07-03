@@ -24,6 +24,10 @@
 # Specifies the location which will contain the logs
 # LOGS_DIR="./lighter-data/logs"
 
+# Specifies the desired console log level
+# Possible values: critical, error, warning, info, debug
+# LOGS_LEVEL="info"
+
 # Specifies the location which will contain the database
 # DB_DIR="./lighter-data/db"
 
