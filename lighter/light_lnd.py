@@ -133,6 +133,7 @@ ERRORS = {
 LND_PAYREQ = {'min_value': 0, 'max_value': 2**32 / 1000, 'unit': Enf.SATS}
 LND_LN_TX = {'min_value': 1, 'max_value': 2**32 / 1000, 'unit': Enf.SATS}
 LND_FUNDING = {'min_value': 20000, 'max_value': 2**24, 'unit': Enf.SATS}
+LND_PUSH = {'min_value': 0, 'max_value': 2**24, 'unit': Enf.SATS}
 
 
 def update_settings(macaroon):
@@ -531,7 +532,7 @@ def OpenChannel(request, context):
         if request.push_bits:
             lnd_req.push_sat = convert(context, Enf.SATS,
                                        request.push_bits,
-                                       enforce=Enf.PUSH_MSAT,
+                                       enforce=LND_PUSH,
                                        max_precision=Enf.SATS)
         lnd_res = stub.OpenChannelSync(lnd_req, timeout=settings.IMPL_TIMEOUT)
         response.funding_txid = lnd_res.funding_txid_str
