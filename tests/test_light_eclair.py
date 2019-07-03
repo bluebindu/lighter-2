@@ -276,22 +276,21 @@ class LightEclairTests(TestCase):
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair.command', autospec=True)
     @patch('lighter.light_eclair.convert', autospec=True)
-    @patch('lighter.light_eclair.DecodeInvoice', autospec=True)
+    @patch('lighter.light_eclair.has_amount_encoded', autospec=True)
     @patch('lighter.light_eclair.Err')
     @patch('lighter.light_eclair.check_req_params', autospec=True)
-    def test_PayInvoice(self, mocked_check_par, mocked_err, mocked_decode,
+    def test_PayInvoice(self, mocked_check_par, mocked_err, mocked_has_amt,
                         mocked_conv, mocked_command, mocked_handle):
         cmd = 'payinvoice'
         cmd2 = 'getsentinfo'
         # Correct case: with amount requested
         request = pb.PayInvoiceRequest(
             payment_request='random', amount_bits=7)
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         mocked_conv.return_value = 777
         mocked_command.side_effect = [fix.PAYINVOICE, fix.GETSENTINFO_SUCCESS]
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         mocked_conv.assert_called_once_with(
             CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)
@@ -308,11 +307,10 @@ class LightEclairTests(TestCase):
         # Correct case: no amount requested
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(payment_request='random')
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         mocked_command.side_effect = [fix.PAYINVOICE, fix.GETSENTINFO_SUCCESS]
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         calls = [
@@ -330,7 +328,6 @@ class LightEclairTests(TestCase):
         mocked_check_par.side_effect = [Exception(), None]
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
-        assert not mocked_decode.called
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         assert not mocked_command.called
@@ -344,7 +341,6 @@ class LightEclairTests(TestCase):
             res = MOD.PayInvoice(request, CTX)
         mocked_err().unimplemented_parameter.assert_called_once_with(
             CTX, 'cltv_expiry_delta')
-        assert not mocked_decode.called
         assert not mocked_conv.called
         assert not mocked_command.called
         assert not mocked_handle.called
@@ -352,12 +348,11 @@ class LightEclairTests(TestCase):
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(
             payment_request='random', amount_bits=77.7)
-        mocked_decode.return_value = pb.DecodeInvoiceResponse(amount_bits=7.7)
+        mocked_has_amt.return_value = True
         mocked_err().unsettable.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         mocked_err().unsettable.assert_called_once_with(
             CTX, 'amount_bits')
         assert not mocked_conv.called
@@ -367,11 +362,10 @@ class LightEclairTests(TestCase):
         reset_mocks(vars())
         mocked_check_par.side_effect = [None, Exception()]
         request = pb.PayInvoiceRequest(payment_request='random')
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         self.assertEqual(mocked_check_par.call_count, 2)
         assert not mocked_conv.called
         assert not mocked_command.called
@@ -380,14 +374,13 @@ class LightEclairTests(TestCase):
         reset_mocks(vars())
         mocked_check_par.side_effect = None
         request = pb.PayInvoiceRequest(payment_request='random')
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         mocked_command.side_effect = [
             fix.PAYINVOICE_ERROR, fix.GETSENTINFO_SUCCESS]
         mocked_err().invalid.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         mocked_command.assert_called_once_with(
@@ -398,11 +391,10 @@ class LightEclairTests(TestCase):
         # Failed case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(payment_request='random')
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         mocked_command.side_effect = [fix.PAYINVOICE, fix.GETSENTINFO_FAIL]
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         calls = [
@@ -415,11 +407,10 @@ class LightEclairTests(TestCase):
         # Pending case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(payment_request='random')
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         mocked_command.side_effect = [fix.PAYINVOICE, fix.GETSENTINFO_PENDING]
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         calls = [
@@ -432,13 +423,12 @@ class LightEclairTests(TestCase):
         # Strange error case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(payment_request='something')
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         mocked_command.side_effect = [fix.PAYINVOICE, fix.STRANGERESPONSE]
         mocked_handle.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='something')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         self.assertEqual(mocked_command.call_count, 2)

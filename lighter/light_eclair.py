@@ -23,7 +23,8 @@ from string import ascii_lowercase, digits  # pylint: disable=deprecated-module
 from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
-from .utils import check_req_params, command, convert, Enforcer as Enf
+from .utils import check_req_params, command, convert, Enforcer as Enf, \
+    has_amount_encoded
 
 ERRORS = {
     'cannot route to self': {
@@ -216,16 +217,15 @@ def PayInvoice(request, context):
     if request.cltv_expiry_delta:
         Err().unimplemented_parameter(context, 'cltv_expiry_delta')
     ecl_req.append('--invoice="{}"'.format(request.payment_request))
-    dec_req = pb.DecodeInvoiceRequest(payment_request=request.payment_request)
-    invoice = DecodeInvoice(dec_req, context)
+    amount_encoded = has_amount_encoded(request.payment_request)
     # pylint: disable=no-member
-    if request.amount_bits and invoice.amount_bits:
+    if request.amount_bits and amount_encoded:
         Err().unsettable(context, 'amount_bits')
-    elif request.amount_bits and not invoice.amount_bits:
+    elif request.amount_bits and not amount_encoded:
         ecl_req.append('--amountMsat="{}"'.format(
             convert(
                 context, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)))
-    elif not invoice.amount_bits:
+    elif not amount_encoded:
         check_req_params(context, request, 'amount_bits')
     # pylint: enable=no-member
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)

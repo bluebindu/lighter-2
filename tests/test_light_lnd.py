@@ -468,23 +468,22 @@ class LightLndTests(TestCase):
     @patch('lighter.light_lnd.convert', autospec=True)
     @patch('lighter.light_lnd.Err')
     @patch('lighter.light_lnd.Enf.check_value')
-    @patch('lighter.light_lnd.DecodeInvoice', autospec=True)
+    @patch('lighter.light_lnd.has_amount_encoded', autospec=True)
     @patch('lighter.light_lnd.check_req_params', autospec=True)
-    def test_PayInvoice(self, mocked_check_par, mocked_decode,
+    def test_PayInvoice(self, mocked_check_par, mocked_has_amt,
                         mocked_check_val, mocked_err, mocked_conv,
                         mocked_connect, mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
         # Amount in invoice but not in request case
         request = pb.PayInvoiceRequest(
             payment_request='something', cltv_expiry_delta=7)
-        mocked_decode.return_value = pb.DecodeInvoiceResponse(amount_bits=9)
+        mocked_has_amt.return_value = True
         mocked_check_val.return_value = True
         lnd_res = ln.SendResponse(payment_preimage=b'a_payment_preimage')
         stub.SendPaymentSync.return_value = lnd_res
         stub.SendPaymentSync.return_value.payment_error = ''
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='something')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         lnd_req = ln.SendRequest(
@@ -497,12 +496,11 @@ class LightLndTests(TestCase):
         # Amount in invoice and in request case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(payment_request='abc', amount_bits=7)
-        mocked_decode.return_value = pb.DecodeInvoiceResponse(amount_bits=9)
+        mocked_has_amt.return_value = True
         mocked_err().unsettable.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='abc')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         mocked_err().unsettable.assert_called_once_with(
             CTX, 'amount_bits')
         assert not mocked_conv.called
@@ -511,7 +509,7 @@ class LightLndTests(TestCase):
         # Amount in request and not in invoice case
         reset_mocks(vars())
         request = pb.PayInvoiceRequest(payment_request='abc', amount_bits=7)
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         MOD.PayInvoice(request, CTX)
         mocked_conv.assert_called_once_with(
             CTX,
@@ -523,11 +521,10 @@ class LightLndTests(TestCase):
         reset_mocks(vars())
         mocked_check_par.side_effect = [None, Exception()]
         request = pb.PayInvoiceRequest(payment_request='random')
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='random')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         self.assertEqual(mocked_check_par.call_count, 2)
         assert not mocked_conv.called
         assert not mocked_connect.called
@@ -549,7 +546,6 @@ class LightLndTests(TestCase):
         stub.SendPaymentSync.return_value = lnd_res
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='something')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         lnd_req = ln.SendRequest(payment_request='something')
         stub.SendPaymentSync.assert_called_once_with(
             lnd_req, timeout=settings.IMPL_TIMEOUT)
@@ -566,7 +562,6 @@ class LightLndTests(TestCase):
         stub.SendPaymentSync.return_value.payment_error = ''
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='something')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         lnd_req = ln.SendRequest(payment_request='something')
         stub.SendPaymentSync.assert_called_once_with(
             lnd_req, timeout=settings.IMPL_TIMEOUT)

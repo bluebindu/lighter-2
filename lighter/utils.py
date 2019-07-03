@@ -332,6 +332,18 @@ def handle_keyboardinterrupt(func):
     return wrapper
 
 
+def has_amount_encoded(payment_request):
+    """ Checks if a bech32 payment request has an amount encoded """
+    separator = payment_request.rfind('1')
+    hrp = payment_request[:separator]
+    return _has_numbers(set(hrp))
+
+
+def _has_numbers(input_string):
+    """ Checks if string contains any number """
+    return any(char.isdigit() for char in input_string)
+
+
 def gen_random_data(key_len):
     """ Generates random data of key_len length """
     return urandom(key_len)

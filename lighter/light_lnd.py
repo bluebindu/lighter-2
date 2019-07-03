@@ -32,7 +32,8 @@ from . import rpc_pb2_grpc as lnrpc
 from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
-from .utils import check_req_params, convert, Enforcer as Enf
+from .utils import check_req_params, convert, Enforcer as Enf, \
+    has_amount_encoded
 
 LOGGER = getLogger(__name__)
 
@@ -124,6 +125,9 @@ ERRORS = {
     },
     'unable to route payment to destination: FeeInsufficient': {
         'fun': 'insufficient_fee'
+    },
+    'unable to route payment to destination: TemporaryChannelFailure': {
+        'fun': 'payinvoice_failed'
     },
     'unknown service lnrpc.Lightning': {
         'fun': 'node_error'
@@ -426,9 +430,8 @@ def PayInvoice(request, context):
     included in the request
     """
     check_req_params(context, request, 'payment_request')
+    amount_encoded = has_amount_encoded(request.payment_request)
     response = pb.PayInvoiceResponse()
-    dec_req = pb.DecodeInvoiceRequest(payment_request=request.payment_request)
-    invoice = DecodeInvoice(dec_req, context)
     lnd_req = ln.SendRequest(payment_request=request.payment_request)
     if request.cltv_expiry_delta:
         if Enf.check_value(
@@ -438,13 +441,13 @@ def PayInvoice(request, context):
         else:
             Err().out_of_range(context, 'cltv_expiry_delta')
     # pylint: disable=no-member
-    if request.amount_bits and invoice.amount_bits:
+    if request.amount_bits and amount_encoded:
         Err().unsettable(context, 'amount_bits')
-    elif request.amount_bits and not invoice.amount_bits:
+    elif request.amount_bits and not amount_encoded:
         lnd_req.amt = convert(
             context, Enf.SATS, request.amount_bits,
             enforce=LND_LN_TX, max_precision=Enf.SATS)
-    elif not invoice.amount_bits:
+    elif not amount_encoded:
         check_req_params(context, request, 'amount_bits')
     # pylint: enable=no-member
     with _connect(context) as stub:

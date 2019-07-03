@@ -433,10 +433,10 @@ class LightClightningTests(TestCase):
     @patch('lighter.light_clightning.command', autospec=True)
     @patch('lighter.light_clightning.Enf.check_value')
     @patch('lighter.light_clightning.convert', autospec=True)
-    @patch('lighter.light_clightning.DecodeInvoice', autospec=True)
+    @patch('lighter.light_clightning.has_amount_encoded', autospec=True)
     @patch('lighter.light_clightning.Err')
     @patch('lighter.light_clightning.check_req_params', autospec=True)
-    def test_PayInvoice(self, mocked_check_par, mocked_err, mocked_decode,
+    def test_PayInvoice(self, mocked_check_par, mocked_err, mocked_has_amt,
                         mocked_conv, mocked_check_val, mocked_command,
                         mocked_handle):
         # Correct case
@@ -445,12 +445,11 @@ class LightClightningTests(TestCase):
             amount_bits=777,
             description='funny',
             cltv_expiry_delta=7)
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         mocked_conv.return_value = 77700000
         mocked_command.return_value = fix.PAY
         res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='lntb77u1something')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         assert not mocked_err().unsettable.called
         mocked_conv.assert_called_once_with(
             CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)
@@ -466,11 +465,10 @@ class LightClightningTests(TestCase):
         reset_mocks(vars())
         mocked_check_par.side_effect = [None, Exception()]
         request = pb.PayInvoiceRequest(payment_request='something')
-        mocked_decode.return_value = pb.DecodeInvoiceResponse()
+        mocked_has_amt.return_value = False
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='something')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         self.assertEqual(mocked_check_par.call_count, 2)
         assert not mocked_conv.called
         assert not mocked_command.called
@@ -481,7 +479,6 @@ class LightClightningTests(TestCase):
         mocked_check_par.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
-        assert not mocked_decode.called
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         assert not mocked_command.called
@@ -491,12 +488,11 @@ class LightClightningTests(TestCase):
         mocked_check_par.side_effect = None
         request = pb.PayInvoiceRequest(
             payment_request='something', amount_bits=777)
-        mocked_decode.return_value = pb.DecodeInvoiceResponse(amount_bits=7)
+        mocked_has_amt.return_value = True
         mocked_err().unsettable.side_effect = Exception()
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
         dec_req = pb.DecodeInvoiceRequest(payment_request='something')
-        mocked_decode.assert_called_once_with(dec_req, CTX)
         mocked_err().unsettable.assert_called_once_with(CTX, 'amount_bits')
         assert not mocked_conv.called
         assert not mocked_command.called
@@ -519,7 +515,6 @@ class LightClightningTests(TestCase):
         res = 'not set'
         with self.assertRaises(Exception):
             res = MOD.PayInvoice(request, CTX)
-        assert mocked_decode.called
         assert not mocked_err().unsettable.called
         assert not mocked_conv.called
         mocked_command.assert_called_once_with(CTX, 'pay',

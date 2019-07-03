@@ -20,7 +20,8 @@ from os import environ, path
 
 from . import lighter_pb2 as pb
 from . import settings
-from .utils import check_req_params, command, convert, Enforcer as Enf
+from .utils import check_req_params, command, convert, Enforcer as Enf, \
+    has_amount_encoded
 from .errors import Err
 
 ERRORS = {
@@ -291,18 +292,16 @@ def PayInvoice(request, context):
     cl_req = ['pay']
     check_req_params(context, request, 'payment_request')
     cl_req.append('bolt11="{}"'.format(request.payment_request))
-    dec_req = pb.DecodeInvoiceRequest(
-        payment_request=request.payment_request)
-    invoice = DecodeInvoice(dec_req, context)
+    amount_encoded = has_amount_encoded(request.payment_request)
     # pylint: disable=no-member
-    if invoice.amount_bits and request.amount_bits:
+    if amount_encoded and request.amount_bits:
         Err().unsettable(context, 'amount_bits')
-    elif request.amount_bits and not invoice.amount_bits:
+    elif request.amount_bits and not amount_encoded:
         cl_req.append('msatoshi="{}"'.format(
             convert(
                 context, Enf.MSATS, request.amount_bits,
                 enforce=Enf.LN_TX)))
-    elif not invoice.amount_bits:
+    elif not amount_encoded:
         check_req_params(context, request, 'amount_bits')
     # pylint: enable=no-member
     if request.description:

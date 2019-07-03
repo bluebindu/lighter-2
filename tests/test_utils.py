@@ -385,6 +385,23 @@ class UtilsTests(TestCase):
         grpc_server.stop.assert_called_once_with(settings.GRPC_GRACE_TIME)
         assert mocked_slow_exit.called
 
+    @patch('lighter.utils._has_numbers', autospec=True)
+    def test_has_amount_encoded(self, mocked_has_num):
+        pay_req = 'lntb5n1pw3mupk'
+        mocked_has_num.return_value = True
+        res = MOD.has_amount_encoded(pay_req)
+        self.assertEqual(res, True)
+        pay_req = 'lntb1pw3mumupk'
+        mocked_has_num.return_value = False
+        res = MOD.has_amount_encoded(pay_req)
+        self.assertEqual(res, False)
+
+    def test_has_numbers(self):
+        res = MOD._has_numbers('light3r')
+        self.assertEqual(res, True)
+        res = MOD._has_numbers('lighter')
+        self.assertEqual(res, False)
+
     def test_gen_random_data(self):
         length = 7
         res = MOD.gen_random_data(length)
