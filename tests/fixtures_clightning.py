@@ -603,14 +603,14 @@ LISTPEERS_EMPTY = {
 }
 
 
-NEWADDRESS = [
-    {
-    "address": "2N875sa6BA9LwVTUviFisQZk"
-    },
-    {
-    "address": "tb1q9v8gmtkhs0qtknj3g3cz"
-    }
-]
+NEWADDRESS_P2SH_SEGWIT = {
+    "p2sh-segwit": "2N875sa6BA9LwVTUviFisQZk"
+}
+
+
+NEWADDRESS_BECH32 = {
+    "bech32": "tb1q9v8gmtkhs0qtknj3g3cz"
+}
 
 
 PAY = {

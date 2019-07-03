@@ -84,35 +84,27 @@ class LightClightningTests(TestCase):
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
     def test_NewAddress(self, mocked_command, mocked_handle):
-        # Default case: request.type = 0 = NP2WKH = P2SH_SEGWIT
-        request = pb.NewAddressRequest()
-        mocked_command.return_value = fix.NEWADDRESS[pb.NP2WKH]
-        res = MOD.NewAddress(request, CTX)
-        mocked_command.assert_called_once_with(CTX, 'newaddr',
-                                               'addresstype=p2sh-segwit')
-        mocked_handle.assert_called_once_with(
-            CTX, fix.NEWADDRESS[pb.NP2WKH], always_abort=False)
-        self.assertEqual(res.address, fix.NEWADDRESS[pb.NP2WKH]['address'])
         # Legacy case: request.type = 0 = NP2WKH = P2SH_SEGWIT
         reset_mocks(vars())
-        request = pb.NewAddressRequest(type=pb.NP2WKH)
-        mocked_command.return_value = fix.NEWADDRESS[pb.NP2WKH]
+        request = pb.NewAddressRequest()
+        mocked_command.return_value = fix.NEWADDRESS_P2SH_SEGWIT
         res = MOD.NewAddress(request, CTX)
         mocked_command.assert_called_once_with(CTX, 'newaddr',
                                                'addresstype=p2sh-segwit')
         mocked_handle.assert_called_once_with(
-            CTX, fix.NEWADDRESS[pb.NP2WKH], always_abort=False)
-        self.assertEqual(res.address, fix.NEWADDRESS[pb.NP2WKH]['address'])
+            CTX, fix.NEWADDRESS_P2SH_SEGWIT, always_abort=False)
+        self.assertEqual(
+            res.address, fix.NEWADDRESS_P2SH_SEGWIT['p2sh-segwit'])
         # Segwit case: request.type = 1 = P2WKH = BECH32
         reset_mocks(vars())
         request = pb.NewAddressRequest(type=pb.P2WKH)
-        mocked_command.return_value = fix.NEWADDRESS[pb.P2WKH]
+        mocked_command.return_value = fix.NEWADDRESS_BECH32
         res = MOD.NewAddress(request, CTX)
         mocked_command.assert_called_once_with(CTX, 'newaddr',
                                                'addresstype=bech32')
         mocked_handle.assert_called_once_with(
-            CTX, fix.NEWADDRESS[pb.P2WKH], always_abort=False)
-        self.assertEqual(res.address, fix.NEWADDRESS[pb.P2WKH]['address'])
+            CTX, fix.NEWADDRESS_BECH32, always_abort=False)
+        self.assertEqual(res.address, fix.NEWADDRESS_BECH32['bech32'])
         # Error case
         reset_mocks(vars())
         request = pb.NewAddressRequest()

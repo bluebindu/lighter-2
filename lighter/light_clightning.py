@@ -129,8 +129,10 @@ def NewAddress(request, context):
     elif request.type == 1:
         cl_req.append('addresstype=bech32')
     cl_res = command(context, *cl_req)
-    if 'address' in cl_res:
-        response.address = cl_res['address']
+    if 'p2sh-segwit' in cl_res:
+        response.address = cl_res['p2sh-segwit']
+    if 'bech32' in cl_res:
+        response.address = cl_res['bech32']
     _handle_error(context, cl_res, always_abort=False)
     return response
 
