@@ -71,12 +71,12 @@ At the moment, we provide 3 different macaroons:
 | ChannelBalance   |   ☇   |     ☇    |          |
 | CheckInvoice     |   ☇   |     ☇    |     ☇    |
 | CreateInvoice    |   ☇   |          |     ☇    |
-| DecodeInvoice    |   ☇   |     ☇    |          |
+| DecodeInvoice    |   ☇   |     ☇    |     ☇    |
 | GetInfo          |   ☇   |     ☇    |     ☇    |
-| ListChannels     |   ☇   |     ☇    |          |
-| ListInvoices     |   ☇   |     ☇    |          |
+| ListChannels     |   ☇   |     ☇    |     ☇    |
+| ListInvoices     |   ☇   |     ☇    |     ☇    |
 | ListPayments     |   ☇   |     ☇    |          |
-| ListPeers        |   ☇   |     ☇    |          |
+| ListPeers        |   ☇   |     ☇    |     ☇    |
 | ListTransactions |   ☇   |     ☇    |          |
 | NewAddress       |   ☇   |          |          |
 | OpenChannel      |   ☇   |          |          |

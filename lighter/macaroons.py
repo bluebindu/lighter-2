@@ -35,10 +35,10 @@ ALL_OPS = canonical_ops(
     [Op(op['entity'], op['action']) for op in settings.ALL_PERMS.values()])
 
 INVOICE_OPS = canonical_ops(
-    [Op(op['entity'], op['action']) for op in settings.INVOICE_PERMS.values()])
+    [Op(op['entity'], op['action']) for op in settings.INVOICE_PERMS])
 
 READONLY_OPS = canonical_ops(
-    [Op(op['entity'], op['action']) for op in settings.READ_PERMS.values()])
+    [Op(op['entity'], op['action']) for op in settings.READ_PERMS])
 
 MACAROONS = {
     settings.MAC_ADMIN: ALL_OPS,

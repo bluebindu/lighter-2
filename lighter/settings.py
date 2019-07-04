@@ -139,24 +139,21 @@ FILE_LOGGING = {
     }
 }
 
-UNLOCK_PERMISSIONS = {
-    '/lighter.Unlocker/UnlockLighter': {
-        'entity': 'root',
-        'action': 'unlock'
-    }
-}
-
-READ_PERMS = {
+ALL_PERMS = {
     '/lighter.Lightning/ChannelBalance': {
-        'entity': 'offchain',
+        'entity': 'balance',
         'action': 'read'
     },
     '/lighter.Lightning/CheckInvoice': {
-        'entity': 'invoices',
+        'entity': 'invoice',
         'action': 'read'
     },
+    '/lighter.Lightning/CreateInvoice': {
+        'entity': 'invoice',
+        'action': 'write'
+    },
     '/lighter.Lightning/DecodeInvoice': {
-        'entity': 'offchain',
+        'entity': 'invoice',
         'action': 'read'
     },
     '/lighter.Lightning/GetInfo': {
@@ -164,67 +161,97 @@ READ_PERMS = {
         'action': 'read'
     },
     '/lighter.Lightning/ListChannels': {
-        'entity': 'offchain',
+        'entity': 'channel',
         'action': 'read'
     },
     '/lighter.Lightning/ListInvoices': {
-        'entity': 'offchain',
+        'entity': 'invoice',
         'action': 'read'
     },
     '/lighter.Lightning/ListPayments': {
-        'entity': 'offchain',
+        'entity': 'payment',
         'action': 'read'
     },
     '/lighter.Lightning/ListPeers': {
-        'entity': 'peers',
+        'entity': 'peer',
         'action': 'read'
     },
     '/lighter.Lightning/ListTransactions': {
-        'entity': 'onchain',
+        'entity': 'transaction',
         'action': 'read'
-    },
-    '/lighter.Lightning/WalletBalance': {
-        'entity': 'onchain',
-        'action': 'read'
-    },
-}
-
-WRITE_PERMISSIONS = {
-    '/lighter.Lightning/CreateInvoice': {
-        'entity': 'invoices',
-        'action': 'write'
     },
     '/lighter.Lightning/NewAddress': {
         'entity': 'address',
         'action': 'write'
     },
     '/lighter.Lightning/OpenChannel': {
-        'entity': 'onchain',
+        'entity': 'channel',
         'action': 'write'
     },
     '/lighter.Lightning/PayInvoice': {
-        'entity': 'offchain',
+        'entity': 'payment',
         'action': 'write'
     },
     '/lighter.Lightning/PayOnChain': {
-        'entity': 'onchain',
+        'entity': 'transaction',
         'action': 'write'
+    },
+    '/lighter.Lightning/WalletBalance': {
+        'entity': 'balance',
+        'action': 'read'
     },
 }
 
-INVOICE_PERMS = {
-    '/lighter.Lightning/CheckInvoice': {
-        'entity': 'invoices',
+READ_PERMS = [
+    {
+        'entity': 'balance',
         'action': 'read'
     },
-    '/lighter.Lightning/CreateInvoice': {
-        'entity': 'invoices',
-        'action': 'write'
+    {
+        'entity': 'channel',
+        'action': 'read'
     },
-    '/lighter.Lightning/GetInfo': {
+    {
         'entity': 'info',
         'action': 'read'
     },
-}
+    {
+        'entity': 'invoice',
+        'action': 'read'
+    },
+    {
+        'entity': 'payment',
+        'action': 'read'
+    },
+    {
+        'entity': 'peer',
+        'action': 'read'
+    },
+    {
+        'entity': 'transaction',
+        'action': 'read'
+    },
+]
 
-ALL_PERMS = {**READ_PERMS, **WRITE_PERMISSIONS}
+INVOICE_PERMS = [
+    {
+        'entity': 'channel',
+        'action': 'read'
+    },
+    {
+        'entity': 'info',
+        'action': 'read'
+    },
+    {
+        'entity': 'invoice',
+        'action': 'read'
+    },
+    {
+        'entity': 'invoice',
+        'action': 'write'
+    },
+    {
+        'entity': 'peer',
+        'action': 'read'
+    },
+]
