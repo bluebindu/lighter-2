@@ -96,7 +96,8 @@ ERRORS = {
     },
     'unimplemented_parameter': {
         'code': 'UNIMPLEMENTED',
-        'msg': 'This gRPC parameter is not supported for this implementation'
+        'msg': ('The gRPC parameter "%PARAM%" is not supported for this '
+                'implementation')
     },
     'unsettable': {
         'code': 'INVALID_ARGUMENT',

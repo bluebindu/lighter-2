@@ -29,6 +29,9 @@ ERRORS = {
         'fun': 'invalid',
         'params': 'payment_request'
     },
+    'Cannot afford transaction': {
+        'fun': 'insufficient_funds'
+    },
     'Connection refused': {
         'fun': 'node_error'
     },
@@ -68,6 +71,9 @@ ERRORS = {
         'fun': 'openchannel_failed'
     },
     'Peer already CHANNELD_NORMAL': {
+        'fun': 'openchannel_failed'
+    },
+    'They sent error': {
         'fun': 'openchannel_failed'
     }
 }
@@ -169,16 +175,17 @@ def ListChannels(request, context):
     cl_req = ['listpeers']
     cl_res = command(context, *cl_req)
     response = pb.ListChannelsResponse()
-    if 'peers' in cl_res:
+    if 'peers' in cl_res:  # pylint: disable=too-many-nested-blocks
         for cl_peer in cl_res['peers']:
             if 'channels' in cl_peer:
                 for cl_chan in cl_peer['channels']:
-                    # False if not specified in request
-                    if request.active_only and 'connected' in cl_peer \
-                            and cl_peer['connected'] is True:
-                        _add_channel(context, response, cl_peer, cl_chan)
-                    elif not request.active_only:
-                        _add_channel(context, response, cl_peer, cl_chan)
+                    state = None
+                    if 'state' in cl_chan and 'status' in cl_chan:
+                        state = _get_state(cl_chan)
+                        if state < 0:
+                            continue
+                    _add_channel(context, response, cl_peer, cl_chan,
+                                 state, request.active_only)
     _handle_error(context, cl_res, always_abort=False)
     return response
 
@@ -410,9 +417,18 @@ def OpenChannel(request, context):
     return response
 
 
-def _add_channel(context, response, cl_peer, cl_chan):
+# pylint: disable=too-many-arguments
+def _add_channel(context, response, cl_peer, cl_chan, state, active_only):
     """ Adds a channel to a ListChannelsResponse """
+    connected = True
+    if 'connected' in cl_peer:
+        connected = cl_peer['connected']
+    if active_only and (not connected or state != pb.OPEN):
+        return
     grpc_chan = response.channels.add()
+    grpc_chan.active = connected and state == pb.OPEN
+    if state:
+        grpc_chan.state = state
     if 'id' in cl_peer:
         grpc_chan.remote_pubkey = cl_peer['id']
     if 'short_channel_id' in cl_chan:
@@ -433,6 +449,7 @@ def _add_channel(context, response, cl_peer, cl_chan):
         grpc_chan.remote_balance = grpc_chan.capacity - grpc_chan.local_balance
     if 'private' in cl_chan:
         grpc_chan.private = cl_chan['private']
+    # pylint: enable=too-many-arguments
 
 
 def _add_payment(context, response, cl_payment):
@@ -476,6 +493,37 @@ def _create_label():
     """ Creates a label using microseconds (c-lightning specific) """
     microseconds = datetime.now().timestamp() * 1e6
     return '{}'.format(int(microseconds))
+
+
+def _get_state(cl_chan):  # pylint: disable=too-many-return-statements
+    """
+    Maps implementation's channel state to lighter's channel state definition
+    """
+    cl_state = cl_chan['state']
+    cl_status = cl_chan['status']
+    if cl_state in ('CLOSED',):
+        return -1
+    for detail in cl_status:
+        if 'ONCHAIN:All outputs resolved:' in detail:
+            return -1
+    if cl_state in ('CHANNELD_AWAITING_LOCKIN',):
+        return pb.PENDING_OPEN
+    if cl_state in ('CHANNELD_NORMAL',):
+        return pb.OPEN
+    for detail in cl_status:
+        if 'ONCHAIN:Tracking mutual close transaction' in detail:
+            return pb.PENDING_MUTUAL_CLOSE
+        if 'ONCHAIN:Tracking our own unilateral close' in detail or \
+                'ONCHAIN:2 outputs unresolved:' in detail or \
+                'ONCHAIN:1 outputs unresolved:' in detail or \
+                'ONCHAIN:Tracking their unilateral close' in detail:
+            return pb.PENDING_FORCE_CLOSE
+    if cl_state in ('CHANNELD_SHUTTING_DOWN', 'CLOSINGD_SIGEXCHANGE',
+                    'CLOSINGD_COMPLETE'):
+        return pb.PENDING_MUTUAL_CLOSE
+    if cl_state in ('ONCHAIN', 'AWAITING_UNILATERAL', 'FUNDING_SPEND_SEEN'):
+        return pb.PENDING_FORCE_CLOSE
+    return pb.UNKNOWN
 
 
 def _handle_error(context, cl_res, always_abort=True):

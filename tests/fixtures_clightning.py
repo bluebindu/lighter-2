@@ -29,9 +29,132 @@ BADRESPONSE = {
     "message" : "A strange error occurred"
 }
 
+
+CHANNEL_AWAITING_LOCKIN = {
+   "state" : "CHANNELD_AWAITING_LOCKIN",
+   "scratch_txid" : "931c0cf0e56685c24c1f0340e67e433509ca3b2ad24bf051f6ef7050ab98840e",
+   "short_channel_id" : "1454271x65x0",
+   "direction" : 1,
+   "channel_id" : "fe262d44dd800ac46ae705cfb9bd1fe530b65a943cbc3a485b45a45d9c70897a",
+   "funding_txid" : "7a89709c5da4455b483abc3c945ab630e51fbdb9cf05e76ac40a80dd442d26fe",
+   "private" : False,
+   "funding_allocation_msat" : {
+      "024286158184e3ad3601289f0900c1d4af5c72d97f01e9aafa3b97d2c9ab13ede5" : 0,
+      "030f933df635a4b7ce68cd36f8f25521babe015d1f611775de997d5b35618030ae" : 200000000
+   },
+   "funding_msat" : {
+      "024286158184e3ad3601289f0900c1d4af5c72d97f01e9aafa3b97d2c9ab13ede5" : "0msat",
+      "030f933df635a4b7ce68cd36f8f25521babe015d1f611775de997d5b35618030ae" : "200000000msat"
+   },
+   "msatoshi_to_us" : 200000000,
+   "to_us_msat" : "200000000msat",
+   "msatoshi_to_us_min" : 200000000,
+   "min_to_us_msat" : "200000000msat",
+   "msatoshi_to_us_max" : 200000000,
+   "max_to_us_msat" : "200000000msat",
+   "msatoshi_total" : 200000000,
+   "total_msat" : "200000000msat",
+   "dust_limit_satoshis" : 546,
+   "dust_limit_msat" : "546000msat",
+   "max_htlc_value_in_flight_msat" : 18446744073709551615,
+   "max_total_htlc_in_msat" : "18446744073709551615msat",
+   "their_channel_reserve_satoshis" : 2000,
+   "their_reserve_msat" : "2000000msat",
+   "our_channel_reserve_satoshis" : 2000,
+   "our_reserve_msat" : "2000000msat",
+   "spendable_msatoshi" : 197774000,
+   "spendable_msat" : "197774000msat",
+   "htlc_minimum_msat" : 0,
+   "minimum_htlc_in_msat" : "0msat",
+   "their_to_self_delay" : 6,
+   "our_to_self_delay" : 144,
+   "max_accepted_htlcs" : 483,
+   "status" : [
+      "CHANNELD_AWAITING_LOCKIN:Attempting to reconnect"
+   ],
+   "in_payments_offered" : 0,
+   "in_msatoshi_offered" : 0,
+   "in_offered_msat" : "0msat",
+   "in_payments_fulfilled" : 0,
+   "in_msatoshi_fulfilled" : 0,
+   "in_fulfilled_msat" : "0msat",
+   "out_payments_offered" : 0,
+   "out_msatoshi_offered" : 0,
+   "out_offered_msat" : "0msat",
+   "out_payments_fulfilled" : 0,
+   "out_msatoshi_fulfilled" : 0,
+   "out_fulfilled_msat" : "0msat",
+   "htlcs" : []
+}
+
+
+CHANNEL_AWAITING_UNILATERAL = {
+   "state" : "AWAITING_UNILATERAL",
+   "status" : [],
+}
+
+
+CHANNEL_CLOSED = {
+   "state" : "CLOSED",
+   "status" : [],
+}
+
+
+CHANNEL_MUTUAL = {
+     "state" : "ONCHAIN",
+     "status" : [
+        "CLOSINGD_SIGEXCHANGE:We agreed on a closing fee of 183 satoshi for tx:8f2fc20d68965d211db1c944769f771b55910e6a6c6ce65ab1972308387643ea",
+        "ONCHAIN:Tracking mutual close transaction"
+     ],
+}
+
+
+CHANNEL_NORMAL = {
+   "state" : "CHANNELD_NORMAL",
+   "status" : [
+      "CHANNELD_NORMAL:Reconnected, and reestablished.",
+      "CHANNELD_NORMAL:Funding transaction locked."
+   ],
+}
+
+
+CHANNEL_RESOLVED = {
+   "state" : "ONCHAIN",
+    "status" : [
+      "ONCHAIN:Tracking our own unilateral close",
+      "ONCHAIN:All outputs resolved: waiting 81 more blocks before forgetting channel"
+   ],
+}
+
+
+CHANNEL_SHUTTING_DOWN = {
+   "state" : "CHANNELD_SHUTTING_DOWN",
+   "status" : [],
+}
+
+
+CHANNEL_UNILATERAL = {
+    "state" : "ONCHAIN",
+    "status" : [
+      "CHANNELD_AWAITING_LOCKIN:Reconnected, and reestablished.",
+      "ONCHAIN:Tracking our own unilateral close",
+      "ONCHAIN:2 outputs unresolved: in 143 blocks will spend DELAYED_OUTPUT_TO_US (c68a9dd676c32e09280a9656fef9fe25854cb1f130ded3e8b4f4207c3af72d61:0) using OUR_DELAYED_RETURN_TO_WALLET"
+   ],
+}
+
+
+CHANNEL_UNKNOWN = {
+   "state" : "UNKNOWN",
+   "status" : [
+      "CHANNELD_NORMAL:Attempting to reconnect"
+   ],
+}
+
+
 CONNECT = {
     "id": "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7"
 }
+
 
 DECODEPAY = {
     "currency": "tb",
@@ -348,126 +471,14 @@ LISTPEERS = {
          "globalfeatures" : "",
          "localfeatures" : "81",
          "channels" : [
-            {
-               "state" : "CHANNELD_NORMAL",
-               "scratch_txid" : "2af9ca198382b229382a7b443b8b2e4e2dc317d44baa27c37ddd822a804655bc",
-               "owner" : "lightning_channeld",
-               "short_channel_id" : "1454241x72x1",
-               "direction" : 1,
-               "channel_id" : "458b23fd37a779ef956a2a4db7db4c48bf1a9d22dff028bdedea9d981805ca4d",
-               "funding_txid" : "4cca0518989deaedbd28f0df229d1abf484cdbb74d2a6a95ef79a737fd238b45",
-               "private" : False,
-               "funding_allocation_msat" : {
-                  "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7" : 0,
-                  "030f933df635a4b7ce68cd36f8f25521babe015d1f611775de997d5b35618030ae" : 2000000000
-               },
-               "funding_msat" : {
-                  "0260d9119979caedc570ada883ff614c6efb93f7f7382e25d73ecbeba0b62df2d7" : "0msat",
-                  "030f933df635a4b7ce68cd36f8f25521babe015d1f611775de997d5b35618030ae" : "2000000000msat"
-               },
-               "msatoshi_to_us" : 1975322521,
-               "to_us_msat" : "1975322521msat",
-               "msatoshi_to_us_min" : 1972422521,
-               "min_to_us_msat" : "1972422521msat",
-               "msatoshi_to_us_max" : 2000000000,
-               "max_to_us_msat" : "2000000000msat",
-               "msatoshi_total" : 2000000000,
-               "total_msat" : "2000000000msat",
-               "dust_limit_satoshis" : 546,
-               "dust_limit_msat" : "546000msat",
-               "max_htlc_value_in_flight_msat" : 18446744073709551615,
-               "max_total_htlc_in_msat" : "18446744073709551615msat",
-               "their_channel_reserve_satoshis" : 20000,
-               "their_reserve_msat" : "20000000msat",
-               "our_channel_reserve_satoshis" : 20000,
-               "our_reserve_msat" : "20000000msat",
-               "spendable_msatoshi" : 1955096521,
-               "spendable_msat" : "1955096521msat",
-               "htlc_minimum_msat" : 0,
-               "minimum_htlc_in_msat" : "0msat",
-               "their_to_self_delay" : 6,
-               "our_to_self_delay" : 240,
-               "max_accepted_htlcs" : 483,
-               "status" : [
-                  "CHANNELD_NORMAL:Reconnected, and reestablished.",
-                  "CHANNELD_NORMAL:Funding transaction locked. Waiting for their announcement signatures."
-               ],
-               "in_payments_offered" : 12,
-               "in_msatoshi_offered" : 3200011,
-               "in_offered_msat" : "3200011msat",
-               "in_payments_fulfilled" : 12,
-               "in_msatoshi_fulfilled" : 3200011,
-               "in_fulfilled_msat" : "3200011msat",
-               "out_payments_offered" : 10,
-               "out_msatoshi_offered" : 27921581,
-               "out_offered_msat" : "27921581msat",
-               "out_payments_fulfilled" : 8,
-               "out_msatoshi_fulfilled" : 27877490,
-               "out_fulfilled_msat" : "27877490msat",
-               "htlcs" : []
-            }
+            CHANNEL_NORMAL
          ]
       },
       {
          "id" : "024286158184e3ad3601289f0900c1d4af5c72d97f01e9aafa3b97d2c9ab13ede5",
          "connected" : False,
          "channels" : [
-            {
-               "state" : "CHANNELD_AWAITING_LOCKIN",
-               "scratch_txid" : "931c0cf0e56685c24c1f0340e67e433509ca3b2ad24bf051f6ef7050ab98840e",
-               "short_channel_id" : "1454271x65x0",
-               "direction" : 1,
-               "channel_id" : "fe262d44dd800ac46ae705cfb9bd1fe530b65a943cbc3a485b45a45d9c70897a",
-               "funding_txid" : "7a89709c5da4455b483abc3c945ab630e51fbdb9cf05e76ac40a80dd442d26fe",
-               "private" : False,
-               "funding_allocation_msat" : {
-                  "024286158184e3ad3601289f0900c1d4af5c72d97f01e9aafa3b97d2c9ab13ede5" : 0,
-                  "030f933df635a4b7ce68cd36f8f25521babe015d1f611775de997d5b35618030ae" : 200000000
-               },
-               "funding_msat" : {
-                  "024286158184e3ad3601289f0900c1d4af5c72d97f01e9aafa3b97d2c9ab13ede5" : "0msat",
-                  "030f933df635a4b7ce68cd36f8f25521babe015d1f611775de997d5b35618030ae" : "200000000msat"
-               },
-               "msatoshi_to_us" : 200000000,
-               "to_us_msat" : "200000000msat",
-               "msatoshi_to_us_min" : 200000000,
-               "min_to_us_msat" : "200000000msat",
-               "msatoshi_to_us_max" : 200000000,
-               "max_to_us_msat" : "200000000msat",
-               "msatoshi_total" : 200000000,
-               "total_msat" : "200000000msat",
-               "dust_limit_satoshis" : 546,
-               "dust_limit_msat" : "546000msat",
-               "max_htlc_value_in_flight_msat" : 18446744073709551615,
-               "max_total_htlc_in_msat" : "18446744073709551615msat",
-               "their_channel_reserve_satoshis" : 2000,
-               "their_reserve_msat" : "2000000msat",
-               "our_channel_reserve_satoshis" : 2000,
-               "our_reserve_msat" : "2000000msat",
-               "spendable_msatoshi" : 197774000,
-               "spendable_msat" : "197774000msat",
-               "htlc_minimum_msat" : 0,
-               "minimum_htlc_in_msat" : "0msat",
-               "their_to_self_delay" : 6,
-               "our_to_self_delay" : 144,
-               "max_accepted_htlcs" : 483,
-               "status" : [
-                  "CHANNELD_AWAITING_LOCKIN:Attempting to reconnect"
-               ],
-               "in_payments_offered" : 0,
-               "in_msatoshi_offered" : 0,
-               "in_offered_msat" : "0msat",
-               "in_payments_fulfilled" : 0,
-               "in_msatoshi_fulfilled" : 0,
-               "in_fulfilled_msat" : "0msat",
-               "out_payments_offered" : 0,
-               "out_msatoshi_offered" : 0,
-               "out_offered_msat" : "0msat",
-               "out_payments_fulfilled" : 0,
-               "out_msatoshi_fulfilled" : 0,
-               "out_fulfilled_msat" : "0msat",
-               "htlcs" : []
-            }
+            CHANNEL_AWAITING_LOCKIN
          ]
       },
       {
@@ -591,9 +602,9 @@ LISTPEERS = {
                "out_msatoshi_fulfilled" : 0,
                "out_fulfilled_msat" : "0msat",
                "htlcs" : []
-            }
+            },
          ]
-      }
+      },
    ]
 }
 

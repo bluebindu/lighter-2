@@ -90,6 +90,9 @@ ERRORS = {
     'invoice expired': {
         'fun': 'invoice_expired'
     },
+    'invalid funding_satoshis': {
+        'fun': 'openchannel_failed'
+    },
     'invoice is already paid': {
         'fun': 'invalid',
         'params': 'payment_request'
@@ -273,22 +276,24 @@ def ListChannels(request, context):
     with _connect(context) as stub:
         lnd_res = stub.ListChannels(lnd_req, timeout=settings.IMPL_TIMEOUT)
         for lnd_chan in lnd_res.channels:
-            if request.active_only and lnd_chan.active:
-                _add_channel(context, response, lnd_chan, open_chan=True)
-            elif not request.active_only:
-                _add_channel(context, response, lnd_chan, open_chan=True)
+            _add_channel(context, response, lnd_chan, pb.OPEN,
+                         active_only=request.active_only, open_chan=True)
         if not request.active_only:
             lnd_req = ln.PendingChannelsRequest()
             lnd_res = stub.PendingChannels(
                 lnd_req, timeout=settings.IMPL_TIMEOUT)
             for lnd_chan in lnd_res.pending_open_channels:
-                _add_channel(context, response, lnd_chan.channel)
+                _add_channel(context, response, lnd_chan.channel,
+                             pb.PENDING_OPEN)
             for lnd_chan in lnd_res.pending_closing_channels:
-                _add_channel(context, response, lnd_chan.channel)
+                _add_channel(context, response, lnd_chan.channel,
+                             pb.PENDING_MUTUAL_CLOSE)
             for lnd_chan in lnd_res.pending_force_closing_channels:
-                _add_channel(context, response, lnd_chan.channel)
+                _add_channel(context, response, lnd_chan.channel,
+                             pb.PENDING_FORCE_CLOSE)
             for lnd_chan in lnd_res.waiting_close_channels:
-                _add_channel(context, response, lnd_chan.channel)
+                _add_channel(context, response, lnd_chan.channel,
+                             pb.UNKNOWN)
     return response
 
 
@@ -542,21 +547,29 @@ def OpenChannel(request, context):
     return response
 
 
-def _add_channel(context, response, lnd_chan, open_chan=False):
+# pylint: disable=too-many-arguments
+def _add_channel(context, response, lnd_chan, state, active_only=False,
+                 open_chan=False):
     """ Adds an open or pending channel to a ListChannelsResponse """
+    if active_only and not lnd_chan.active:
+        return
     if lnd_chan.ListFields():
         channel = response.channels.add(
             funding_txid=lnd_chan.channel_point.split(':')[0],
             capacity=convert(context, Enf.SATS, lnd_chan.capacity),
             local_balance=convert(context, Enf.SATS, lnd_chan.local_balance),
-            remote_balance=convert(context, Enf.SATS, lnd_chan.remote_balance))
+            remote_balance=convert(context, Enf.SATS, lnd_chan.remote_balance),
+            state=state)
         if open_chan:
             channel.remote_pubkey = lnd_chan.remote_pubkey
             channel.channel_id = str(lnd_chan.chan_id)
             channel.to_self_delay = lnd_chan.csv_delay
             channel.private = lnd_chan.private
+            channel.active = lnd_chan.active
         else:
             channel.remote_pubkey = lnd_chan.remote_node_pub
+            channel.active = False
+    # pylint: enable=too-many-arguments
 
 
 def _check_timestamp(request, lnd_invoice):

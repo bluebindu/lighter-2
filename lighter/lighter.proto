@@ -311,7 +311,7 @@ message GetInfoResponse {
 
 message ListChannelsRequest {
     /**
-    Whether to return active channels only (peer is online)
+    Whether to return active channels only (channel is open and peer is online)
     */
     bool active_only = 1;
 }
@@ -357,9 +357,45 @@ message Channel {
     */
     uint32 to_self_delay = 8;
     /**
-    Wheter the channel is private or public (announced to the network, available for routing)
+    Whether the channel is private or public (announced to the network
+    and available for routing)
     */
     bool private = 9;
+    /**
+    Channel state (pending open, open, pending mutual/forced close or unknown)
+    */
+    ChannelState state = 10;
+    /**
+    Whether the channel is active (channel is open and peer is online)
+    */
+    bool active = 11;
+}
+
+/**
+LN channel current state.
+*/
+enum ChannelState {
+    /**
+    Channel is opening (waiting for funding tx to be confirmed)
+    */
+    PENDING_OPEN = 0;
+    /**
+    Channel is open and is ready to operate (funding tx has reached enough
+    confirmations)
+    */
+    OPEN = 1;
+    /**
+    Channel is cooperatively closing
+    */
+    PENDING_MUTUAL_CLOSE = 2;
+    /**
+    Channel is unilaterally closing
+    */
+    PENDING_FORCE_CLOSE = 3;
+    /**
+    Channel state is unknown
+    */
+    UNKNOWN = 4;
 }
 
 message ListInvoicesRequest {
@@ -627,7 +663,7 @@ message OpenChannelRequest {
     */
     double push_bits = 3;
     /**
-    Wheter the channel will be private (not anonunced)
+    Whether the channel will be private (not anonunced)
     */
     bool private = 4;
 }

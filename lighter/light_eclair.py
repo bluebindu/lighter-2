@@ -27,6 +27,9 @@ from .utils import check_req_params, command, convert, Enforcer as Enf, \
     has_amount_encoded
 
 ERRORS = {
+    'cannot open connection with oneself': {
+        'fun': 'connect_failed'
+    },
     'cannot route to self': {
         'fun': 'route_not_found'
     },
@@ -41,6 +44,9 @@ ERRORS = {
     },
     'manually specify an amount': {
         'fun': 'amount_required'
+    },
+    'Recv failure: Connection reset by peer': {
+        'fun': 'node_error'
     },
     'route not found': {
         'fun': 'route_not_found'
@@ -152,11 +158,7 @@ def ListChannels(request, context):
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
     response = pb.ListChannelsResponse()
     for channel in ecl_res:
-        if request.active_only and _defined(channel, 'state') \
-                and channel['state'] == 'NORMAL':
-            _add_channel(context, response, channel)
-        elif not request.active_only:
-            _add_channel(context, response, channel)
+        _add_channel(context, response, channel, request.active_only)
     _handle_error(context, ecl_res, always_abort=False)
     return response
 
@@ -291,10 +293,25 @@ def _is_description_hash(description):
         set(description).issubset(allowed_set)
 
 
-def _add_channel(context, response, ecl_chan):
+def _add_channel(context, response, ecl_chan, active_only):
     """ Adds a channel to a ListChannelsResponse """
-    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-branches,too-many-locals
+    state = None
+    if _defined(ecl_chan, 'state'):
+        state = _get_state(ecl_chan)
+        if state < 0:
+            return
+    connected = True
+    if _defined(ecl_chan, 'state'):
+        connected = False
+        if ecl_chan['state'] == 'NORMAL':
+            connected = True
+    if active_only and not connected:
+        return
     grpc_chan = response.channels.add()
+    grpc_chan.active = connected
+    if state:
+        grpc_chan.state = state
     if _defined(ecl_chan, 'nodeId'):
         grpc_chan.remote_pubkey = ecl_chan['nodeId']
     if _defined(ecl_chan, 'channelId'):
@@ -330,6 +347,30 @@ def _add_channel(context, response, ecl_chan):
                     if local_balance and remote_balance:
                         grpc_chan.capacity = \
                             grpc_chan.local_balance + grpc_chan.remote_balance
+
+
+def _get_state(ecl_chan):
+    """
+    Maps implementation's channel state to lighter's channel state definition
+    """
+    ecl_state = ecl_chan['state']
+    if ecl_state in ('CLOSED',):
+        return -1
+    if ecl_state in ('WAIT_FOR_FUNDING_CONFIRMED',):
+        return pb.PENDING_OPEN
+    if ecl_state in ('NORMAL', 'OFFLINE'):
+        return pb.OPEN
+    if _defined(ecl_chan, 'data'):
+        data = ecl_chan['data']
+        if _defined(data, 'mutualClosePublished') and \
+                data['mutualClosePublished']:
+            return pb.PENDING_MUTUAL_CLOSE
+        if (_defined(data, 'localCommitPublished') and
+                data['localCommitPublished']) or \
+                (_defined(data, 'remoteCommitPublished') and
+                 data['remoteCommitPublished']):
+            return pb.PENDING_FORCE_CLOSE
+    return pb.UNKNOWN
 
 
 def _handle_error(context, ecl_res, always_abort=True):

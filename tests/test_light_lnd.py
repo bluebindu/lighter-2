@@ -237,18 +237,20 @@ class LightLndTests(TestCase):
         res = MOD.ListChannels(request, CTX)
         calls = [
             call(
-                CTX,
-                pb.ListChannelsResponse(),
-                lnd_res_act.channels[0],
-                open_chan=True),
+                CTX, pb.ListChannelsResponse(), lnd_res_act.channels[0],
+                pb.OPEN, active_only=False, open_chan=True),
             call(CTX, pb.ListChannelsResponse(),
-                 lnd_res_pen.pending_open_channels[0].channel),
+                 lnd_res_pen.pending_open_channels[0].channel,
+                 pb.PENDING_OPEN),
             call(CTX, pb.ListChannelsResponse(),
-                 lnd_res_pen.pending_closing_channels[0].channel),
+                 lnd_res_pen.pending_closing_channels[0].channel,
+                 pb.PENDING_MUTUAL_CLOSE),
             call(CTX, pb.ListChannelsResponse(),
-                 lnd_res_pen.pending_force_closing_channels[0].channel),
+                 lnd_res_pen.pending_force_closing_channels[0].channel,
+                 pb.PENDING_FORCE_CLOSE),
             call(CTX, pb.ListChannelsResponse(),
-                 lnd_res_pen.waiting_close_channels[0].channel)
+                 lnd_res_pen.waiting_close_channels[0].channel,
+                 pb.UNKNOWN)
         ]
         mocked_add.assert_has_calls(calls)
         stub.ListChannels.assert_called_once_with(
@@ -268,10 +270,8 @@ class LightLndTests(TestCase):
         stub.ListChannels.assert_called_once_with(
             ln.ListChannelsRequest(), timeout=settings.IMPL_TIMEOUT)
         mocked_add.assert_called_once_with(
-            CTX,
-            pb.ListChannelsResponse(),
-            lnd_res.channels[0],
-            open_chan=True)
+            CTX, pb.ListChannelsResponse(), lnd_res.channels[0], pb.OPEN,
+            active_only=True, open_chan=True)
         assert not stub.PendingChannels.called
         assert not mocked_handle.called
         self.assertEqual(res, pb.ListChannelsResponse())
@@ -723,7 +723,7 @@ class LightLndTests(TestCase):
         # Active: empty
         response = pb.ListChannelsResponse()
         lnd_chan = ln.Channel()
-        MOD._add_channel(CTX, response, lnd_chan, open_chan=True)
+        MOD._add_channel(CTX, response, lnd_chan, pb.OPEN, open_chan=True)
         assert not mocked_conv.called
         self.assertEqual(response, pb.ListChannelsResponse())
         # Active: filled
@@ -733,7 +733,7 @@ class LightLndTests(TestCase):
             capacity=7777777,
             local_balance=6666666,
             remote_balance=1111111)
-        MOD._add_channel(CTX, response, lnd_chan, open_chan=True)
+        MOD._add_channel(CTX, response, lnd_chan, pb.OPEN, open_chan=True)
         calls = [
             call(CTX, Enf.SATS, lnd_chan.capacity),
             call(CTX, Enf.SATS, lnd_chan.local_balance),
@@ -745,7 +745,7 @@ class LightLndTests(TestCase):
         reset_mocks(vars())
         response = pb.ListChannelsResponse()
         lnd_chan = ln.PendingChannelsResponse.PendingChannel()
-        MOD._add_channel(CTX, response, lnd_chan)
+        MOD._add_channel(CTX, response, lnd_chan, pb.PENDING_MUTUAL_CLOSE)
         assert not mocked_conv.called
         self.assertEqual(response, pb.ListChannelsResponse())
         # Pending: filled
@@ -755,7 +755,7 @@ class LightLndTests(TestCase):
             capacity=7777777,
             local_balance=6666666,
             remote_balance=1111111)
-        MOD._add_channel(CTX, response, lnd_chan)
+        MOD._add_channel(CTX, response, lnd_chan, pb.PENDING_MUTUAL_CLOSE)
         calls = [
             call(CTX, Enf.SATS, lnd_chan.capacity),
             call(CTX, Enf.SATS, lnd_chan.local_balance),
@@ -763,6 +763,17 @@ class LightLndTests(TestCase):
         ]
         mocked_conv.assert_has_calls(calls)
         self.assertEqual(response.channels[0].remote_pubkey, 'abc')
+        # Skip add of inactive channel case
+        reset_mocks(vars())
+        response = pb.ListChannelsResponse()
+        lnd_chan = ln.Channel(
+            chan_id=123,
+            capacity=7777777,
+            local_balance=6666666,
+            remote_balance=1111111,
+            active=False)
+        MOD._add_channel(CTX, response, lnd_chan, pb.OPEN, True)
+        self.assertEqual(response, pb.ListChannelsResponse())
 
     def test_check_timestamp(self):
         # list_order 1, search_order 1: search_timestamp lower than creation_date

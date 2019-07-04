@@ -16,7 +16,7 @@
 
 from importlib import import_module
 from unittest import TestCase
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 from lighter import lighter_pb2 as pb
 from lighter import light_clightning, settings
@@ -176,12 +176,15 @@ class LightClightningTests(TestCase):
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning._add_channel', autospec=True)
+    @patch('lighter.light_clightning._get_state', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
-    def test_ListChannels(self, mocked_command, mocked_add, mocked_handle):
+    def test_ListChannels(self, mocked_command, mocked_state, mocked_add,
+                          mocked_handle):
         api = 'listpeers'
         # Correct case: request.active_only = False
         request = pb.ListChannelsRequest()
         mocked_command.return_value = fix.LISTPEERS
+        mocked_state.return_value = pb.OPEN
         res = MOD.ListChannels(request, CTX)
         mocked_command.assert_called_once_with(CTX, api)
         assert mocked_add.called
@@ -204,6 +207,16 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.LISTPEERS_EMPTY, always_abort=False)
         self.assertEqual(res, pb.ListChannelsResponse())
+        # Negative state case (closed channel)
+        reset_mocks(vars())
+        request = pb.ListChannelsRequest()
+        mocked_command.return_value = fix.LISTPEERS
+        mocked_state.return_value = -1
+        res = MOD.ListChannels(request, CTX)
+        mocked_command.assert_called_once_with(CTX, api)
+        assert not mocked_add.called
+        mocked_handle.assert_called_once_with(
+            CTX, fix.LISTPEERS, always_abort=False)
         # Error case
         reset_mocks(vars())
         mocked_command.return_value = fix.BADRESPONSE
@@ -718,10 +731,11 @@ class LightClightningTests(TestCase):
 
     @patch('lighter.light_clightning.convert', autospec=True)
     def test_add_channel(self, mocked_conv):
+        # Add channel case
         response = pb.ListChannelsResponse()
         cl_peer = fix.LISTPEERS['peers'][0]
         cl_chan = cl_peer['channels'][0]
-        res = MOD._add_channel(CTX, response, cl_peer, cl_chan)
+        res = MOD._add_channel(CTX, response, cl_peer, cl_chan, pb.OPEN, False)
         self.assertEqual(mocked_conv.call_count, 2)
         self.assertEqual(res, None)
         self.assertEqual(res, None)
@@ -733,6 +747,14 @@ class LightClightningTests(TestCase):
         self.assertEqual(response.channels[0].capacity, 1.0)
         self.assertEqual(response.channels[0].local_balance, 1.0)
         self.assertEqual(response.channels[0].remote_balance, 0.0)
+        # Skip add of inactive channel case
+        reset_mocks(vars())
+        response = pb.ListChannelsResponse()
+        res = MOD._add_channel(
+            CTX, response, cl_peer, fix.CHANNEL_AWAITING_LOCKIN,
+            pb.PENDING_OPEN, True)
+        self.assertEqual(response, pb.ListChannelsResponse())
+
 
     @patch('lighter.light_clightning.convert', autospec=True)
     def test_add_payment(self, mocked_conv):
@@ -787,6 +809,26 @@ class LightClightningTests(TestCase):
         mocked_datetime.now().timestamp.return_value = 1533152937.911157
         res = MOD._create_label()
         self.assertEqual(res, '1533152937911157')
+
+    def test_get_state(self):
+        res = MOD._get_state(fix.CHANNEL_CLOSED)
+        self.assertEqual(res, -1)
+        res = MOD._get_state(fix.CHANNEL_RESOLVED)
+        self.assertEqual(res, -1)
+        res = MOD._get_state(fix.CHANNEL_NORMAL)
+        self.assertEqual(res, pb.OPEN)
+        res = MOD._get_state(fix.CHANNEL_UNILATERAL)
+        self.assertEqual(res, pb.PENDING_FORCE_CLOSE)
+        res = MOD._get_state(fix.CHANNEL_SHUTTING_DOWN)
+        self.assertEqual(res, pb.PENDING_MUTUAL_CLOSE)
+        res = MOD._get_state(fix.CHANNEL_AWAITING_UNILATERAL)
+        self.assertEqual(res, pb.PENDING_FORCE_CLOSE)
+        res = MOD._get_state(fix.CHANNEL_MUTUAL)
+        self.assertEqual(res, pb.PENDING_MUTUAL_CLOSE)
+        res = MOD._get_state(fix.CHANNEL_AWAITING_LOCKIN)
+        self.assertEqual(res, pb.PENDING_OPEN)
+        res = MOD._get_state(fix.CHANNEL_UNKNOWN)
+        self.assertEqual(res, pb.UNKNOWN)
 
     @patch('lighter.light_clightning.Err')
     def test_handle_error(self, mocked_err):

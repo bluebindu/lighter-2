@@ -153,23 +153,17 @@ class LightEclairTests(TestCase):
     @patch('lighter.light_eclair.command', autospec=True)
     def test_ListChannels(self, mocked_command, mocked_add, mocked_handle):
         cmd = 'channels'
-        # Active only
-        mocked_command.return_value = fix.CHANNELS
-        request = pb.ListChannelsRequest(active_only=True)
-        res = MOD.ListChannels(request, CTX)
-        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
-        mocked_add.assert_called_once_with(
-            CTX, pb.ListChannelsResponse(), fix.CHANNEL_NORMAL)
-        mocked_handle.assert_called_once_with(
-            CTX, fix.CHANNELS, always_abort=False)
-        self.assertEqual(res, pb.ListChannelsResponse())
         # List all channels
         reset_mocks(vars())
         mocked_command.return_value = fix.CHANNELS
         request = pb.ListChannelsRequest(active_only=False)
         res = MOD.ListChannels(request, CTX)
         mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
-        self.assertEqual(mocked_add.call_count, 2)
+        calls = [
+            call(CTX, pb.ListChannelsResponse(), fix.CHANNEL_NORMAL, False),
+            call(CTX, pb.ListChannelsResponse(), fix.CHANNEL_WAITING_FUNDING,
+                 False)]
+        mocked_add.assert_has_calls(calls)
         mocked_handle.assert_called_once_with(
             CTX, fix.CHANNELS, always_abort=False)
         self.assertEqual(res, pb.ListChannelsResponse())
@@ -550,10 +544,13 @@ class LightEclairTests(TestCase):
         self.assertEqual(res, False)
 
     @patch('lighter.light_eclair.convert', autospec=True)
-    def test_add_channel(self, mocked_conv):
+    @patch('lighter.light_eclair._get_state', autospec=True)
+    def test_add_channel(self, mocked_state, mocked_conv):
+        # Add channel case
         response = pb.ListChannelsResponse()
         mocked_conv.side_effect = [0, 20000]
-        res = MOD._add_channel(CTX, response, fix.CHANNEL_NORMAL)
+        mocked_state.return_value = pb.OPEN
+        res = MOD._add_channel(CTX, response, fix.CHANNEL_NORMAL, False)
         calls = [
             call(CTX, Enf.MSATS, 50000000),
             call(CTX, Enf.MSATS, 150000000)
@@ -569,6 +566,34 @@ class LightEclairTests(TestCase):
         self.assertEqual(response.channels[0].local_balance, 0)
         self.assertEqual(response.channels[0].remote_balance, 20000)
         self.assertEqual(response.channels[0].capacity, 20000)
+        # Skip add of closed channel case
+        reset_mocks(vars())
+        response = pb.ListChannelsResponse()
+        mocked_state.return_value = -1
+        res = MOD._add_channel(CTX, response, fix.CHANNEL_NORMAL, False)
+        self.assertEqual(response, pb.ListChannelsResponse())
+        # Skip add of inactive channel case
+        reset_mocks(vars())
+        response = pb.ListChannelsResponse()
+        mocked_state.return_value = pb.OPEN
+        res = MOD._add_channel(CTX, response, fix.CHANNEL_OFFLINE, True)
+        self.assertEqual(response, pb.ListChannelsResponse())
+
+    def test_get_state(self):
+        res = MOD._get_state(fix.CHANNEL_WAITING_FUNDING)
+        self.assertEqual(res, pb.PENDING_OPEN)
+        res = MOD._get_state(fix.CHANNEL_NORMAL)
+        self.assertEqual(res, pb.OPEN)
+        res = MOD._get_state(fix.CHANNEL_OFFLINE)
+        self.assertEqual(res, pb.OPEN)
+        res = MOD._get_state(fix.CHANNEL_UNKNOWN)
+        self.assertEqual(res, pb.UNKNOWN)
+        res = MOD._get_state(fix.CHANNEL_MUTUAL)
+        self.assertEqual(res, pb.PENDING_MUTUAL_CLOSE)
+        res = MOD._get_state(fix.CHANNEL_UNILATERAL)
+        self.assertEqual(res, pb.PENDING_FORCE_CLOSE)
+        res = MOD._get_state(fix.CHANNEL_CLOSED)
+        self.assertEqual(res, -1)
 
     @patch('lighter.light_eclair.Err')
     def test_handle_error(self, mocked_err):
