@@ -21,6 +21,7 @@ from concurrent.futures import TimeoutError as TimeoutErrFut, \
     ThreadPoolExecutor
 from contextlib import suppress
 from datetime import datetime, timedelta, timezone
+from functools import wraps
 from getpass import getpass
 from logging import getLogger
 from time import sleep
@@ -38,8 +39,22 @@ SEARCHING_ENTROPY = True
 
 def _exit(message):
     """ Exits printing a message """
-    print(message)
+    if message:
+        print(message)
     sys.exit(0)
+
+
+def _handle_keyboardinterrupt(func):
+    """ Handles KeyboardInterrupt """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+        except KeyboardInterrupt:
+            _exit('\nKeyboard interrupt detected. Exiting...')
+
+    return wrapper
 
 
 def _remove_files():
@@ -225,6 +240,7 @@ def _gen_password(seed):
     return ''.join(alpha[i % len(alpha)] for i in seed)
 
 
+@_handle_keyboardinterrupt
 def secure():
     """ Handles Lighter and implementation secrets """
     update_logger()
@@ -267,9 +283,12 @@ def secure():
         password = getpass("Insert Lighter's password: ")
         for version, salt in DbHandler.get_salt_from_db(FakeContext()):
             Crypter.gen_access_key(version, password, salt)
-        check_password(FakeContext())
+        try:
+            check_password(FakeContext())
+        except RuntimeError:
+            _exit('')
         ecl_sec, lnd_sec = _recover_secrets(password)
-    create_mac = input('Do you want to create macaroon files (warning:'
+    create_mac = input('Do you want to create macaroon files (warning: '
                        'macaroons should not be kept in this host)? [Y/n] ')
     if str2bool(create_mac, force_true=True):
         _create_lightning_macaroons()
