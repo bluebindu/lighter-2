@@ -228,7 +228,7 @@ CHANNEL_NORMAL = {
           "globalFeatures": "",
           "localFeatures": "81"
         },
-        "channelFlags": 1,
+        "channelFlags": 0,
         "localCommit": {
           "index": 0,
           "spec": {
@@ -534,6 +534,8 @@ GETSENTINFO_SUCCESS = [
     "status": "SUCCEEDED"
   }
 ]
+
+ERROR = "error"
 
 
 PARSEINVOICE = {

@@ -50,7 +50,7 @@ OK_STRING='[OK]'
 ERROR_STRING='[ERROR]'
 
 # Eclair variables
-ECL_REF=${ECL_REF:-'v0.3'}
+ECL_REF=${ECL_REF:-'v0.3.1'}
 ECL_URL='https://raw.githubusercontent.com/ACINQ/eclair'
 ECL_CLI='eclair-cli'
 

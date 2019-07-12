@@ -27,6 +27,10 @@ from .utils import check_req_params, command, convert, Enforcer as Enf, \
     has_amount_encoded
 
 ERRORS = {
+    'bech32 address does not match our blockchain': {
+        'fun': 'invalid',
+        'params': 'address'
+    },
     'cannot open connection with oneself': {
         'fun': 'connect_failed'
     },
@@ -39,6 +43,10 @@ ERRORS = {
     'Could not resolve host': {
         'fun': 'node_error'
     },
+    'is neither a valid Base58 address': {
+        'fun': 'invalid',
+        'params': 'address'
+    },
     'insufficient funds': {
         'fun': 'insufficient_funds'
     },
@@ -50,6 +58,10 @@ ERRORS = {
     },
     'route not found': {
         'fun': 'route_not_found'
+    },
+    'The form field \'invoice\' was malformed:': {
+        'fun': 'invalid',
+        'params': 'payment_request'
     },
     'The supplied authentication is invalid': {
         'fun': 'node_error'
@@ -99,7 +111,7 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
         elif ecl_res['chainHash'] == settings.MAIN_HASH:
             network = 'mainnet'
         else:
-            network = 'unknown'
+            network = 'regtest'
         response.network = network
     _handle_error(context, ecl_res, always_abort=False)
     return response
@@ -181,10 +193,11 @@ def CreateInvoice(request, context):
     if request.fallback_addr:
         ecl_req.append('--fallbackAddress="{}"'.format(request.fallback_addr))
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
-    _handle_error(context, ecl_res, always_abort=False)
     response = pb.CreateInvoiceResponse()
     if _defined(ecl_res, 'serialized'):
         response.payment_request = ecl_res['serialized']
+    else:
+        _handle_error(context, ecl_res, always_abort=True)
     if _defined(ecl_res, 'paymentHash'):
         response.payment_hash = ecl_res['paymentHash']
     if _defined(ecl_res, 'timestamp') and _defined(ecl_res, 'expiry'):
@@ -268,6 +281,8 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
         response.destination_pubkey = ecl_res['nodeId']
     if _defined(ecl_res, 'paymentHash'):
         response.payment_hash = ecl_res['paymentHash']
+    else:
+        _handle_error(context, ecl_res, always_abort=True)
     if _defined(ecl_res, 'description'):
         if _is_description_hash(ecl_res['description']):
             response.description_hash = ecl_res['description']
@@ -277,7 +292,6 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
         response.expiry_time = ecl_res['expiry']
     if _defined(ecl_res, 'minFinalCltvExpiry'):
         response.min_final_cltv_expiry = ecl_res['minFinalCltvExpiry']
-    _handle_error(context, ecl_res, always_abort=False)
     return response
 
 
@@ -347,6 +361,9 @@ def _add_channel(context, response, ecl_chan, active_only):
                     if local_balance and remote_balance:
                         grpc_chan.capacity = \
                             grpc_chan.local_balance + grpc_chan.remote_balance
+            if _defined(commitments, 'channelFlags') and \
+                    commitments['channelFlags'] == 0:
+                grpc_chan.private = True
 
 
 def _get_state(ecl_chan):
