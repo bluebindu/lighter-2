@@ -16,6 +16,12 @@
 """ Fixtures for test_light_eclair module """
 
 
+NODE_ID = "021f7b8bbfbca12b6520683fe39aa80316b729b49db6735a164ad019f81485a684"
+HOST = "snoopy"
+PORT = 9735
+NODE_URI = '{}@{}:{}'.format(NODE_ID, HOST, PORT)
+
+
 ALLNODES = [
   {
     "signature": "3044022072537adb1a10dab3a4630b578e678f0b5b7f2916af65b5e2a1f71e751b8dddc802200903b8a33fc154b4542acee481446dd674238256d354249d7d10408c413201f201",
@@ -446,6 +452,9 @@ CHANNEL_UNKNOWN = {
 CHANNELS = [CHANNEL_NORMAL, CHANNEL_WAITING_FUNDING]
 
 
+CONNECT = 'connected'
+
+
 CREATEINVOICE = {
   "prefix": "lntb",
   "timestamp": 1557768667,
@@ -536,6 +545,12 @@ GETSENTINFO_SUCCESS = [
 ]
 
 ERROR = "error"
+
+
+ERROR_CHANNEL = "created channel"
+
+
+OPEN = 'created channel e872f515dc5d8a3d61ccbd2127f33141eaa115807271dcc5c5c727f3eca914d3'
 
 
 PARSEINVOICE = {

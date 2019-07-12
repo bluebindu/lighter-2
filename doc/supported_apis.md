@@ -15,7 +15,7 @@ Here's a table of Lighter APIs availability for each implementation:
 | ListPeers        |      ☇      |    ☇   |  ☇  |
 | ListTransactions |             |        |  ☇  |
 | NewAddress       |      ☇      |        |  ☇  |
-| OpenChannel      |      ☇      |        |  ☇  |
+| OpenChannel      |      ☇      |    ☇   |  ☇  |
 | PayInvoice       |      ☇      |    ☇   |  ☇  |
 | PayOnChain       |      ☇      |        |  ☇  |
 | WalletBalance    |      ☇      |        |  ☇  |

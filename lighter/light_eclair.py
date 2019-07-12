@@ -295,6 +295,52 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
     return response
 
 
+def OpenChannel(request, context):
+    """ Tries to connect and open a channel with a peer """
+    check_req_params(context, request, 'node_uri', 'funding_bits')
+    ecl_req = ['connect']
+    response = pb.OpenChannelResponse()
+    try:
+        pubkey, _host = request.node_uri.split("@")
+    except ValueError:
+        Err().invalid(context, 'node_uri')
+    ecl_req.append('--uri={}'.format(request.node_uri))
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
+    if 'connected' not in ecl_res:
+        Err().connect_failed(context)
+    ecl_req = ['open']
+    ecl_req.append('--nodeId={}'.format(pubkey))
+    ecl_req.append('--fundingSatoshis={}'.format(
+        convert(context, Enf.SATS, request.funding_bits,
+                enforce=Enf.FUNDING_SATOSHIS, max_precision=Enf.SATS)))
+    if request.push_bits:
+        ecl_req.append('--pushMsat={}'.format(
+            convert(context, Enf.MSATS, request.push_bits,
+                    enforce=Enf.PUSH_MSAT, max_precision=Enf.MSATS)))
+    if request.private:
+        ecl_req.append('--channelFlags=0')
+    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
+    if 'created channel' not in ecl_res:
+        _handle_error(context, ecl_res, always_abort=True)
+    ecl_req = ['channel']
+    try:
+        channel_id = ecl_res.split(' ')[2]
+        ecl_req.append('--channelId={}'.format(channel_id))
+        ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
+        if _defined(ecl_res, 'data'):
+            data = ecl_res['data']
+            if _defined(data, 'commitments'):
+                commitments = data['commitments']
+                if _defined(commitments, 'commitInput'):
+                    commit_input = commitments['commitInput']
+                    if _defined(commit_input, 'outPoint'):
+                        funding_txid = commit_input['outPoint'].split(':')[0]
+                        response.funding_txid = funding_txid
+    except IndexError:
+        pass
+    return response
+
+
 def _defined(dictionary, key):
     """ Checks if key is in dictionary and that it's not None """
     return key in dictionary and dictionary[key] is not None

@@ -524,6 +524,66 @@ class LightEclairTests(TestCase):
             CTX, fix.ERROR, always_abort=True)
         self.assertEqual(res, 'not set')
 
+    @patch('lighter.light_eclair.convert', autospec=True)
+    @patch('lighter.light_eclair._handle_error', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
+    @patch('lighter.light_eclair.Err')
+    @patch('lighter.light_eclair.check_req_params', autospec=True)
+    def test_OpenChannel(self, mocked_check_par, mocked_err, mocked_command,
+                         mocked_handle, mocked_conv):
+        amt = 7
+        mocked_err().invalid.side_effect = Exception()
+        mocked_err().connect_failed.side_effect = Exception()
+        mocked_handle.side_effect = Exception()
+        # Filled
+        request = pb.OpenChannelRequest(
+            funding_bits=amt, node_uri=fix.NODE_URI, push_bits=77,
+            private=True)
+        mocked_command.side_effect = [fix.CONNECT, fix.OPEN, fix.CHANNEL_NORMAL]
+        res = MOD.OpenChannel(request, CTX)
+        self.assertEqual(res.funding_txid,
+            '53a2466cc224937a4ef91a69fed27dac24831c53b2a0a64bf484ec587d851543')
+        # Error in opening channel case
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest(
+            funding_bits=amt, node_uri=fix.NODE_URI)
+        mocked_command.side_effect = [fix.CONNECT, fix.ERROR]
+        mocked_handle.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        mocked_handle.assert_called_once_with(
+            CTX, fix.ERROR, always_abort=True)
+        # Connect failed case
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest(
+            funding_bits=amt, node_uri=fix.NODE_URI)
+        mocked_command.side_effect = [fix.ERROR]
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        mocked_err().connect_failed.assert_called_once_with(CTX)
+        # invalid node_uri case
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest(funding_bits=amt, node_uri='wrong')
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        mocked_err().invalid.assert_called_once_with(CTX, 'node_uri')
+        assert not mocked_command.called
+        # Missing parameter case
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest()
+        mocked_check_par.side_effect = Exception()
+        with self.assertRaises(Exception):
+            MOD.OpenChannel(request, CTX)
+        assert not mocked_command.called
+        mocked_check_par.side_effect = None
+        # Error in retrieving channel info (should not happen)
+        reset_mocks(vars())
+        request = pb.OpenChannelRequest(
+            funding_bits=amt, node_uri=fix.NODE_URI)
+        mocked_command.side_effect = [fix.CONNECT, fix.ERROR_CHANNEL]
+        res = MOD.OpenChannel(request, CTX)
+        self.assertEqual(res, pb.OpenChannelResponse())
+
     def test_defined(self):
         """
         This method is so simple that it will not be mocked in other tests
