@@ -10,8 +10,9 @@ This will ask for Lighter's password.
 On a first run (or when overriding the database) this will be the new password
 that will be used to encrypt the secrets and will be required to unlock Lighter
 when starting.
-If the database has been kept, the provided password will be used to verify its
-correctness and manage implementation secrets.
+On successive runs, if the database has not be overridden (first
+`make secure` question), the provided password will be used to verify its
+correctness, manage implementation secrets and generate macaroons rootkey.
 
 The database will contain the root key to verify macaroons
 and, depending on the configured implementation, the implementation secrets.
@@ -19,8 +20,60 @@ All secrets are encrypted using the _secretbox_ symmetric key algorithm and a
 32-byte key derived from the password using _scrypt_.
 
 If security features are enabled, the UnlockerServicer will start before the
-LightningServicer and ask for a password to unlock Lighter's database.
+LightningServicer and ask for a password that will be used to decrypt
+Lighter's database.
 
+## Password Strength
+
+We strongly suggest the usage of a
+[password manager](https://en.wikipedia.org/wiki/List_of_password_managers)
+to create and store on users' behalf a randomly crafted strong password.
+Lighter can generate it for you when running `make secure` for the first
+time or after choosing to delete the database.
+The auto generated password is by default 12 chars long and uses a 64-char
+alphabet.
+Alternatively one can have a look at the following
+[guidelines](https://en.wikipedia.org/wiki/Password_strength#Guidelines_for_strong_passwords)
+for good practices.
+
+### Scrypt guarantees
+
+The use of _scrypt_ to stretch the password with a random salt helps it to
+become stronger against brute-force and rainbow-table attacks. The
+[_scrypt_ whitepaper](http://www.tarsnap.com/scrypt/scrypt.pdf)
+gives estimation on the cost of the hardware needed to crack a password in one
+year on average with the default `cost_factor` at 2<sup>14</sup>, as compared
+to other key derivation functions:
+
+|KDF   |6 letters|8 letters|8 chars|10 chars|
+|:-----|--------:|--------:|------:|-------:|
+|PBKDF2|<$1      |<$1      |$18k   |$160M   |
+|bcrypt|<$1      |$4       |$130k  |$1.2B   |
+|scrypt|<$1      |$150     |$4.8M  |$43B    |
+
+Although these values might become off by a factor 10 due to hardware cost
+instability or performance improvement, they offer a good idea on the confidence
+one can put into a password.
+__Important note:__ these values only apply in the case of _randomly_ chosen
+passwords; the ones created to be remembered by humans tend to be weak against
+pure dictionary attacks.
+
+### Entropy source
+
+The confidence that can be put on the solutions described above depends
+significantly from the available entropy source. For this reason we use a
+blocking (`/dev/random`) source of randomness which only returns when the
+Operating System has enough entropy to fulfill the request.
+On most devices this should not affect execution time, but if it is the case
+you can help this process by doing one or more of the following when you will
+be asked to:
+* randomly utilize an input device (keyboard, mouse) connected to the host
+running Lighter
+* install entropy collecting tools like
+[haveged](https://linux.die.net/man/8/haveged)
+* install a hardware TRNG
+* type `unsafe` and press enter to use a non-blocking entropy source; this
+choice will NOT be remembered for later
 
 ## Implementation secrets
 

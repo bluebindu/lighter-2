@@ -17,18 +17,23 @@
 
 import sys
 
+from concurrent.futures import TimeoutError as TimeoutErrFut, \
+    ThreadPoolExecutor
 from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from getpass import getpass
 from logging import getLogger
-from os import environ, path, remove
+from time import sleep
+from os import environ, path, remove, urandom
 
 from lighter import settings
 from lighter.macaroons import get_baker, MACAROONS, MAC_VERSION
 from lighter.utils import check_password, Crypter, DbHandler, FakeContext, \
-    gen_random_data, get_start_options, str2bool, update_logger
+    get_start_options, str2bool, update_logger
 
 LOGGER = getLogger(__name__)
+
+SEARCHING_ENTROPY = True
 
 
 def _exit(message):
@@ -95,6 +100,7 @@ def _set_lnd(secret):
 
 
 def _encrypt_token():
+    """ Encrypts token and saves it into db to verify password correctness """
     encrypted_token = Crypter.crypt(
         Crypter.LATEST_VERSION, settings.ACCESS_TOKEN)
     DbHandler.save_token_in_db(
@@ -135,6 +141,90 @@ def _create_lightning_macaroons():
         LOGGER.info('%s written to %s', file_name, settings.MACAROONS_DIR)
 
 
+def _get_entropy():
+    with open('/proc/sys/kernel/random/entropy_avail', 'r') as entropy:
+        entropy_available = int(entropy.read())
+        return entropy_available
+
+
+def _read(source, num_bytes):
+    global SEARCHING_ENTROPY
+    try:
+        while _get_entropy() < num_bytes * 8:
+            if not SEARCHING_ENTROPY:
+                return
+            sleep(1)
+        random_bytes = source.read(num_bytes)
+        return random_bytes
+    except Exception:
+        use_urand = input("Cannot retrieve available entropy, do you want to "
+                          "use whatever your os provides to python's "
+                          "os.urandom? [Y/n] ")
+        if str2bool(use_urand, force_true=True):
+            return
+        _exit("No way to retrieve the amount of available entropy")
+
+
+def _gen_random_data(num_bytes):
+    """ Generates random data of key_len length """
+    global COLLECTING_INPUT
+    global SEARCHING_ENTROPY
+    if settings.ENTROPY_BLOCKING:
+        try:
+            source = open("/dev/random", "rb")
+            executor = ThreadPoolExecutor(max_workers=2)
+            future_input = None
+            future = executor.submit(_read, source, num_bytes)
+            data = future.result(timeout=1)
+            if data:
+                return data
+        except FileNotFoundError:
+            use_urand = input("The blocking '/dev/random' entropy source is "
+                              "not available, do you want to use whatever "
+                              "your os provides to python's os.urandom? "
+                              "[Y/n] ")
+            if str2bool(use_urand, force_true=True):
+                return urandom(num_bytes)
+            _exit("No Random Numbers Generator available")
+        except TimeoutErrFut:
+            print("This call might take long depending on the "
+                  "available entropy. If this happens you can:\n"
+                  " - type randomly on the keyboard or move the mouse\n"
+                  " - install entropy collecting tools like haveged\n"
+                  " - install a hardware TRNG\n"
+                  " - type 'unsafe' and press enter to use a non-blocking "
+                  "entropy source; this choice will NOT be remembered for "
+                  "later\n")
+            while future.running():
+                if not future_input:
+                    future_input = executor.submit(input)
+                if future_input.done():
+                    if future_input.result() == 'unsafe':
+                        SEARCHING_ENTROPY = False
+                        return urandom(num_bytes)
+                    future_input = None
+                sleep(1)
+            print()
+            LOGGER.info("Enough entropy was collected, thanks for waiting")
+            result = future.result()
+            if result:
+                return result
+        finally:
+            if source:
+                source.close()
+            if executor:
+                executor.shutdown(wait=False)
+    return urandom(num_bytes)
+
+
+def _gen_password(seed):
+    """ Generates a safe random password from a 64-char alphabet """
+    # base58 charset plus some symbols up to 64
+    alpha = r'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz+/\&-_'
+    assert 256 % len(alpha) is 0
+    return ''.join(alpha[i % len(alpha)] for i in seed)
+
+
 def secure():
     """ Handles Lighter and implementation secrets """
     update_logger()
@@ -149,11 +239,26 @@ def secure():
         if not DbHandler.has_token(FakeContext()):
             _exit('Detected an incomplete configuration. Delete database.')
     if new:
-        password = getpass('Insert a safe password for Lighter: ')
-        password_check = getpass('Repeat password: ')
+        print('Lighter is about to ask for a new password! As humans are '
+              'really bad at generating entropy, we suggest using a password '
+              'manager to generate and store the password on your behalf. '
+              'Refer to doc/security.md for more details.')
+        gen_psw = input('Do you want Lighter to generate a safe random '
+                        'password for you? (new password will be printed to '
+                        'stdout) [Y/n] ')
+        if str2bool(gen_psw, force_true=True):
+            seed = _gen_random_data(settings.PASSWORD_LEN + settings.SALT_LEN)
+            password = _gen_password(seed[:settings.PASSWORD_LEN])
+            print("Here is your new password:")
+            print(password)
+        else:
+            seed = _gen_random_data(settings.SALT_LEN)
+            password = getpass('Insert a safe password for Lighter: ')
+        password_check = getpass('Save the password and then enter it '
+                                 'for verification: ')
         if password != password_check:
             _exit("Passwords do not match")
-        salt = gen_random_data(settings.SALT_LEN)
+        salt = seed[-settings.SALT_LEN:]
         DbHandler.save_salt_in_db(FakeContext(), Crypter.LATEST_VERSION, salt)
         Crypter.gen_access_key(Crypter.LATEST_VERSION, password, salt)
         _encrypt_token()

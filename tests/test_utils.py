@@ -402,12 +402,6 @@ class UtilsTests(TestCase):
         res = MOD._has_numbers('lighter')
         self.assertEqual(res, False)
 
-    def test_gen_random_data(self):
-        length = 7
-        res = MOD.gen_random_data(length)
-        self.assertEqual(len(res), length)
-        self.assertTrue(isinstance(res, bytes))
-
     @patch('lighter.utils.Err')
     def test_crypter(self, mocked_err):
         password = 'lighterrocks'
