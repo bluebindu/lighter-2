@@ -24,7 +24,7 @@ from importlib import import_module
 from json import dumps, loads, JSONDecodeError
 from logging import getLogger
 from logging.config import dictConfig
-from os import environ as env, path, urandom
+from os import environ as env, path
 from sqlite3 import connect, Error
 from subprocess import PIPE, Popen, TimeoutExpired
 from time import sleep, strftime
@@ -344,11 +344,6 @@ def _has_numbers(input_string):
     return any(char.isdigit() for char in input_string)
 
 
-def gen_random_data(key_len):
-    """ Generates random data of key_len length """
-    return urandom(key_len)
-
-
 def check_password(context):
     """
     Checks the inserted password by generating an access key and trying
@@ -375,6 +370,7 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
     LATEST_VERSION = sett.LATEST_VERSION
 
     V1_PARAMS = {
+        # switch to 15 on next security rework
         'cost_factor': 2**14,
         'block_size_factor': 8,
         'parallelization_factor': 1,
