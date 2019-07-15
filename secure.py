@@ -24,7 +24,8 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from getpass import getpass
 from logging import getLogger
-from time import sleep
+from select import select
+from time import time, sleep
 from os import environ, path, remove, urandom
 
 from lighter import settings
@@ -35,6 +36,28 @@ from lighter.utils import check_password, Crypter, DbHandler, FakeContext, \
 LOGGER = getLogger(__name__)
 
 SEARCHING_ENTROPY = True
+COLLECTING_INPUT = True
+
+READ_LIST = [sys.stdin]
+
+IDLE_MESSAGES = {
+    1: {
+        'msg': 'please keep generating entropy',
+        'delay': 5
+    },
+    2: {
+        'msg': 'more entropy, please',
+        'delay': 15
+    },
+    3: {
+        'msg': '...good things come to those who wait...',
+        'delay': 30
+    }
+}
+
+FIRST_WORK_TIME = None
+IDLE_COUNTER = 1
+IDLE_LAST_DELAY = 15
 
 
 def _exit(message):
@@ -49,9 +72,13 @@ def _handle_keyboardinterrupt(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
+        global COLLECTING_INPUT
+        global SEARCHING_ENTROPY
         try:
             func(*args, **kwargs)
         except KeyboardInterrupt:
+            COLLECTING_INPUT = False
+            SEARCHING_ENTROPY = False
             _exit('\nKeyboard interrupt detected. Exiting...')
 
     return wrapper
@@ -59,7 +86,7 @@ def _handle_keyboardinterrupt(func):
 
 def _remove_files():
     """ Removes database and macaroons """
-    print('Removing database and macaroons')
+    LOGGER.info('Removing database and macaroons')
     database = path.join(settings.DB_DIR, settings.DB_NAME)
     with suppress(FileNotFoundError):
         remove(database)
@@ -123,7 +150,7 @@ def _encrypt_token():
     LOGGER.info('Encrypted token stored in the DB')
 
 
-def _recover_secrets(password):
+def _recover_secrets():
     """ Recovers secrets from db, making sure password is correct """
     ecl_sec = lnd_sec = None
     try:
@@ -142,7 +169,7 @@ def _recover_secrets(password):
 
 def _create_lightning_macaroons():
     """ Creates macaroon files to use the LightningServicer """
-    LOGGER.info('Creating macaroons...')
+    print('Creating macaroons...')
     baker = get_baker(settings.ACCESS_KEY_V1)
     for file_name, permitted_ops in MACAROONS.items():
         macaroon_file = path.join(settings.MACAROONS_DIR, file_name)
@@ -157,12 +184,47 @@ def _create_lightning_macaroons():
 
 
 def _get_entropy():
+    """ Gets available entropy """
     with open('/proc/sys/kernel/random/entropy_avail', 'r') as entropy:
         entropy_available = int(entropy.read())
         return entropy_available
 
 
+def _input():
+    """ Gets input asynchronously """
+    global COLLECTING_INPUT
+    global READ_LIST
+    global FIRST_WORK_TIME
+    FIRST_WORK_TIME = time()
+    while READ_LIST and COLLECTING_INPUT:
+        ready = select(READ_LIST, [], [], 0.2)[0]
+        if not ready and COLLECTING_INPUT:
+            _idle()
+        else:
+            for file in ready:
+                line = file.readline()
+                if not line: # EOF, remove file from input list
+                    READ_LIST.remove(file)
+                elif line.rstrip():
+                    return line.rstrip()
+
+
+def _idle():
+    """ During input idling prints periodic messages """
+    global FIRST_WORK_TIME
+    global IDLE_COUNTER
+    global IDLE_MESSAGES
+    if time() - FIRST_WORK_TIME > IDLE_MESSAGES[IDLE_COUNTER]['delay']:
+        print(IDLE_MESSAGES[IDLE_COUNTER]['msg'])
+        if IDLE_COUNTER == 3:
+            IDLE_MESSAGES[IDLE_COUNTER]['delay'] = \
+                IDLE_MESSAGES[IDLE_COUNTER]['delay'] + 15
+        else:
+            IDLE_COUNTER = IDLE_COUNTER + 1
+
+
 def _read(source, num_bytes):
+    """ Gets entropy from /dev/random asynchronously """
     global SEARCHING_ENTROPY
     try:
         while _get_entropy() < num_bytes * 8:
@@ -212,13 +274,15 @@ def _gen_random_data(num_bytes):
                   "later\n")
             while future.running():
                 if not future_input:
-                    future_input = executor.submit(input)
+                    future_input = executor.submit(_input)
                 if future_input.done():
                     if future_input.result() == 'unsafe':
                         SEARCHING_ENTROPY = False
+                        COLLECTING_INPUT = False
                         return urandom(num_bytes)
                     future_input = None
                 sleep(1)
+            COLLECTING_INPUT = False
             print()
             LOGGER.info("Enough entropy was collected, thanks for waiting")
             result = future.result()
@@ -287,7 +351,7 @@ def secure():
             check_password(FakeContext())
         except RuntimeError:
             _exit('')
-        ecl_sec, lnd_sec = _recover_secrets(password)
+        ecl_sec, lnd_sec = _recover_secrets()
     create_mac = input('Do you want to create macaroon files (warning: '
                        'macaroons should not be kept in this host)? [Y/n] ')
     if str2bool(create_mac, force_true=True):
@@ -300,6 +364,7 @@ def secure():
         data, activate_secret = _set_lnd(lnd_sec)
     if data:
         crypt_data = Crypter.crypt(Crypter.LATEST_VERSION, data)
-        DbHandler.save_secret_in_db(FakeContext(), Crypter.LATEST_VERSION,
-                    settings.IMPLEMENTATION, activate_secret, crypt_data)
+        DbHandler.save_secret_in_db(
+            FakeContext(), Crypter.LATEST_VERSION, settings.IMPLEMENTATION,
+            activate_secret, crypt_data)
     _exit('All done!')
