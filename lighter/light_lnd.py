@@ -544,6 +544,9 @@ def OpenChannel(request, context):
                                        max_precision=Enf.SATS)
         lnd_res = stub.OpenChannelSync(lnd_req, timeout=settings.IMPL_TIMEOUT)
         response.funding_txid = lnd_res.funding_txid_str
+        if not lnd_res.funding_txid_str:
+            txid = encode(lnd_res.funding_txid_bytes[::-1], 'hex').decode()
+            response.funding_txid = txid
     return response
 
 

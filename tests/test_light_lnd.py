@@ -650,7 +650,7 @@ class LightLndTests(TestCase):
         request = pb.OpenChannelRequest(
             funding_bits=amt, node_uri=fix.NODE_URI, push_bits=amt,
             private=True)
-        lnd_res = ln.ChannelPoint(funding_txid_str=fix.TXID)
+        lnd_res = ln.ChannelPoint(funding_txid_bytes=fix.TXID_BYTES)
         stub.OpenChannelSync.return_value = lnd_res
         mocked_conv.return_value = amt
         MOD.OpenChannel(request, CTX)

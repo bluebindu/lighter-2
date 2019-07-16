@@ -25,7 +25,8 @@ GETINFO_TESTNET = ln.GetInfoResponse(
     identity_pubkey='asd', chains=[ln.Chain(network="testnet")],
     uris=['uri'], color='#DCDCDC', alias='lighter')
 
-TXID = "3cd3ffcbe695e53f92b057baec9a6fff3f936702512769129eb1053b0350e351"
+TXID = "fd7f6077b3d76aa6c17b0cd66b2736142fda2662c5e782be724316e365400768"
+TXID_BYTES = b"h\x07@e\xe3\x16Cr\xbe\x82\xe7\xc5b&\xda/\x146'k\xd6\x0c{\xc1\xa6j\xd7\xb3w`\x7f\xfd"
 ADDRESS = "n1ER93kV9ox9ccrA4fxGZa9JXEGnhLDGnF"
 
 NODE_ID = "021f7b8bbfbca12b6520683fe39aa80316b729b49db6735a164ad019f81485a684"
