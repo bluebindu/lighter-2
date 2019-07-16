@@ -24,6 +24,7 @@ from importlib import import_module
 from json import dumps, loads, JSONDecodeError
 from logging import getLogger
 from logging.config import dictConfig
+from marshal import dumps as mdumps, loads as mloads
 from os import environ as env, path
 from sqlite3 import connect, Error
 from subprocess import PIPE, Popen, TimeoutExpired
@@ -139,7 +140,7 @@ def _detect_impl_secret():
         return False
     detected = False
     error = False
-    _, secret, active = DbHandler.get_secret_from_db(
+    secret, active, _ = DbHandler.get_secret_from_db(
         FakeContext(), sett.IMPLEMENTATION)
     if sett.IMPLEMENTATION == 'eclair':
         detected = True  # secret always necessary when using eclair
@@ -392,70 +393,86 @@ def _has_numbers(input_string):
     return any(char.isdigit() for char in input_string)
 
 
-def check_password(context):
+def check_password(context, password):
     """
     Checks the inserted password by generating an access key and trying
     to decrypt the token in the db
     """
-    version, encrypted_token = DbHandler.get_token_from_db(context)
-    clear_token = Crypter.decrypt(context, version, encrypted_token)
+    encrypted_token, params = DbHandler.get_token_from_db(context)
+    token_params = ScryptParams('')
+    token_params.deserialize(params)
+    derived_key = Crypter.gen_derived_key(password, token_params)
+    clear_token = Crypter.decrypt(context, encrypted_token, derived_key)
     if clear_token != sett.ACCESS_TOKEN:
         Err().wrong_password(context)
 
 
+class ScryptParams():
+    """ Convenient class to store scrypt parameters """
+
+    # pylint: disable=too-many-arguments
+    def __init__(self, salt,
+                 cost_factor=sett.SCRYPT_PARAMS['cost_factor'],
+                 block_size_factor=sett.SCRYPT_PARAMS['block_size_factor'],
+                 parallelization_factor=sett.SCRYPT_PARAMS
+                 ['parallelization_factor'],
+                 key_len=sett.SCRYPT_PARAMS['key_len']):
+        self.salt = salt
+        self.cost_factor = cost_factor
+        self.block_size_factor = block_size_factor
+        self.parallelization_factor = parallelization_factor
+        self.key_len = key_len
+        # pylint: enable=too-many-arguments
+
+    def serialize(self):
+        """ Serializes ScryptParams """
+        return mdumps(
+            [self.salt, self.cost_factor, self.block_size_factor,
+             self.parallelization_factor, self.key_len])
+
+    def deserialize(self, serialized):
+        """ Deserializes ScryptParams """
+        deserialized = mloads(serialized)
+        self.salt = deserialized[0]
+        self.cost_factor = deserialized[1]
+        self.block_size_factor = deserialized[2]
+        self.parallelization_factor = deserialized[3]
+        self.key_len = deserialized[4]
+
+
 class Crypter():  # pylint: disable=too-many-instance-attributes
     """
-    Crypter provides methods to crypt and decrypt data.
-
-    When crypting, it returns the serialized data
-    cotaining a the crypted data and other data used to generate derived key
-    from password. A version string is attached to the serialized data in order
-    to allow migration.
-
-    When decrypting, it returns only the plain data that was crypted.
+    Crypter provides methods to encrypt and decrypt data and to generate
+    a derived key from a password.
     """
 
-    LATEST_VERSION = sett.LATEST_VERSION
-
-    V1_PARAMS = {
-        # switch to 15 on next security rework
-        'cost_factor': 2**14,
-        'block_size_factor': 8,
-        'parallelization_factor': 1,
-        'key_len': 32
-    }
-
     @staticmethod
-    def gen_access_key(version, password, salt):
+    def gen_derived_key(password, scrypt_params):
         """ Derives a key from a password using Scrypt """
-        params = getattr(Crypter, 'V{}_PARAMS'.format(version))
-        access_key = scrypt(
+        return scrypt(
             bytes(password, 'utf-8'),
-            salt,
-            N=params['cost_factor'],
-            r=params['block_size_factor'],
-            p=params['parallelization_factor'],
-            olen=params['key_len'])
-        setattr(sett, 'ACCESS_KEY_V{}'.format(version), access_key)
+            scrypt_params.salt,
+            N=scrypt_params.cost_factor,
+            r=scrypt_params.block_size_factor,
+            p=scrypt_params.parallelization_factor,
+            olen=scrypt_params.key_len)
 
     @staticmethod
-    def crypt(version, clear_data):
+    def crypt(clear_data, derived_key):
         """
         Crypts data using Secretbox and the access key.
         It returns the encrypted data in a serialized form
         """
-        access_key = getattr(sett, 'ACCESS_KEY_V{}'.format(version))
-        return SecretBox(access_key).encrypt(clear_data)
+        return SecretBox(derived_key).encrypt(clear_data)
 
     @staticmethod
-    def decrypt(context, version, encrypted_data):
+    def decrypt(context, encrypted_data, derived_key):
         """
         Decrypts serialized data using Secretbox and the access key.
         Throws an error when password is wrong
         """
-        access_key = getattr(sett, 'ACCESS_KEY_V{}'.format(version))
         try:
-            return SecretBox(access_key).decrypt(encrypted_data)
+            return SecretBox(derived_key).decrypt(encrypted_data)
         except CryptoError:
             Err().wrong_password(context)
 
@@ -480,17 +497,21 @@ class DbHandler():
 
     DATABASE = path.join(sett.DB_DIR, sett.DB_NAME)
     TABLE_TOKEN = 'access_token_table'
-    TABLE_SALT = 'salt_table'
+    TABLE_MAC = 'mac_root_key_table'
     TABLE_SECRETS = 'implementation_secrets'
+    DEPRECATED_TABLE_SALT = 'salt_table'
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def has_token(context):
+    def is_db_ok(context):
         """
-        It returns wheter the db contains the table with the crypted token
+        It returns wheter the db is ok (not containing old data or missing
+        essential data)
         """
         # pylint: enable=unused-argument
+        # checking if encrypted token exists
+        encrypted_token_exists = False
         table = DbHandler.TABLE_TOKEN
         if not path.isfile(DbHandler.DATABASE):
             return False
@@ -499,13 +520,23 @@ class DbHandler():
             cursor.execute('''SELECT count(*) FROM sqlite_master
                            WHERE type="table"
                            AND name="{}"'''.format(table))
-            return cursor.fetchone()[0]
+            encrypted_token_exists = cursor.fetchone()[0]
+        # checking if old salt table exists
+        salt_table_exists = True
+        table = DbHandler.DEPRECATED_TABLE_SALT
+        with connect(DbHandler.DATABASE) as connection:
+            cursor = connection.cursor()
+            cursor.execute('''SELECT count(*) FROM sqlite_master
+                           WHERE type="table"
+                           AND name="{}"'''.format(table))
+            salt_table_exists = cursor.fetchone()[0]
+        return encrypted_token_exists and not salt_table_exists
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def _get_from_db(context, table, get_all=False):
-        """ Returns the content of table ordered by version """
+    def _get_from_db(context, table):
+        """ Returns the content of a database table """
         # pylint: enable=unused-argument
         with connect(DbHandler.DATABASE) as connection:
             cursor = connection.cursor()
@@ -513,36 +544,31 @@ class DbHandler():
                            WHERE type="table"
                            AND name="{}"'''.format(table))
             entry = cursor.fetchone()[0]
-            if not entry and not get_all:
+            if not entry:
                 return None, None
-            if not entry and get_all:
-                return [(None, None,)]
-            cursor.execute('SELECT * FROM {} ORDER BY version DESC'
-                           .format(table))
-            if get_all:
-                return cursor.fetchall()
+            cursor.execute('SELECT * FROM {}'.format(table))
             return cursor.fetchone()
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def _save_in_db(context, table, version, data):
-        """ Stores data into table setting its version to the db """
+    def _save_in_db(context, table, data, scrypt_params):
+        """ Stores data into database table """
         # pylint: enable=unused-argument
         with connect(DbHandler.DATABASE) as connection:
             connection.execute(
                 '''CREATE TABLE IF NOT EXISTS {}
-                (version INTEGER, data BLOB, PRIMARY KEY(version))'''
+                (data BLOB, scrypt_params BLOB, PRIMARY KEY(data))'''
                 .format(table))
             connection.execute(
                 'INSERT OR REPLACE INTO {} VALUES (?,?)'
-                .format(table), (version, data,))
+                .format(table), (data, scrypt_params,))
 
     @staticmethod
-    def save_token_in_db(context, version, token):
+    def save_token_in_db(context, token, scrypt_params):
         """ Saves the encrypted token in database """
         DbHandler._save_in_db(
-            context, DbHandler.TABLE_TOKEN, version, token)
+            context, DbHandler.TABLE_TOKEN, token, scrypt_params)
 
     @staticmethod
     def get_token_from_db(context):
@@ -550,33 +576,33 @@ class DbHandler():
         return DbHandler._get_from_db(context, DbHandler.TABLE_TOKEN)
 
     @staticmethod
-    def save_salt_in_db(context, version, salt):
-        """ Saves Scrypt salt in database """
+    def save_mac_params_in_db(context, scrypt_params):
+        """ Saves macaroon root key parameters in database """
         DbHandler._save_in_db(
-            context, DbHandler.TABLE_SALT, version, salt)
+            context, DbHandler.TABLE_MAC, 'mac_params', scrypt_params)
 
     @staticmethod
-    def get_salt_from_db(context):
-        """ Gets Scrypt salt from database """
-        return DbHandler._get_from_db(
-            context, DbHandler.TABLE_SALT, get_all=True)
+    def get_mac_params_from_db(context):
+        """ Gets macaroon root key parameters from database """
+        return DbHandler._get_from_db(context, DbHandler.TABLE_MAC)[1]
 
     @staticmethod
     @_handle_db_errors
     # pylint: disable=unused-argument
-    def save_secret_in_db(context, version, implementation, active, data):
+    def save_secret_in_db(context, implementation, active, data,
+                          scrypt_params):
         """ Saves implementation's secret in database """
         # pylint: enable=unused-argument
         table = DbHandler.TABLE_SECRETS
         with connect(DbHandler.DATABASE) as connection:
             connection.execute(
                 '''CREATE TABLE IF NOT EXISTS {}
-                (version INTEGER, implementation TEXT, active INTEGER,
-                secret BLOB, PRIMARY KEY(version, implementation))'''
+                (implementation TEXT, active INTEGER, secret BLOB,
+                scrypt_params BLOB, PRIMARY KEY(implementation))'''
                 .format(table))
             connection.execute(
                 'INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?)'
-                .format(table), (version, implementation, active, data,))
+                .format(table), (implementation, active, data, scrypt_params,))
 
     @staticmethod
     @_handle_db_errors
@@ -593,12 +619,12 @@ class DbHandler():
                   WHERE type="table" AND name="{}"'''.format(table))
             if not cursor.fetchone()[0]:
                 return None, None, None
-            cursor.execute('''SELECT * FROM {} WHERE implementation="{}"
-                ORDER BY version DESC LIMIT 1'''.format(table, implementation))
+            cursor.execute('SELECT * FROM {} WHERE implementation="{}"'
+                           .format(table, implementation))
             entry = cursor.fetchone()
             if not entry:
                 return None, None, None
-            version = entry[0]
-            secret = entry[3]
-            active = entry[2]
-            return version, secret, active
+            secret = entry[2]
+            active = entry[1]
+            scrypt_params = entry[3]
+            return secret, active, scrypt_params

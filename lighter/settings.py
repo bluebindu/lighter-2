@@ -48,12 +48,17 @@ MAC_READONLY = 'readonly.macaroon'
 MAC_INVOICES = 'invoices.macaroon'
 
 # Security settings
-ACCESS_KEY_V1 = None
+MAC_ROOT_KEY = None
 SALT_LEN = 32
 ACCESS_TOKEN = b'lighter'
-LATEST_VERSION = 1
 PASSWORD_LEN = 12
 ENTROPY_BLOCKING = 1
+SCRYPT_PARAMS = {
+    'cost_factor': 2**15,
+    'block_size_factor': 8,
+    'parallelization_factor': 1,
+    'key_len': 32
+}
 
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
 GRPC_WORKERS = 10
@@ -101,6 +106,7 @@ MAX_INVOICES = 200
 INVOICES_TIMES = 3
 DEFAULT_DESCRIPTION = 'Lighter invoice'
 
+# Logging settings
 LOG_TIMEFMT = '%Y-%m-%d %H:%M:%S %z'
 LOG_TIMEFMT_SIMPLE = '%d %b %H:%M:%S'
 LOG_LEVEL_CONSOLE = 'INFO'

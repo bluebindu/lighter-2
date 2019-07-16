@@ -27,12 +27,12 @@ from grpc import server, ServerInterceptor, ssl_server_credentials, \
 
 from . import lighter_pb2_grpc as pb_grpc
 from . import lighter_pb2 as pb
-from . import settings
+from . import settings as sett
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
 from .utils import check_connection, check_password, check_req_params, \
     Crypter, DbHandler, FakeContext, get_start_options, \
-    handle_keyboardinterrupt, slow_exit
+    handle_keyboardinterrupt, ScryptParams, slow_exit
 
 LOGGER = getLogger(__name__)
 
@@ -55,23 +55,27 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
         """
         check_req_params(context, request, 'password')
         password = request.password
-        for version, salt in DbHandler.get_salt_from_db(context):
-            Crypter.gen_access_key(version, password, salt)
-        check_password(context)
-        if not settings.DISABLE_MACAROONS:
-            baker = get_baker(settings.ACCESS_KEY_V1, put_ops=True)
-            settings.LIGHTNING_BAKERY = baker
+        check_password(context, password)
+        if not sett.DISABLE_MACAROONS:
+            mac_params = ScryptParams('')
+            mac_params.deserialize(DbHandler.get_mac_params_from_db(context))
+            sett.MAC_ROOT_KEY = Crypter.gen_derived_key(password, mac_params)
+            baker = get_baker(sett.MAC_ROOT_KEY, put_ops=True)
+            sett.LIGHTNING_BAKERY = baker
         plain_secret = None
-        if settings.IMPLEMENTATION_SECRETS:
-            version, secret, active = DbHandler.get_secret_from_db(
-                context, settings.IMPLEMENTATION)
+        if sett.IMPLEMENTATION_SECRETS:
+            secret, active, params = DbHandler.get_secret_from_db(
+                context, sett.IMPLEMENTATION)
             if secret and active:
-                plain_secret = Crypter.decrypt(context, version, secret)
+                secret_params = ScryptParams('')
+                secret_params.deserialize(params)
+                derived_key = Crypter.gen_derived_key(password, secret_params)
+                plain_secret = Crypter.decrypt(context, secret, derived_key)
         # Checks if implementation is supported, could throw an ImportError
-        mod = import_module('lighter.light_{}'.format(settings.IMPLEMENTATION))
+        mod = import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
         # Calls the implementation specific update method
         mod.update_settings(plain_secret)
-        settings.UNLOCKER_STOP = True
+        sett.UNLOCKER_STOP = True
         return pb.UnlockLighterResponse()
 
 
@@ -98,7 +102,7 @@ class LightningServicer():  # pylint: disable=too-few-public-methods
                         request.DESCRIPTOR.name, peer, user_agent)
             # Importing module for specific implementation
             module = import_module('lighter.light_{}'.format(
-                settings.IMPLEMENTATION))
+                sett.IMPLEMENTATION))
             # Searching client requested function in module
             try:
                 func = getattr(module, name)
@@ -131,10 +135,10 @@ def _request_accepted(handler):
     Checks if request is authorized: it is defined in ALL_PERMS and
     macaroons are disabled or macaroons correctly verify.
     """
-    if handler.method not in settings.ALL_PERMS:
+    if handler.method not in sett.ALL_PERMS:
         LOGGER.error('- Not a Lightning operation')
         return False
-    if settings.DISABLE_MACAROONS:
+    if sett.DISABLE_MACAROONS:
         return True
     return check_macaroons(handler.invocation_metadata, handler.method)
 
@@ -155,24 +159,24 @@ class Interceptor(ServerInterceptor):  # pylint: disable=too-few-public-methods
 
 def _create_server(servicer, interceptors):
     """ Creates a gRPC server in insecure or secure mode """
-    if settings.INSECURE_CONNECTION:
+    if sett.INSECURE_CONNECTION:
         grpc_server = server(
-            futures.ThreadPoolExecutor(max_workers=settings.GRPC_WORKERS))
-        grpc_server.add_insecure_port(settings.LIGHTER_ADDR)
+            futures.ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS))
+        grpc_server.add_insecure_port(sett.LIGHTER_ADDR)
         _add_servicer_to_server(servicer, grpc_server)
     else:
         grpc_server = server(
-            futures.ThreadPoolExecutor(max_workers=settings.GRPC_WORKERS),
+            futures.ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS),
             interceptors=interceptors)
-        with open(settings.SERVER_KEY, 'rb') as key:
+        with open(sett.SERVER_KEY, 'rb') as key:
             private_key = key.read()
-        with open(settings.SERVER_CRT, 'rb') as cert:
+        with open(sett.SERVER_CRT, 'rb') as cert:
             certificate_chain = cert.read()
         server_credentials = ssl_server_credentials(((
             private_key,
             certificate_chain,
         ), ))
-        grpc_server.add_secure_port(settings.LIGHTER_ADDR, server_credentials)
+        grpc_server.add_secure_port(sett.LIGHTER_ADDR, server_credentials)
         _add_servicer_to_server(servicer, grpc_server)
     return grpc_server
 
@@ -210,20 +214,20 @@ def _serve_lightning():
 
 def _log_listening(servicer_name):
     """ Logs at which host and port the servicer is listening """
-    if settings.INSECURE_CONNECTION:
+    if sett.INSECURE_CONNECTION:
         LOGGER.info(
             '%s listening on %s (insecure connection)',
-            servicer_name, settings.LIGHTER_ADDR)
+            servicer_name, sett.LIGHTER_ADDR)
     else:
         LOGGER.info(
             '%s listening on %s (secure connection)',
-            servicer_name, settings.LIGHTER_ADDR)
+            servicer_name, sett.LIGHTER_ADDR)
 
 
 @handle_keyboardinterrupt
 def _unlocker_wait(grpc_server):
     """ Waits a signal to stop the UnlockerServicer """
-    while not settings.UNLOCKER_STOP:
+    while not sett.UNLOCKER_STOP:
         sleep(1)
     grpc_server.stop(0)
 
@@ -232,7 +236,7 @@ def _unlocker_wait(grpc_server):
 def _lightning_wait(_grpc_server):
     """ Keeps the LightningServicer on until a KeyboardInterrupt occurs """
     while True:
-        sleep(settings.ONE_DAY_IN_SECONDS)
+        sleep(sett.ONE_DAY_IN_SECONDS)
 
 
 def start():
@@ -246,8 +250,8 @@ def start():
     """
     try:
         get_start_options(warning=True, detect=True)
-        if settings.ENABLE_UNLOCKER:
-            if not DbHandler.has_token(FakeContext()):
+        if sett.ENABLE_UNLOCKER:
+            if not DbHandler.is_db_ok(FakeContext()):
                 slow_exit('Your database configuration results incomplete or '
                           'old. Update it by running make secure (and '
                           'deleting db)')
@@ -255,7 +259,7 @@ def start():
         else:
             # Checks if implementation is supported, could throw an ImportError
             mod = import_module(
-                'lighter.light_{}'.format(settings.IMPLEMENTATION))
+                'lighter.light_{}'.format(sett.IMPLEMENTATION))
             # Calls the implementation specific update method
             mod.update_settings(None)
         con_thread = Thread(target=check_connection)
@@ -263,7 +267,7 @@ def start():
         con_thread.start()
         _serve_lightning()
     except ImportError:
-        slow_exit('{} is not supported'.format(settings.IMPLEMENTATION))
+        slow_exit('{} is not supported'.format(sett.IMPLEMENTATION))
     except KeyError as err:
         slow_exit('{} environment variable needs to be set'.format(err))
     except RuntimeError as err:
