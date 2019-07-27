@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Fixtures for lighter module """
+""" Fixtures for utils module """
 
 class FakeMetadatum():
     def __init__(self, key, value):

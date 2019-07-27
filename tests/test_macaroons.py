@@ -67,7 +67,7 @@ class MacaroonsTests(TestCase):
         method = '/lighter.Lightning/PayInvoice'
         root_key = urandom(32)
         fix.create_lightning_macaroons(root_key)
-        settings.LIGHTNING_BAKERY = MOD.get_baker(root_key, put_ops=True)
+        settings.RUNTIME_BAKER = MOD.get_baker(root_key, put_ops=True)
         # Valid macaroon
         print('sdMAC AD', fix.ADMIN_MAC)
 
@@ -82,7 +82,7 @@ class MacaroonsTests(TestCase):
         self.assertEqual(res, False)
         # Invalid root_key
         root_key = urandom(32)
-        settings.LIGHTNING_BAKERY = MOD.get_baker(root_key, put_ops=True)
+        settings.RUNTIME_BAKER = MOD.get_baker(root_key, put_ops=True)
         res = MOD._validate_macaroon(mac, settings.ALL_PERMS[method])
         self.assertEqual(res, False)
 

@@ -29,6 +29,18 @@ service Unlocker {
 
 }
 
+// Locker service exposes a single operation used to lock the runtime server.
+service Locker {
+
+    /**
+    LockLighter locks Lighter using the password choosen in initialization
+    phase. This stops the runtime server (LightningServicer + LockerServicer)
+    and deletes secrets from runtime memory
+    */
+    rpc LockLighter (LockLighterRequest) returns (LockLighterResponse);
+
+}
+
 // Lightning service exposes all LN node related operations. It activates
 // after unlocking Lighter and it requires valid macaroons, if they are
 // enabled, for each call.
@@ -135,6 +147,16 @@ message UnlockLighterRequest {
 }
 
 message UnlockLighterResponse {
+}
+
+message LockLighterRequest {
+    /**
+    Password to lock Lighter
+    */
+    string password = 1;
+}
+
+message LockLighterResponse {
 }
 
 message ChannelBalanceRequest {

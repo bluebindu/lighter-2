@@ -68,7 +68,7 @@ def check_macaroons(metadata, method):
 
 def _validate_macaroon(macaroon, required_perm):
     """ Checks if a given macaroon is authorized to run required operation """
-    baker = settings.LIGHTNING_BAKERY
+    baker = settings.RUNTIME_BAKER
     auth_checker = baker.checker.auth([[macaroon]])
     ctx_op = context_with_operations(AuthContext(), ALL_OPS)
     required_op = Op(required_perm['entity'], required_perm['action'])

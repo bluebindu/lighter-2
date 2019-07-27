@@ -38,8 +38,7 @@ LOGS_DIR = path.join(L_DATA, 'logs')
 CERTS_DIR = path.join(L_DATA, 'certs')
 
 # Macaroons settings
-UNLOCKER_STOP = False
-LIGHTNING_BAKERY = None
+RUNTIME_BAKER = None
 DISABLE_MACAROONS = 0
 MACAROONS_DIR = path.join(L_DATA, 'macaroons')
 MAC_ADMIN = 'admin.macaroon'
@@ -59,11 +58,13 @@ SCRYPT_PARAMS = {
     'key_len': 32
 }
 
+# Server settings
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
 GRPC_WORKERS = 10
 GRPC_GRACE_TIME = 40
 RESTART_THROTTLE = 3
-
+UNLOCKER_STOP = False
+RUNTIME_SERVER = None
 THREADS = []
 
 # Lit-cli settings
@@ -195,6 +196,10 @@ ALL_PERMS = {
     '/lighter.Lightning/ListTransactions': {
         'entity': 'transaction',
         'action': 'read'
+    },
+    '/lighter.Locker/LockLighter': {
+        'entity': 'lock',
+        'action': 'write'
     },
     '/lighter.Lightning/NewAddress': {
         'entity': 'address',

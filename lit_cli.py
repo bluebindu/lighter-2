@@ -56,7 +56,6 @@ def _get_address_type(ctx, args, incomplete):
         return [k for k in address_types if k.startswith(incomplete)]
 
 
-
 class Order(ParamType):
     """ Custom type of Order proto enum """
     name = 'Order'
@@ -122,6 +121,7 @@ def _print_res(res):
 def _get_stub_name(api):
     """ Gets name of servicer based on api name """
     if api in ('UnlockLighter',): return 'UnlockerStub'
+    if api in ('LockLighter',): return 'LockerStub'
     return 'LightningStub'
 
 
@@ -179,8 +179,8 @@ def entrypoint():
 
 
 @entrypoint.command()
-@option('--password', prompt='Insert password to unlock Lighter',
-        hide_input=True, help='Password to unlock Lighter')
+@option('--password', prompt='Insert Lighter\'s password',
+        hide_input=True, help='Lighter\'s password')
 @handle_call
 def unlocklighter(password):
     """
@@ -189,6 +189,21 @@ def unlocklighter(password):
     """
     req = pb.UnlockLighterRequest(password=password)
     return 'UnlockLighter', req
+
+
+@entrypoint.command()
+@option('--password', prompt='Insert Lighter\'s password',
+        hide_input=True, help='Lighter\'s password')
+@handle_call
+def locklighter(password):
+    """
+    LockLighter asks for the password chosen during the initialization phase,
+    then locks Lighter. This stops the runtime server (LightningServicer +
+    LockerServicer), deletes secrets from runtime memory and starts the
+    Unlocker which then allows to unlock Ligher at will.
+    """
+    req = pb.LockLighterRequest(password=password)
+    return 'LockLighter', req
 
 
 @entrypoint.command()

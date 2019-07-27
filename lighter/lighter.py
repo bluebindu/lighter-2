@@ -16,11 +16,10 @@
 """ The Python implementation of the gRPC Lighter server """
 
 from concurrent import futures
-from contextlib import suppress
 from importlib import import_module
 from logging import getLogger
 from threading import Thread
-from time import sleep, time
+from time import sleep
 
 from grpc import server, ServerInterceptor, ssl_server_credentials, \
     StatusCode, unary_unary_rpc_method_handler
@@ -32,7 +31,7 @@ from .errors import Err
 from .macaroons import check_macaroons, get_baker
 from .utils import check_connection, check_password, check_req_params, \
     Crypter, DbHandler, FakeContext, get_start_options, \
-    handle_keyboardinterrupt, ScryptParams, slow_exit
+    handle_keyboardinterrupt, handle_logs, ScryptParams, slow_exit
 
 LOGGER = getLogger(__name__)
 
@@ -40,13 +39,14 @@ LOGGER = getLogger(__name__)
 class UnlockerServicer(pb_grpc.UnlockerServicer):
     """
     UnlockerServicer provides an implementation of the Unlocker service
-    defined with protobuf.
+    defined by protobuf.
 
     This service does not require macaroons authentication.
     """
 
     # pylint: disable=too-few-public-methods
 
+    @handle_logs
     def UnlockLighter(self, request, context):
         """
         If password is correct, unlocks Lighter database, checks connection
@@ -61,7 +61,7 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
             mac_params.deserialize(DbHandler.get_mac_params_from_db(context))
             sett.MAC_ROOT_KEY = Crypter.gen_derived_key(password, mac_params)
             baker = get_baker(sett.MAC_ROOT_KEY, put_ops=True)
-            sett.LIGHTNING_BAKERY = baker
+            sett.RUNTIME_BAKER = baker
         plain_secret = None
         if sett.IMPLEMENTATION_SECRETS:
             secret, active, params = DbHandler.get_secret_from_db(
@@ -79,6 +79,35 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
         return pb.UnlockLighterResponse()
 
 
+class LockerServicer(pb_grpc.LockerServicer):
+    """
+    LockerServicer provides an implementation of the Locker service
+    defined by protobuf.
+    """
+
+    # pylint: disable=too-few-public-methods
+
+    @handle_logs
+    def LockLighter(self, request, context):
+        """
+        Locks Lighter on correct password, stops runtime server
+        (LightningServicer + LockerServicer), deletes secrets from memory and
+        starts Unlocker.
+        """
+        check_req_params(context, request, 'password')
+        password = request.password
+        check_password(context, password)
+        sett.RUNTIME_SERVER.stop(sett.GRPC_GRACE_TIME)
+        restart_thread = Thread(target=start)
+        restart_thread.daemon = True
+        restart_thread.start()
+        sett.MAC_ROOT_KEY = None
+        sett.RUNTIME_BAKER = None
+        sett.ECL_ENV = None
+        sett.LND_MAC = None
+        return pb.LockLighterResponse()
+
+
 class LightningServicer():  # pylint: disable=too-few-public-methods
     """
     LightningServicer provides an implementation of the methods of the
@@ -90,16 +119,8 @@ class LightningServicer():  # pylint: disable=too-few-public-methods
     def __getattr__(self, name):
         """ Dispatches gRPC request dynamically. """
 
+        @handle_logs
         def dispatcher(request, context):
-            start_time = time()
-            peer = user_agent = 'unknown'
-            with suppress(ValueError):
-                peer = context.peer().split(':', 1)[1]
-            for data in context.invocation_metadata():
-                if data.key == 'user-agent':
-                    user_agent = data.value
-            LOGGER.info('< %-24s %s %s',
-                        request.DESCRIPTOR.name, peer, user_agent)
             # Importing module for specific implementation
             module = import_module('lighter.light_{}'.format(
                 sett.IMPLEMENTATION))
@@ -109,14 +130,7 @@ class LightningServicer():  # pylint: disable=too-few-public-methods
             except AttributeError:
                 Err().unimplemented_method(context)
             # Return requested function if implemented
-            response = func(request, context)
-            response_name = response.DESCRIPTOR.name
-            stop_time = time()
-            call_time = round(stop_time - start_time, 3)
-            LOGGER.info('> %-24s %s %2.3fs',
-                        response_name, peer, call_time)
-            LOGGER.debug('Full response: %s', str(response).replace('\n', ' '))
-            return response
+            return func(request, context)
 
         return dispatcher
 
@@ -157,13 +171,12 @@ class Interceptor(ServerInterceptor):  # pylint: disable=too-few-public-methods
         return self._terminator
 
 
-def _create_server(servicer, interceptors):
+def _create_server(interceptors):
     """ Creates a gRPC server in insecure or secure mode """
     if sett.INSECURE_CONNECTION:
         grpc_server = server(
             futures.ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS))
         grpc_server.add_insecure_port(sett.LIGHTER_ADDR)
-        _add_servicer_to_server(servicer, grpc_server)
     else:
         grpc_server = server(
             futures.ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS),
@@ -177,36 +190,30 @@ def _create_server(servicer, interceptors):
             certificate_chain,
         ), ))
         grpc_server.add_secure_port(sett.LIGHTER_ADDR, server_credentials)
-        _add_servicer_to_server(servicer, grpc_server)
     return grpc_server
-
-
-def _add_servicer_to_server(servicer, grpc_server):
-    """ Adds an Unlocker or Lightning servicer to a gRPC server """
-    if isinstance(servicer, LightningServicer):
-        pb_grpc.add_LightningServicer_to_server(servicer, grpc_server)
-    elif isinstance(servicer, UnlockerServicer):
-        pb_grpc.add_UnlockerServicer_to_server(servicer, grpc_server)
 
 
 def _serve_unlocker():
     """
-    Starts a UnlockerServicer gRPC server at the ip and port specified in
-    settings
+    Starts a UnlockerServicer gRPC server
     """
-    grpc_server = _create_server(UnlockerServicer(), None)
+    grpc_server = _create_server(None)
+    pb_grpc.add_UnlockerServicer_to_server(UnlockerServicer(), grpc_server)
     grpc_server.start()
     _log_listening('Unlocker service')
     LOGGER.info('Waiting for password to unlock Lightning service...')
     _unlocker_wait(grpc_server)
 
 
-def _serve_lightning():
+def _serve_runtime():
     """
-    Starts a LightningServicer gRPC server at the ip and port specified in
-    settings
+    Starts the runtime gRPC server composed by a LightningServicer and a
+    LockerServicer
     """
-    grpc_server = _create_server(LightningServicer(), [Interceptor()])
+    grpc_server = _create_server([Interceptor()])
+    pb_grpc.add_LightningServicer_to_server(LightningServicer(), grpc_server)
+    pb_grpc.add_LockerServicer_to_server(LockerServicer(), grpc_server)
+    sett.RUNTIME_SERVER = grpc_server
     grpc_server.start()
     _log_listening('Lightning service')
     _lightning_wait(grpc_server)
@@ -230,6 +237,7 @@ def _unlocker_wait(grpc_server):
     while not sett.UNLOCKER_STOP:
         sleep(1)
     grpc_server.stop(0)
+    sett.UNLOCKER_STOP = False
 
 
 @handle_keyboardinterrupt
@@ -259,7 +267,7 @@ def start():
         con_thread = Thread(target=check_connection)
         con_thread.daemon = True
         con_thread.start()
-        _serve_lightning()
+        _serve_runtime()
     except ImportError:
         slow_exit('{} is not supported'.format(sett.IMPLEMENTATION))
     except KeyError as err:

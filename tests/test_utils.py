@@ -29,6 +29,7 @@ from unittest.mock import Mock, mock_open, patch
 from lighter import lighter_pb2 as pb
 from lighter import settings, utils
 from lighter.utils import Enforcer as Enf
+from tests import fixtures_utils as fix
 
 MOD = import_module('lighter.utils')
 CTX = 'context'
@@ -177,7 +178,6 @@ class UtilsTests(TestCase):
         with self.assertRaises(Exception):
             res = MOD._detect_impl_secret()
         assert mocked_exit.called
-
 
     def test_str2bool(self):
         ## force_true=False
@@ -417,6 +417,18 @@ class UtilsTests(TestCase):
         self.assertEqual(func.call_count, 1)
         grpc_server.stop.assert_called_once_with(settings.GRPC_GRACE_TIME)
         assert mocked_slow_exit.called
+
+    def test_handle_logs(self):
+        req = pb.GetInfoRequest()
+        ctx = Mock()
+        ctx.peer.return_value = 'ipv4:0.0.0.0'
+        ctx.invocation_metadata.return_value = fix.METADATA
+        response = pb.GetInfoResponse()
+        func = Mock(return_value=response)
+        wrapped = MOD.handle_logs(func)
+        res = wrapped('self', req, ctx)
+        self.assertEqual(res, response)
+        self.assertEqual(func.call_count, 1)
 
     def test_handle_thread(self):
         # return case

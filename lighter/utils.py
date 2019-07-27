@@ -29,7 +29,7 @@ from os import environ as env, path
 from sqlite3 import connect, Error
 from subprocess import PIPE, Popen, TimeoutExpired
 from threading import active_count, current_thread
-from time import sleep, strftime
+from time import sleep, strftime, time
 
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
@@ -355,6 +355,37 @@ def handle_keyboardinterrupt(func):
                                  active_count())
                     sleep(3)
             slow_exit('All threads shutdown correctly', wait=False)
+
+    return wrapper
+
+
+def handle_logs(func):
+    """ Logs gRPC call request and response """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time()
+        peer = user_agent = 'unknown'
+        request = args[0]
+        context = args[1]
+        if len(args) == 3:
+            request = args[1]
+            context = args[2]
+        with suppress(ValueError):
+            peer = context.peer().split(':', 1)[1]
+        for data in context.invocation_metadata():
+            if data.key == 'user-agent':
+                user_agent = data.value
+        LOGGER.info('< %-24s %s %s',
+                    request.DESCRIPTOR.name, peer, user_agent)
+        response = func(*args, **kwargs)
+        response_name = response.DESCRIPTOR.name
+        stop_time = time()
+        call_time = round(stop_time - start_time, 3)
+        LOGGER.info('> %-24s %s %2.3fs',
+                    response_name, peer, call_time)
+        LOGGER.debug('Full response: %s', str(response).replace('\n', ' '))
+        return response
 
     return wrapper
 
