@@ -301,7 +301,7 @@ secure() {
 _check_db() {
 	db="$DB_DIR/$DB_NAME"
 	[ ! -r "$db" ] && export NO_DB=1 && return
-	echo "Db already exists, do you want to override it? (note this will also delete macaroon files) [y/N] "
+	printf "Db already exists, do you want to override it? (note this will also delete\nmacaroon files) [y/N] "
 	read -r res
 	res="$(echo "$res" | tr '[:upper:]' '[:lower:]')"
 	if [ "${res:0:1}" = 'y' ]; then
@@ -310,15 +310,15 @@ _check_db() {
 }
 
 _init_lnd() {
-	echo "If you want to store a macaroon for lnd, overriding the current one (if any), provide its path (enter to skip) "
-		read -r macaroon_path
-		if [ -n "$macaroon_path" ]; then
-			[ ! -f "$macaroon_path" ] && \
-				_die "Could not find macaroon in specified path"
-			[ ! -r "$macaroon_path" ] && \
-				_die "Could not read macaroon in specified path (hint: check file permissions)"
-			export LND_MAC="$macaroon_path"
-		fi
+	printf "If your lnd instance requires a macaroon for authorization, provide its path\nhere (filename included, overrides current one if any) or just press enter to\nprovide none (skip)\n"
+	read -r macaroon_path
+	if [ -n "$macaroon_path" ]; then
+		[ ! -f "$macaroon_path" ] && \
+			_die "Could not find macaroon in specified path"
+		[ ! -r "$macaroon_path" ] && \
+			_die "Could not read macaroon in specified path (hint: check file permissions)"
+		export LND_MAC="$macaroon_path"
+	fi
 }
 
 set_lnd_mac() {

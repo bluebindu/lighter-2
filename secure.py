@@ -136,7 +136,7 @@ def _set_lnd(secret):
     macaroon_path = environ.get('LND_MAC')
     if not secret and not macaroon_path:
         print("You have not provided a path and there's no macaroon "
-              "stored for lnd, assuming usage of lnd without macaroon")
+              "stored for lnd, assuming\nusage of lnd without macaroon")
         return None, 0
     if macaroon_path:
         data = _get_lnd_secret(macaroon_path)
@@ -262,7 +262,7 @@ def _read(source, num_bytes):
         return random_bytes
     except Exception:
         use_urand = input("Cannot retrieve available entropy, do you want to "
-                          "use whatever your os provides to python's "
+                          "use whatever your os provides\nto python's "
                           "os.urandom? [Y/n] ")
         if str2bool(use_urand, force_true=True):
             return
@@ -285,7 +285,7 @@ def _gen_random_data(num_bytes):
                 return data
         except FileNotFoundError:
             use_urand = input("The blocking '/dev/random' entropy source is "
-                              "not available, do you want to use whatever "
+                              "not available, do you want to use\nwhatever "
                               "your os provides to python's os.urandom? "
                               "[Y/n] ")
             if str2bool(use_urand, force_true=True):
@@ -293,7 +293,7 @@ def _gen_random_data(num_bytes):
             _exit("No Random Numbers Generator available")
         except TimeoutErrFut:
             print("This call might take long depending on the "
-                  "available entropy. If this happens you can:\n"
+                  "available entropy.\nIf this happens you can:\n"
                   " - type randomly on the keyboard or move the mouse\n"
                   " - install entropy collecting tools like haveged\n"
                   " - install a hardware TRNG\n"
@@ -347,11 +347,11 @@ def secure():
             _exit('Detected an incomplete configuration. Delete database.')
     if new:
         print('Lighter is about to ask for a new password! As humans are '
-              'really bad at generating entropy, we suggest using a password '
-              'manager to generate and store the password on your behalf. '
+              'really bad at\ngenerating entropy, we suggest using a password '
+              'manager to generate and store\nthe password on your behalf. '
               'Refer to doc/security.md for more details.')
         gen_psw = input('Do you want Lighter to generate a safe random '
-                        'password for you? (new password will be printed to '
+                        'password for you? (new password\nwill be printed to '
                         'stdout) [Y/n] ')
         salts_len = sett.SALT_LEN * 3  # for token, secret and macaroon
         if str2bool(gen_psw, force_true=True):
@@ -378,8 +378,8 @@ def secure():
         ecl_sec, lnd_sec = _recover_secrets(password)
         seed = _gen_random_data(sett.SALT_LEN * 2)  # for macaroon and secret
     create_mac = input('Do you want to create macaroon files (warning: '
-                       'macaroons should not be kept in this host)? [Y/n] ')
-    if str2bool(create_mac, force_true=True):
+                       'macaroons should not be kept in\nthis host)? [y/N] ')
+    if str2bool(create_mac):
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
         _create_lightning_macaroons(password, scrypt_params)
     data = crypt_data = None
