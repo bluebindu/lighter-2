@@ -269,7 +269,6 @@ class LighterTests(TestCase):
                    mocked_slow_exit):
         mocked_slow_exit.side_effect = Exception()
         # with secrets case
-        settings.ENABLE_UNLOCKER = True
         mocked_db.is_db_ok.return_value = True
         MOD.start()
         mocked_get_start_opt.assert_called_once_with(warning=True, detect=True)
@@ -278,19 +277,16 @@ class LighterTests(TestCase):
         assert not mocked_slow_exit.called
         # no secrets case
         reset_mocks(vars())
-        settings.ENABLE_UNLOCKER = False
         settings.IMPLEMENTATION = 'asd'
         MOD.start()
         mocked_get_start_opt.assert_called_once_with(warning=True, detect=True)
         mocked_import.assert_called_once_with('lighter.light_asd')
-        mocked_import.return_value.update_settings.assert_called_once_with(None)
         mocked_thread.assert_called_once_with(target=utils.check_connection)
         mocked_thread.return_value.start.assert_called_once_with()
         mocked_serve_lightning.assert_called_once_with()
         assert not mocked_slow_exit.called
         # no encrypted token in db
         reset_mocks(vars())
-        settings.ENABLE_UNLOCKER = True
         mocked_db.is_db_ok.return_value = False
         settings.DISABLE_MACAROONS = False
         with self.assertRaises(Exception):

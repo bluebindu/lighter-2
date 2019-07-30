@@ -34,7 +34,6 @@ SERVER_CRT = path.join(L_DATA, 'certs/server.crt')
 DB_DIR = path.join(L_DATA, 'db')
 DB_NAME = 'lighter.db'
 IMPLEMENTATION_SECRETS = False
-ENABLE_UNLOCKER = False
 LOGS_DIR = path.join(L_DATA, 'logs')
 CERTS_DIR = path.join(L_DATA, 'certs')
 

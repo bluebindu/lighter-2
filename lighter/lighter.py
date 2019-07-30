@@ -250,18 +250,12 @@ def start():
     """
     try:
         get_start_options(warning=True, detect=True)
-        if sett.ENABLE_UNLOCKER:
-            if not DbHandler.is_db_ok(FakeContext()):
-                slow_exit('Your database configuration results incomplete or '
-                          'old. Update it by running make secure (and '
-                          'deleting db)')
-            _serve_unlocker()
-        else:
-            # Checks if implementation is supported, could throw an ImportError
-            mod = import_module(
-                'lighter.light_{}'.format(sett.IMPLEMENTATION))
-            # Calls the implementation specific update method
-            mod.update_settings(None)
+        if not DbHandler.is_db_ok(FakeContext()):
+            slow_exit('Your database configuration is incomplete or old. '
+                      'Update it by running make secure (and deleting db)')
+        # Checks if implementation is supported, could throw an ImportError
+        import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
+        _serve_unlocker()
         con_thread = Thread(target=check_connection)
         con_thread.daemon = True
         con_thread.start()

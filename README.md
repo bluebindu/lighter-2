@@ -173,7 +173,8 @@ Lighter.
 
 # Securing
 
-To handle Lighter and implementation secrets, run:
+In order to run Lighter, you need to set a password to protect all secrets.
+To do so, run:
 ```bash
 $ make secure
 ```
@@ -186,7 +187,6 @@ If an existing database is found, Lighter will ask to keep the current one
 All the secrets will be stored in encrypted form (in the database) and only
 made available to Lighter at runtime, after it has been unlocked.
 
-Securing may be optional but is strongly recommended.
 Read [Security](/doc/security.md) for more details.
 
 

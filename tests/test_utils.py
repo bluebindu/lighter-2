@@ -122,7 +122,6 @@ class UtilsTests(TestCase):
         with patch.dict('os.environ', values):
             MOD.get_start_options(detect=True)
         self.assertEqual(settings.INSECURE_CONNECTION, False)
-        self.assertEqual(settings.ENABLE_UNLOCKER, True)
         # Insecure connection case
         settings.IMPLEMENTATION_SECRETS = False
         values = {
@@ -134,7 +133,6 @@ class UtilsTests(TestCase):
             MOD.get_start_options()
         self.assertEqual(settings.INSECURE_CONNECTION, True)
         self.assertEqual(settings.DISABLE_MACAROONS, True)
-        self.assertEqual(settings.ENABLE_UNLOCKER, False)
         # No secrets case (with warning)
         reset_mocks(vars())
         values = {
@@ -145,7 +143,6 @@ class UtilsTests(TestCase):
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options(warning=True)
-        self.assertEqual(settings.ENABLE_UNLOCKER, False)
 
     @patch('lighter.utils.slow_exit', autospec=True)
     @patch('lighter.utils.DbHandler', autospec=True)

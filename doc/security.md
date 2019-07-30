@@ -14,13 +14,14 @@ On successive runs, if the database has not be overridden (first
 `make secure` question), the provided password will be used to verify its
 correctness, manage implementation secrets and generate macaroons rootkey.
 
-The database will contain the root key to verify macaroons
-and, depending on the configured implementation, the implementation secrets.
-All secrets are encrypted using the _secretbox_ symmetric key algorithm and a
-32-byte key derived from the password using _scrypt_.
+The database will contain a token to verify password correctness and, depending
+on the current configuration, the root key to verify macaroons and
+implementation secrets.
+Each secret is encrypted using the _secretbox_ symmetric key algorithm and
+a different 32-byte key derived from a unique password using _scrypt_.
 
-If security features are enabled, the UnlockerServicer will start before the
-LightningServicer and ask for a password that will be used to decrypt
+The UnlockerServicer will start before the LightningServicer and ask for a
+password that will be checked and then used to decrypt the secrets stored in
 Lighter's database.
 
 ## Password Strength

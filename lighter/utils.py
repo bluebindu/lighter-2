@@ -119,17 +119,12 @@ def get_start_options(warning=False, detect=False):
     if detect:
         sett.IMPLEMENTATION_SECRETS = _detect_impl_secret()
     if sett.DISABLE_MACAROONS:
-        sett.ENABLE_UNLOCKER = sett.IMPLEMENTATION_SECRETS
         if warning:
             LOGGER.warning('Disabling macaroons is not safe, '
                            'do not disable them in production')
     else:
-        sett.ENABLE_UNLOCKER = True
         sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
-    if not sett.ENABLE_UNLOCKER and warning:
-        LOGGER.warning('Running Lighter without secrets. '
-                       'Run make secure to configure them')
     sett.CLI_HOST = env.get('CLI_HOST', sett.CLI_HOST)
     sett.CLI_ADDR = '{}:{}'.format(sett.CLI_HOST, sett.PORT)
 
