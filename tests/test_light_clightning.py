@@ -734,14 +734,14 @@ class LightClightningTests(TestCase):
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.get_thread_timeout', autospec=True)
     @patch('lighter.light_clightning.ThreadPoolExecutor', autospec=True)
-    @patch('lighter.light_clightning.get_close_timeout', autospec=True)
+    @patch('lighter.light_clightning.get_node_timeout', autospec=True)
     @patch('lighter.light_clightning.check_req_params', autospec=True)
-    def test_CloseChannel(self, mocked_check_par, mocked_close_time,
+    def test_CloseChannel(self, mocked_check_par, mocked_get_time,
                           mocked_thread, mocked_thread_time, mocked_handle,
                           mocked_err):
         mocked_err().report_error.side_effect = Exception()
         mocked_thread_time.return_value = 2
-        mocked_close_time.return_value = 30
+        mocked_get_time.return_value = 30
         # Unilateral close
         future = Mock()
         executor = Mock()

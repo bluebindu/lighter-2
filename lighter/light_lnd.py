@@ -35,7 +35,7 @@ from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
 from .utils import check_req_params, convert, Enforcer as Enf, FakeContext, \
-    get_close_timeout, get_thread_timeout, handle_thread, has_amount_encoded
+    get_thread_timeout, get_node_timeout, handle_thread, has_amount_encoded
 
 LOGGER = getLogger(__name__)
 
@@ -210,7 +210,7 @@ def _connect(context):
     channel = secure_channel(settings.LND_ADDR, settings.LND_CREDS)
     future_channel = channel_ready_future(channel)
     try:
-        future_channel.result(timeout=settings.IMPL_TIMEOUT)
+        future_channel.result(timeout=get_node_timeout(context))
     except FutureTimeoutError:
         # Handle gRPC channel that did not connect
         Err().node_error(context, 'Failed to dial server')
@@ -226,7 +226,7 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
     response = pb.GetInfoResponse()
     lnd_req = ln.GetInfoRequest()
     with _connect(context) as stub:
-        lnd_res = stub.GetInfo(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.GetInfo(lnd_req, timeout=get_node_timeout(context))
         network = lnd_res.chains[0].network
         response = pb.GetInfoResponse(
             identity_pubkey=lnd_res.identity_pubkey,
@@ -251,7 +251,7 @@ def NewAddress(request, context):  # pylint: disable=unused-argument
         # in lnd WITNESS_PUBKEY_HASH = 0;
         lnd_req = ln.NewAddressRequest(type=0)
     with _connect(context) as stub:
-        lnd_res = stub.NewAddress(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.NewAddress(lnd_req, timeout=get_node_timeout(context))
         response = pb.NewAddressResponse(address=lnd_res.address)
     return response
 
@@ -262,7 +262,8 @@ def WalletBalance(request, context):  # pylint: disable=unused-argument
     response = pb.WalletBalanceResponse()
     lnd_req = ln.WalletBalanceRequest()
     with _connect(context) as stub:
-        lnd_res = stub.WalletBalance(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.WalletBalance(
+            lnd_req, timeout=get_node_timeout(context))
         response = pb.WalletBalanceResponse(
             balance=convert(context, Enf.SATS, lnd_res.total_balance))
     return response
@@ -274,7 +275,8 @@ def ChannelBalance(request, context):  # pylint: disable=unused-argument
     response = pb.ChannelBalanceResponse()
     lnd_req = ln.ChannelBalanceRequest()
     with _connect(context) as stub:
-        lnd_res = stub.ChannelBalance(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.ChannelBalance(
+            lnd_req, timeout=get_node_timeout(context))
         response = pb.ChannelBalanceResponse(
             balance=convert(context, Enf.SATS, lnd_res.balance))
     return response
@@ -286,14 +288,14 @@ def ListChannels(request, context):
     response = pb.ListChannelsResponse()
     lnd_req = ln.ListChannelsRequest()
     with _connect(context) as stub:
-        lnd_res = stub.ListChannels(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.ListChannels(lnd_req, timeout=get_node_timeout(context))
         for lnd_chan in lnd_res.channels:
             _add_channel(context, response, lnd_chan, pb.OPEN,
                          active_only=request.active_only, open_chan=True)
         if not request.active_only:
             lnd_req = ln.PendingChannelsRequest()
             lnd_res = stub.PendingChannels(
-                lnd_req, timeout=settings.IMPL_TIMEOUT)
+                lnd_req, timeout=get_node_timeout(context))
             for lnd_chan in lnd_res.pending_open_channels:
                 _add_channel(context, response, lnd_chan.channel,
                              pb.PENDING_OPEN)
@@ -321,7 +323,8 @@ def ListInvoices(request, context):
     stop = False
     with _connect(context) as stub:
         while True:
-            lnd_res = stub.ListInvoices(lnd_req, timeout=settings.IMPL_TIMEOUT)
+            lnd_res = stub.ListInvoices(
+                lnd_req, timeout=get_node_timeout(context))
             if not lnd_res.invoices:
                 break
             if request.search_order:
@@ -351,7 +354,7 @@ def ListPayments(request, context):  # pylint: disable=unused-argument
     response = pb.ListPaymentsResponse()
     lnd_req = ln.ListPaymentsRequest()
     with _connect(context) as stub:
-        lnd_res = stub.ListPayments(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.ListPayments(lnd_req, timeout=get_node_timeout(context))
         for lnd_payment in lnd_res.payments:
             _add_payment(context, response, lnd_payment)
     return response
@@ -363,7 +366,7 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
     response = pb.ListPeersResponse()
     lnd_req = ln.ListPeersRequest()
     with _connect(context) as stub:
-        lnd_res = stub.ListPeers(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.ListPeers(lnd_req, timeout=get_node_timeout(context))
         for lnd_peer in lnd_res.peers:
             peer = response.peers.add(  # pylint: disable=no-member
                 pubkey=lnd_peer.pub_key,
@@ -371,7 +374,7 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
             lnd_req = ln.NodeInfoRequest(pub_key=lnd_peer.pub_key)
             with suppress(RpcError):
                 lnd_res = stub.GetNodeInfo(
-                    lnd_req, timeout=settings.IMPL_TIMEOUT)
+                    lnd_req, timeout=get_node_timeout(context))
                 peer.alias = lnd_res.node.alias
                 peer.color = lnd_res.node.color
     return response
@@ -383,7 +386,8 @@ def ListTransactions(request, context):  # pylint: disable=unused-argument
     response = pb.ListTransactionsResponse()
     lnd_req = ln.GetTransactionsRequest()
     with _connect(context) as stub:
-        lnd_res = stub.GetTransactions(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.GetTransactions(
+            lnd_req, timeout=get_node_timeout(context))
         for lnd_transaction in lnd_res.transactions:
             _add_transaction(context, response, lnd_transaction)
     return response
@@ -409,7 +413,7 @@ def CreateInvoice(request, context):
             context, Enf.SATS, request.amount_bits,
             enforce=LND_PAYREQ, max_precision=Enf.SATS)
     with _connect(context) as stub:
-        lnd_res = stub.AddInvoice(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.AddInvoice(lnd_req, timeout=get_node_timeout(context))
         payment_hash_str = ''
         if lnd_res.r_hash:
             payment_hash_str = hexlify(lnd_res.r_hash)
@@ -419,7 +423,7 @@ def CreateInvoice(request, context):
         if payment_hash_str:
             lnd_req = ln.PaymentHash(r_hash_str=payment_hash_str)
             lnd_res = stub.LookupInvoice(
-                lnd_req, timeout=settings.IMPL_TIMEOUT)
+                lnd_req, timeout=get_node_timeout(context))
             response.expires_at = lnd_res.creation_date + lnd_res.expiry
     return response
 
@@ -431,7 +435,8 @@ def CheckInvoice(request, context):
     response = pb.CheckInvoiceResponse()
     lnd_req = ln.PaymentHash(r_hash_str=request.payment_hash)
     with _connect(context) as stub:
-        lnd_res = stub.LookupInvoice(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.LookupInvoice(
+            lnd_req, timeout=get_node_timeout(context))
         response.settled = False
         if lnd_res.state == 1:
             response.settled = True
@@ -468,7 +473,8 @@ def PayInvoice(request, context):
         check_req_params(context, request, 'amount_bits')
     # pylint: enable=no-member
     with _connect(context) as stub:
-        lnd_res = stub.SendPaymentSync(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.SendPaymentSync(
+            lnd_req, timeout=get_node_timeout(context))
         if lnd_res.payment_preimage:
             response.payment_preimage = hexlify(lnd_res.payment_preimage)
         elif lnd_res.payment_error:
@@ -493,7 +499,7 @@ def PayOnChain(request, context):
         else:
             Err().out_of_range(context, 'fee_sat_byte')
     with _connect(context) as stub:
-        lnd_res = stub.SendCoins(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.SendCoins(lnd_req, timeout=get_node_timeout(context))
         response.txid = lnd_res.txid
     return response
 
@@ -508,7 +514,7 @@ def DecodeInvoice(request, context):
     check_req_params(context, request, 'payment_request')
     lnd_req = ln.PayReqString(pay_req=request.payment_request)
     with _connect(context) as stub:
-        lnd_res = stub.DecodePayReq(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.DecodePayReq(lnd_req, timeout=get_node_timeout(context))
         response = pb.DecodeInvoiceResponse(
             amount_bits=convert(context, Enf.SATS, lnd_res.num_satoshis),
             timestamp=lnd_res.timestamp,
@@ -537,7 +543,8 @@ def OpenChannel(request, context):
     lnd_req = ln.ConnectPeerRequest(addr=peer_address, perm=True)
     with _connect(context) as stub:
         try:
-            lnd_res = stub.ConnectPeer(lnd_req, timeout=settings.IMPL_TIMEOUT)
+            lnd_res = stub.ConnectPeer(
+                lnd_req, timeout=get_node_timeout(context))
         except RpcError as err:
             # pylint: disable=no-member
             if 'already connected to peer' not in err.details():
@@ -554,7 +561,8 @@ def OpenChannel(request, context):
                                        request.push_bits,
                                        enforce=LND_PUSH,
                                        max_precision=Enf.SATS)
-        lnd_res = stub.OpenChannelSync(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.OpenChannelSync(
+            lnd_req, timeout=get_node_timeout(context))
         response.funding_txid = lnd_res.funding_txid_str
         if not lnd_res.funding_txid_str:
             txid = encode(lnd_res.funding_txid_bytes[::-1], 'hex').decode()
@@ -574,15 +582,16 @@ def CloseChannel(request, context):
         Err().invalid(context, 'channel_id')
     lnd_req = ln.ChanInfoRequest(chan_id=channel_id)
     with _connect(context) as stub:
-        lnd_res = stub.GetChanInfo(lnd_req, timeout=settings.IMPL_TIMEOUT)
+        lnd_res = stub.GetChanInfo(lnd_req, timeout=get_node_timeout(context))
         txid, vout = lnd_res.chan_point.split(':')
         chan_point = ln.ChannelPoint(
             funding_txid_str=txid, output_index=int(vout))
         lnd_req = ln.CloseChannelRequest(
             channel_point=chan_point, force=request.force)
         executor = ThreadPoolExecutor(max_workers=1)
-        close_timeout = get_close_timeout(context)
-        future = executor.submit(_close_channel, lnd_req, close_timeout)
+        close_time = get_node_timeout(
+            context, min_time=settings.CLOSE_TIMEOUT_NODE)
+        future = executor.submit(_close_channel, lnd_req, close_time)
         try:
             lnd_res = future.result(timeout=get_thread_timeout(context))
             if lnd_res:

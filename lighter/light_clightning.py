@@ -25,7 +25,7 @@ from os import environ, path
 from . import lighter_pb2 as pb
 from . import settings
 from .utils import check_req_params, command, convert, Enforcer as Enf, \
-    FakeContext, get_close_timeout, get_thread_timeout, handle_thread, \
+    FakeContext, get_thread_timeout, get_node_timeout, handle_thread, \
     has_amount_encoded
 from .errors import Err
 
@@ -438,7 +438,8 @@ def CloseChannel(request, context):
     check_req_params(context, request, 'channel_id')
     cl_req.append('id="{}"'.format(request.channel_id))
     response = pb.CloseChannelResponse()
-    close_timeout = get_close_timeout(context)
+    close_timeout = get_node_timeout(
+        context, min_time=settings.CLOSE_TIMEOUT_NODE)
     if request.force:
         cl_req.append('force=true')
         # setting a zero timeout to force an immediate unilateral close

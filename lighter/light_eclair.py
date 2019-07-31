@@ -29,7 +29,7 @@ from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
 from .utils import check_req_params, command, convert, Enforcer as Enf, \
-    FakeContext, get_close_timeout, get_thread_timeout, handle_thread, \
+    FakeContext, get_thread_timeout, get_node_timeout, handle_thread, \
     has_amount_encoded
 
 LOGGER = getLogger(__name__)
@@ -364,7 +364,8 @@ def CloseChannel(request, context):
     ecl_req.append('--channelId="{}"'.format(request.channel_id))
     executor = ThreadPoolExecutor(max_workers=1)
     client_expiry_time = context.time_remaining() + time()
-    close_timeout = get_close_timeout(context)
+    close_timeout = get_node_timeout(
+        context, min_time=settings.CLOSE_TIMEOUT_NODE)
     future = executor.submit(
         _close_channel, ecl_req, close_timeout, client_expiry_time)
     try:
@@ -458,10 +459,10 @@ def _close_channel(ecl_req, close_timeout, client_expiry_time):
     """ Returns close channel response or raises exception to caller """
     ecl_res = error = None
     try:
-        # subtracting timeout to channel call to retrieve closing txid
-        close_timeout = close_timeout - settings.IMPL_TIMEOUT
-        if close_timeout < settings.IMPL_TIMEOUT:
-            close_timeout = settings.IMPL_TIMEOUT
+        # subtracting timeout to close channel call to retrieve closing txid
+        close_timeout = close_timeout - settings.IMPL_MIN_TIMEOUT
+        if close_timeout < settings.IMPL_MIN_TIMEOUT:
+            close_timeout = settings.IMPL_MIN_TIMEOUT
         ecl_res = command(FakeContext(), *ecl_req, env=settings.ECL_ENV,
                           timeout=close_timeout)
         if isinstance(ecl_res, str) and ecl_res.strip() == 'ok':
@@ -474,7 +475,7 @@ def _close_channel(ecl_req, close_timeout, client_expiry_time):
                 sleep(1)
                 ecl_chan = command(
                     FakeContext(), *ecl_req, env=settings.ECL_ENV,
-                    timeout=settings.IMPL_TIMEOUT)
+                    timeout=settings.IMPL_MIN_TIMEOUT)
                 if not _def(ecl_chan, 'data'):
                     continue
                 data = ecl_chan['data']

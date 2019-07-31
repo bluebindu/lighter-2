@@ -103,8 +103,12 @@ class UtilsTests(TestCase):
         assert mocked_logger.error.called
 
     def test_FakeContext(self):
+        # abort test
         with self.assertRaises(RuntimeError):
             MOD.FakeContext().abort(7, 'error')
+        # time_remaining test
+        res = MOD.FakeContext().time_remaining()
+        self.assertEqual(res, None)
 
     @patch('lighter.utils._detect_impl_secret', autospec=True)
     def test_get_start_options(self, mocked_detect):
@@ -210,7 +214,11 @@ class UtilsTests(TestCase):
     @patch('lighter.utils.LOGGER', autospec=True)
     @patch('lighter.utils.Err')
     @patch('lighter.utils.Popen', autospec=True)
-    def test_command(self, mocked_popen, mocked_err, mocked_logger):
+    @patch('lighter.utils.get_node_timeout', autospec=True)
+    def test_command(self, mocked_get_time, mocked_popen, mocked_err,
+                     mocked_logger):
+        time = 10
+        mocked_get_time.return_value = time
         # Correct case
         mocked_popen.return_value.communicate.return_value = (b'mocked!', b'')
         settings.CMD_BASE = ['eclair-cli']
@@ -219,8 +227,7 @@ class UtilsTests(TestCase):
         res = MOD.command(CTX, *cmd)
         mocked_popen.assert_called_with(
             CMD, env=None, stdout=PIPE, stderr=PIPE, universal_newlines=False)
-        mocked_popen.return_value.communicate.assert_called_with(
-            timeout=settings.IMPL_TIMEOUT)
+        mocked_popen.return_value.communicate.assert_called_with(timeout=time)
         self.assertEqual(res.strip(), 'mocked!')
         self.assertNotEqual(res.strip(), 'not mocked!')
         # Error from command case
@@ -234,8 +241,7 @@ class UtilsTests(TestCase):
             res = MOD.command(CTX, *cmd)
         mocked_popen.assert_called_with(
             CMD, env=None, stdout=PIPE, stderr=PIPE, universal_newlines=False)
-        mocked_popen.return_value.communicate.assert_called_with(
-            timeout=settings.IMPL_TIMEOUT)
+        mocked_popen.return_value.communicate.assert_called_with(timeout=time)
         # Empty result from command
         reset_mocks(vars())
         mocked_popen.return_value.communicate.return_value = (b'', b'')
@@ -251,7 +257,7 @@ class UtilsTests(TestCase):
         CMD = settings.CMD_BASE + list(cmd)
 
         def slow_func(*args, **kwargs):
-            raise TimeoutExpired(cmd, settings.IMPL_TIMEOUT)
+            raise TimeoutExpired(cmd, 100)
 
         mocked_popen.return_value.communicate = slow_func
         with self.assertRaises(Exception):
@@ -364,20 +370,20 @@ class UtilsTests(TestCase):
         mocked_logger.error.assert_called_once_with(msg)
         assert not mocked_sleep.called
 
-    def test_get_close_timeout(self):
+    def test_get_node_timeout(self):
         # Client without timeout
         ctx = Mock()
         ctx.time_remaining.return_value = None
-        res = MOD.get_close_timeout(ctx)
-        self.assertEqual(res, settings.CLOSE_TIMEOUT_NODE)
+        res = MOD.get_node_timeout(ctx)
+        self.assertEqual(res, settings.IMPL_MIN_TIMEOUT)
         # Client with long timeout
         ctx.time_remaining.return_value = 100
-        res = MOD.get_close_timeout(ctx)
+        res = MOD.get_node_timeout(ctx)
         self.assertEqual(res, 100 - settings.RESPONSE_RESERVED_TIME)
         # Client with not enough timeout
         ctx.time_remaining.return_value = 0.01
-        res = MOD.get_close_timeout(ctx)
-        self.assertEqual(res, settings.CLOSE_TIMEOUT_NODE)
+        res = MOD.get_node_timeout(ctx)
+        self.assertEqual(res, settings.IMPL_MIN_TIMEOUT)
 
     def test_get_thread_timeout(self):
         # Client without timeout

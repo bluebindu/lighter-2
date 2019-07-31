@@ -588,14 +588,14 @@ class LightEclairTests(TestCase):
     @patch('lighter.light_eclair.Err')
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair.get_thread_timeout', autospec=True)
-    @patch('lighter.light_eclair.get_close_timeout', autospec=True)
+    @patch('lighter.light_eclair.get_node_timeout', autospec=True)
     @patch('lighter.light_eclair.ThreadPoolExecutor', autospec=True)
     @patch('lighter.light_eclair.check_req_params', autospec=True)
     def test_CloseChannel(self, mocked_check_par, mocked_thread,
-                          mocked_close_time, mocked_thread_time,
+                          mocked_get_time, mocked_thread_time,
                           mocked_handle, mocked_err):
         mocked_err().report_error.side_effect = Exception()
-        mocked_close_time.return_value = 30
+        mocked_get_time.return_value = 30
         mocked_thread_time.return_value = 2
         txid = 'txid'
         # Correct case
@@ -696,7 +696,7 @@ class LightEclairTests(TestCase):
     @patch('lighter.light_eclair.time', autospec=True)
     def test_close_channel(self, mocked_time, mocked_command, mocked_log,
                            mocked_sleep):
-        client_time = 9
+        client_time = 1
         time = 1563205664.6555452
         mocked_time.return_value = time
         ecl_req = ['close', '--channelId=aa7cc']

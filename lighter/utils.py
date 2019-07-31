@@ -176,6 +176,11 @@ class FakeContext():  # pylint: disable=too-few-public-methods
         assert scode
         raise RuntimeError(msg)
 
+    @staticmethod
+    def time_remaining():
+        """ Acts as no timeout has been set by client """
+        return None
+
 
 def command(context, *args_cmd, **kwargs):
     """ Given a command, calls a cli interface """
@@ -183,7 +188,7 @@ def command(context, *args_cmd, **kwargs):
         raise RuntimeError
     cmd = sett.CMD_BASE + list(args_cmd)
     envi = kwargs.get('env', None)
-    wait_time = kwargs.get('timeout', sett.IMPL_TIMEOUT)
+    wait_time = kwargs.get('timeout', get_node_timeout(context))
     # universal_newlines ensures bytes are returned
     proc = Popen(
         cmd, env=envi, stdout=PIPE, stderr=PIPE, universal_newlines=False)
@@ -313,13 +318,14 @@ def slow_exit(message, wait=True):
     sys.exit(exit_code)
 
 
-def get_close_timeout(context):
-    """ Calculates timeout for channel close """
-    node_timeout = sett.CLOSE_TIMEOUT_NODE
+def get_node_timeout(context, min_time=sett.IMPL_MIN_TIMEOUT):
+    """
+    Calculates timeout to use when calling LN node considering client's
+    timeout
+    """
+    node_timeout = min_time
     client_time = context.time_remaining()
     if client_time and client_time > node_timeout:
-        # giving more time for implementation to answer if client has set a
-        # longer timeout than our default
         node_timeout = client_time - sett.RESPONSE_RESERVED_TIME
     return node_timeout
 
