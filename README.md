@@ -33,7 +33,8 @@ Currently, it supports the main LN implementations <sup>1</sup>:
 - [c-lightning](https://github.com/ElementsProject/lightning)
   (v0.7.1 <sup>2</sup>) by Blockstream
 - [eclair](https://github.com/ACINQ/eclair) (v0.3) by Acinq
-- [lnd](https://github.com/lightningnetwork/lnd) (v0.7.0-beta) by Lightning Labs
+- [lnd](https://github.com/lightningnetwork/lnd) (v0.7.1-beta) by Lightning
+  Labs
 
 
 ### How it works
@@ -238,6 +239,7 @@ Python, Go, Node.js and Bash can be found at our
 To use Lighter's CLI and have a full list of available commands, run:
 ```bash
 $ make cli
+$ lit-cli unlocklighter
 $ lit-cli --help
 ```
 Note: `make cli` spawns a new shell, configured for `lit-cli`,
