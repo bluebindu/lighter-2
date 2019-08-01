@@ -731,7 +731,7 @@ def _add_payment(context, response, lnd_payment):
             payment_hash=lnd_payment.payment_hash,
             amount_bits=convert(context, Enf.MSATS, lnd_payment.value_msat),
             timestamp=lnd_payment.creation_date,
-            fee_base_msat=lnd_payment.fee,
+            fee_base_msat=lnd_payment.fee_msat,
             payment_preimage=lnd_payment.payment_preimage)
 
 
