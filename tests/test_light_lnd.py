@@ -210,7 +210,7 @@ class LightLndTests(TestCase):
         res = MOD.WalletBalance('request', CTX)
         stub.WalletBalance.assert_called_once_with(
             ln.WalletBalanceRequest(), timeout=time)
-        mocked_conv.assert_called_once_with(CTX, Enf.SATS, 77700)
+        self.assertEqual(mocked_conv.call_count, 2)
         assert not mocked_handle.called
         self.assertEqual(res.balance, 777)
 

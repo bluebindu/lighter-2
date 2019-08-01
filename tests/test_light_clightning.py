@@ -132,7 +132,7 @@ class LightClightningTests(TestCase):
         mocked_command.assert_called_once_with(CTX, 'listfunds')
         mocked_handle.assert_called_once_with(
             CTX, fix.LISTFUNDS, always_abort=False)
-        mocked_conv.assert_called_once_with(CTX, Enf.SATS, 14)
+        self.assertEqual(mocked_conv.call_count, 2)
         self.assertEqual(res.balance, 0.14)
         # No funds case
         reset_mocks(vars())
@@ -142,7 +142,7 @@ class LightClightningTests(TestCase):
         mocked_command.assert_called_once_with(CTX, 'listfunds')
         mocked_handle.assert_called_once_with(
             CTX, fix.LISTFUNDS_EMPTY, always_abort=False)
-        mocked_conv.assert_called_once_with(CTX, Enf.SATS, 0.0)
+        self.assertEqual(mocked_conv.call_count, 2)
         self.assertEqual(res.balance, 0.0)
         # Error case
         reset_mocks(vars())

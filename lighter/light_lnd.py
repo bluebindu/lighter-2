@@ -265,7 +265,9 @@ def WalletBalance(request, context):  # pylint: disable=unused-argument
         lnd_res = stub.WalletBalance(
             lnd_req, timeout=get_node_timeout(context))
         response = pb.WalletBalanceResponse(
-            balance=convert(context, Enf.SATS, lnd_res.total_balance))
+            balance=convert(context, Enf.SATS, lnd_res.total_balance),
+            balance_confirmed=convert(
+                context, Enf.SATS, lnd_res.confirmed_balance))
     return response
 
 

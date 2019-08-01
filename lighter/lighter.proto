@@ -778,7 +778,11 @@ message WalletBalanceRequest {
 
 message WalletBalanceResponse {
     /**
-    Balance of the wallet, in bits
+    Total balance of the wallet, in bits
     */
     double balance = 1;
+    /**
+    Confirmed balance of the wallet, in bits
+    */
+    double balance_confirmed = 2;
 }

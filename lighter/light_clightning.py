@@ -164,12 +164,18 @@ def WalletBalance(request, context):  # pylint: disable=unused-argument
     cl_req = ['listfunds']
     cl_res = command(context, *cl_req)
     _handle_error(context, cl_res, always_abort=False)
-    funds = 0.0
+    tot_funds = 0.0
+    conf_funds = 0.0
     if 'outputs' in cl_res:
         for output in cl_res['outputs']:
             if 'value' in output:
-                funds += output['value']
-    return pb.WalletBalanceResponse(balance=convert(context, Enf.SATS, funds))
+                tot_funds += output['value']
+            if 'value' in output and 'status' in output and \
+                    output['status'] == 'confirmed':
+                conf_funds += output['value']
+    return pb.WalletBalanceResponse(
+        balance=convert(context, Enf.SATS, tot_funds),
+        balance_confirmed=convert(context, Enf.SATS, conf_funds))
 
 
 def ChannelBalance(request, context):  # pylint: disable=unused-argument
