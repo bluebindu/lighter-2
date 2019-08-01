@@ -18,7 +18,7 @@
 from codecs import decode
 from logging import getLogger
 
-from macaroonbakery.bakery import Bakery, canonical_ops, \
+from macaroonbakery.bakery import AuthInitError, Bakery, canonical_ops, \
     DischargeRequiredError, LATEST_VERSION, MemoryKeyStore, \
     MemoryOpsStore, Op, PermissionDenied
 from macaroonbakery.checkers import context_with_operations, AuthContext
@@ -76,7 +76,7 @@ def _validate_macaroon(macaroon, required_perm):
         auth_info = auth_checker.allow(ctx_op, [required_op])
         if auth_info:
             return True
-    except (DischargeRequiredError, PermissionDenied):
+    except (AuthInitError, DischargeRequiredError, PermissionDenied):
         LOGGER.error('- Authorization error')
     return False
 

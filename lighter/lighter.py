@@ -135,11 +135,21 @@ class LightningServicer():  # pylint: disable=too-few-public-methods
         return dispatcher
 
 
-def _unary_unary_rpc_terminator():
+def _access_denied_terminator():
     """ Returns an RpcMethodHandler if request is not accepted """
     def terminate(_ignored_request, context):
-        """ Terminates gRPC call, denying access"""
+        """ Terminates gRPC call, denying access """
         context.abort(StatusCode.UNAUTHENTICATED, 'Access denied')
+
+    return unary_unary_rpc_method_handler(terminate)
+
+
+def _service_locked_terminator():
+    """ Returns an RpcMethodHandler if service is locked """
+    def terminate(_ignored_request, context):
+        """ Terminates gRPC call """
+        LOGGER.error('- Not an Unlocker operation')
+        context.abort(StatusCode.UNIMPLEMENTED, 'Service is locked')
 
     return unary_unary_rpc_method_handler(terminate)
 
@@ -150,19 +160,23 @@ def _request_accepted(handler):
     macaroons are disabled or macaroons correctly verify.
     """
     if handler.method not in sett.ALL_PERMS:
-        LOGGER.error('- Not a Lightning operation')
+        LOGGER.error('- Not a runtime operation')
         return False
     if sett.DISABLE_MACAROONS:
         return True
     return check_macaroons(handler.invocation_metadata, handler.method)
 
 
-class Interceptor(ServerInterceptor):  # pylint: disable=too-few-public-methods
-    """ gRPC interceptor that checks whether the request
-    is authorized by the included macaroons """
+class RuntimeInterceptor(ServerInterceptor):
+    """
+    gRPC interceptor that checks whether the request
+    is authorized by the included macaroons
+    """
+
+    # pylint: disable=too-few-public-methods
 
     def __init__(self):
-        self._terminator = _unary_unary_rpc_terminator()
+        self._terminator = _access_denied_terminator()
 
     def intercept_service(self, continuation, handler_call_details):
         """ Intercepts gRPC request to decide if request is authorized """
@@ -171,11 +185,32 @@ class Interceptor(ServerInterceptor):  # pylint: disable=too-few-public-methods
         return self._terminator
 
 
+class UnlockerInterceptor(ServerInterceptor):
+    """
+    gRPC interceptor that informs that Lighter is locked
+    """
+
+    # pylint: disable=too-few-public-methods
+
+    def __init__(self):
+        self._terminator = _service_locked_terminator()
+
+    def intercept_service(self, continuation, handler_call_details):
+        """
+        Intercepts gRPC request to eventually inform client that service is
+        locked
+        """
+        if handler_call_details.method == '/lighter.Unlocker/UnlockLighter':
+            return continuation(handler_call_details)
+        return self._terminator
+
+
 def _create_server(interceptors):
     """ Creates a gRPC server in insecure or secure mode """
     if sett.INSECURE_CONNECTION:
         grpc_server = server(
-            futures.ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS))
+            futures.ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS),
+            interceptors=interceptors)
         grpc_server.add_insecure_port(sett.LIGHTER_ADDR)
     else:
         grpc_server = server(
@@ -197,7 +232,7 @@ def _serve_unlocker():
     """
     Starts a UnlockerServicer gRPC server
     """
-    grpc_server = _create_server(None)
+    grpc_server = _create_server([UnlockerInterceptor()])
     pb_grpc.add_UnlockerServicer_to_server(UnlockerServicer(), grpc_server)
     grpc_server.start()
     _log_listening('Unlocker service')
@@ -210,7 +245,7 @@ def _serve_runtime():
     Starts the runtime gRPC server composed by a LightningServicer and a
     LockerServicer
     """
-    grpc_server = _create_server([Interceptor()])
+    grpc_server = _create_server([RuntimeInterceptor()])
     pb_grpc.add_LightningServicer_to_server(LightningServicer(), grpc_server)
     pb_grpc.add_LockerServicer_to_server(LockerServicer(), grpc_server)
     sett.RUNTIME_SERVER = grpc_server

@@ -117,7 +117,7 @@ class LighterTests(TestCase):
 
     @patch('lighter.lighter.check_macaroons', autospec=True)
     @patch('lighter.lighter.unary_unary_rpc_method_handler')
-    def test_intercept_service(self, mocked_rpc_handler, mocked_check_mac):
+    def test_RuntimeInterceptor(self, mocked_rpc_handler, mocked_check_mac):
         settings.DISABLE_MACAROONS = False
         continuation = Mock()
         ok = 'ok'
@@ -127,7 +127,7 @@ class LighterTests(TestCase):
         handler_call_details = Mock()
         handler_call_details.method = method
         handler_call_details.invocation_metadata = md
-        interceptor = MOD.Interceptor()
+        interceptor = MOD.RuntimeInterceptor()
         # Accepted request
         mocked_check_mac.return_value = True
         res = interceptor.intercept_service(continuation, handler_call_details)
@@ -145,7 +145,7 @@ class LighterTests(TestCase):
             callback(ign_req, ctx)
 
         mocked_rpc_handler.side_effect = func
-        interceptor = MOD.Interceptor()
+        interceptor = MOD.RuntimeInterceptor()
         res = interceptor.intercept_service(continuation, handler_call_details)
         self.assertEqual(res, None)
         ctx.abort.assert_called_once_with(StatusCode.UNAUTHENTICATED,
@@ -158,6 +158,35 @@ class LighterTests(TestCase):
         self.assertEqual(res, ok)
         assert not mocked_check_mac.called
         settings.DISABLE_MACAROONS = False
+
+    @patch('lighter.lighter.unary_unary_rpc_method_handler')
+    def test_UnlockerInterceptor(self, mocked_rpc_handler):
+        interceptor = MOD.UnlockerInterceptor()
+        continuation = Mock()
+        ok = 'ok'
+        continuation.return_value = ok
+        handler_call_details = Mock()
+        # Correct API
+        method = '/lighter.Unlocker/UnlockLighter'
+        handler_call_details.method = method
+        res = interceptor.intercept_service(continuation, handler_call_details)
+        continuation.assert_called_once_with(handler_call_details)
+        self.assertEqual(res, ok)
+        # Wrong API
+        reset_mocks(vars())
+        ign_req = 'ignored_request'
+        ctx = Mock()
+
+        def func(callback):
+            callback(ign_req, ctx)
+
+        mocked_rpc_handler.side_effect = func
+        interceptor = MOD.UnlockerInterceptor()
+        method = '/lighter.Lightning/GetInfo'
+        handler_call_details.method = method
+        res = interceptor.intercept_service(continuation, handler_call_details)
+        assert not continuation.called
+        self.assertEqual(res, None)
 
     @patch('lighter.lighter.ssl_server_credentials', autospec=True)
     @patch('lighter.lighter.server', autospec=True)
