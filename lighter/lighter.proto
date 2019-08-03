@@ -418,6 +418,16 @@ message Channel {
     Whether the channel is active (channel is open and peer is online)
     */
     bool active = 11;
+    /**
+    Local reserve for the channel (minimum amount that this node is required
+    to keep), in sat
+    */
+    uint32 local_reserve = 12;
+    /**
+    Remote reserve for the channel (minimum amount that the other node is
+    required to keep), in sat
+    */
+    uint32 remote_reserve = 13;
 }
 
 /**

@@ -397,7 +397,7 @@ def _is_description_hash(description):
 
 def _add_channel(context, response, ecl_chan, active_only):
     """ Adds a channel to a ListChannelsResponse """
-    # pylint: disable=too-many-branches,too-many-locals
+    # pylint: disable=too-many-branches,too-many-locals,too-many-statements
     state = None
     if _def(ecl_chan, 'state'):
         state = _get_state(ecl_chan)
@@ -433,6 +433,14 @@ def _add_channel(context, response, ecl_chan, active_only):
                 local_params = commitments['localParams']
                 if _def(local_params, 'toSelfDelay'):
                     grpc_chan.to_self_delay = local_params['toSelfDelay']
+                if _def(local_params, 'channelReserveSatoshis'):
+                    grpc_chan.local_reserve = \
+                        local_params['channelReserveSatoshis']
+            if _def(commitments, 'remoteParams'):
+                remote_params = commitments['remoteParams']
+                if _def(remote_params, 'channelReserveSatoshis'):
+                    grpc_chan.remote_reserve = \
+                        remote_params['channelReserveSatoshis']
             if _def(commitments, 'localCommit'):
                 local_commit = commitments['localCommit']
                 if _def(local_commit, 'spec'):

@@ -471,7 +471,7 @@ def CloseChannel(request, context):
     return pb.CloseChannelResponse()
 
 
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,too-many-branches
 def _add_channel(context, response, cl_peer, cl_chan, state, active_only):
     """ Adds a channel to a ListChannelsResponse """
     connected = True
@@ -503,6 +503,10 @@ def _add_channel(context, response, cl_peer, cl_chan, state, active_only):
         grpc_chan.remote_balance = grpc_chan.capacity - grpc_chan.local_balance
     if 'private' in cl_chan:
         grpc_chan.private = cl_chan['private']
+    if 'our_channel_reserve_satoshis' in cl_chan:
+        grpc_chan.local_reserve = cl_chan['our_channel_reserve_satoshis']
+    if 'their_channel_reserve_satoshis' in cl_chan:
+        grpc_chan.remote_reserve = cl_chan['their_channel_reserve_satoshis']
     # pylint: enable=too-many-arguments
 
 
