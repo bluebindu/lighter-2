@@ -87,7 +87,7 @@ help:
 	@ echo " - docker:       builds Lighter docker image"
 	@ echo " - secure:       handles Lighter and implementation secrets"
 	@ echo " - run:          runs Lighter (in docker or locally)"
-	@ echo " - cli:          runs an environment to call lit-cli (in docker or locally)"
+	@ echo " - cli:          runs an environment to call cliter (in docker or locally)"
 	@ echo " - logs:         shows Lighter logs (in docker)"
 	@ echo " - stop:         stops Lighter (in docker), removing all anonymous volumes attached to it"
 	@ echo " - clean:        removes Lighter virtualenv"

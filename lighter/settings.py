@@ -67,7 +67,7 @@ UNLOCKER_STOP = False
 RUNTIME_SERVER = None
 THREADS = []
 
-# Lit-cli settings
+# cliter settings
 CLI_HOST = '127.0.0.1'
 CLI_ADDR = ''
 CLI_TIMEOUT = 10

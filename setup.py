@@ -13,14 +13,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Module to bundle lit-cli with setuptools """
+""" Module to bundle cliter with setuptools """
 
 from setuptools import setup
 
 setup(
-    name='lit-cli',
+    name='cliter',
     version='1.0.0',
-    py_modules=['lit-cli'],
+    py_modules=['cliter'],
     install_requires=[
         'Click',
         'grpcio',
@@ -28,7 +28,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'lit-cli = lit_cli:entrypoint'
+            'cliter = cliter:entrypoint'
         ]
     }
 )

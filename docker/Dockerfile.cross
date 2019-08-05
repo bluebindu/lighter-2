@@ -35,7 +35,7 @@ RUN chmod +x /usr/local/bin/start-lighter.sh \
 
 RUN mkdir -p $APP_DIR/lighter-data/db $APP_DIR/lighter-data/macaroons
 
-COPY main.py lit_cli.py setup.py secure.py ./
+COPY main.py cliter.py setup.py secure.py ./
 COPY lighter/__init__.py lighter/lighter.py lighter/macaroons.py lighter/settings.py $L_DIR/
 COPY lighter/utils.py lighter/errors.py lighter/light_* $L_DIR/
 

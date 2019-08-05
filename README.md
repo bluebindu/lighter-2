@@ -239,10 +239,10 @@ Python, Go, Node.js and Bash can be found at our
 To use Lighter's CLI and have a full list of available commands, run:
 ```bash
 $ make cli
-$ lit-cli unlocklighter
-$ lit-cli --help
+$ cliter unlocklighter
+$ cliter --help
 ```
-Note: `make cli` spawns a new shell, configured for `lit-cli`,
+Note: `make cli` spawns a new shell, configured for `cliter`,
 run `exit` to leave environment.
 
 #### Notes
