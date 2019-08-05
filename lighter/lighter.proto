@@ -164,9 +164,35 @@ message ChannelBalanceRequest {
 
 message ChannelBalanceResponse {
     /**
-    Sum of channel balances, in bits
+    Local balance (sum of open channels local balances, including reserves),
+    in bits
     */
     double balance = 1;
+    /**
+    Total spendable amount (sum of active channels local balances,
+    excluding reserves), in bits
+    */
+    double out_tot_now = 2;
+    /**
+    Max amount for a single payment (biggest active channel local balance,
+    excluding reserve), in bits
+    */
+    double out_max_now = 3;
+    /**
+    Remote balance (sum of open channels remote balances, including reserves),
+    in bits
+    */
+    double in_tot = 4;
+    /**
+    Total receivable amount (sum of active channels remote balances,
+    excluding reserves), in bits
+    */
+    double in_tot_now = 5;
+    /**
+    Max amount for a single invoice (biggest active channel remote balance,
+    excluding reserve), in bits
+    */
+    double in_max_now = 6;
 }
 
 message CheckInvoiceRequest {

@@ -214,25 +214,12 @@ class LightLndTests(TestCase):
         assert not mocked_handle.called
         self.assertEqual(res.balance, 777)
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.convert', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
-    def test_ChannelBalance(self, mocked_connect, mocked_get_time, mocked_conv,
-                            mocked_handle):
-        stub = mocked_connect.return_value.__enter__.return_value
-        time = 10
-        mocked_get_time.return_value = 10
-        # Correct case
-        lnd_res = ln.ChannelBalanceResponse(balance=77700)
-        stub.ChannelBalance.return_value = lnd_res
-        mocked_conv.return_value = 777
+    @patch('lighter.light_lnd.get_channel_balances', autospec=True)
+    @patch('lighter.light_lnd.ListChannels', autospec=True)
+    def test_ChannelBalance(self, mocked_ListChannels, mocked_get_chan_bal):
+        mocked_get_chan_bal.return_value = pb.ChannelBalanceResponse()
         res = MOD.ChannelBalance('request', CTX)
-        stub.ChannelBalance.assert_called_once_with(
-            ln.ChannelBalanceRequest(), timeout=time)
-        mocked_conv.assert_called_once_with(CTX, Enf.SATS, 77700)
-        assert not mocked_handle.called
-        self.assertEqual(res.balance, 777)
+        self.assertEqual(res, pb.ChannelBalanceResponse())
 
     @patch('lighter.light_lnd._handle_error', autospec=True)
     @patch('lighter.light_lnd._add_channel', autospec=True)

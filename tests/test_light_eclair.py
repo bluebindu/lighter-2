@@ -96,31 +96,12 @@ class LightEclairTests(TestCase):
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
-    @patch('lighter.light_eclair.convert', autospec=True)
-    @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair.command', autospec=True)
-    def test_ChannelBalance(self, mocked_command, mocked_handle,
-                            mocked_conv):
-        cmd = 'channels'
-        # Filled
-        mocked_command.return_value = fix.CHANNELS
-        mocked_conv.return_value = 0.0
+    @patch('lighter.light_eclair.get_channel_balances', autospec=True)
+    @patch('lighter.light_eclair.ListChannels', autospec=True)
+    def test_ChannelBalance(self, mocked_ListChannels, mocked_get_chan_bal):
+        mocked_get_chan_bal.return_value = pb.ChannelBalanceResponse()
         res = MOD.ChannelBalance('request', CTX)
-        mocked_command.assert_called_with(CTX, cmd, env=settings.ECL_ENV)
-        mocked_handle.assert_called_once_with(
-            CTX, fix.CHANNELS, always_abort=False)
-        assert mocked_conv.called
-        self.assertEqual(res.balance, 0.0)
-        # Empty
-        reset_mocks(vars())
-        mocked_command.return_value = []
-        mocked_conv.return_value = 0.0
-        res = MOD.ChannelBalance('request', CTX)
-        mocked_command.assert_called_once_with(CTX, cmd, env=settings.ECL_ENV)
-        mocked_handle.assert_called_once_with(
-            CTX, mocked_command.return_value, always_abort=False)
-        assert mocked_conv.called
-        self.assertEqual(res.balance, 0.0)
+        self.assertEqual(res, pb.ChannelBalanceResponse())
 
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair.command', autospec=True)

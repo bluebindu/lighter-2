@@ -154,26 +154,12 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
 
-    @patch('lighter.light_clightning.convert', autospec=True)
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
-    def test_ChannelBalance(self, mocked_command, mocked_handle,
-                            mocked_conv):
-        # Correct case
-        mocked_command.return_value = fix.LISTFUNDS
-        mocked_conv.return_value = 10
+    @patch('lighter.light_clightning.get_channel_balances', autospec=True)
+    @patch('lighter.light_clightning.ListChannels', autospec=True)
+    def test_ChannelBalance(self, mocked_ListChannels, mocked_get_chan_bal):
+        mocked_get_chan_bal.return_value = pb.ChannelBalanceResponse()
         res = MOD.ChannelBalance('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'listfunds')
-        mocked_handle.assert_called_once_with(
-            CTX, fix.LISTFUNDS, always_abort=False)
-        mocked_conv.assert_called_once_with(CTX, Enf.SATS, 1000)
-        # Error case
-        reset_mocks(vars())
-        mocked_command.return_value = fix.BADRESPONSE
-        res = MOD.ChannelBalance('request', CTX)
-        mocked_command.assert_called_once_with(CTX, 'listfunds')
-        mocked_handle.assert_called_once_with(
-            CTX, fix.BADRESPONSE, always_abort=False)
+        self.assertEqual(res, pb.ChannelBalanceResponse())
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning._add_channel', autospec=True)

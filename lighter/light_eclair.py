@@ -29,8 +29,8 @@ from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
 from .utils import check_req_params, command, convert, Enforcer as Enf, \
-    FakeContext, get_thread_timeout, get_node_timeout, handle_thread, \
-    has_amount_encoded
+    FakeContext, get_channel_balances, get_thread_timeout, get_node_timeout, \
+    handle_thread, has_amount_encoded
 
 LOGGER = getLogger(__name__)
 
@@ -133,22 +133,9 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
 
 def ChannelBalance(request, context):  # pylint: disable=unused-argument
     """ Returns the off-chain balance in bits available across all channels """
-    ecl_req = ['channels']
-    ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
-    _handle_error(context, ecl_res, always_abort=False)
-    funds = 0.0
-    for channel in ecl_res:
-        if _def(channel, 'data') \
-                and _def(channel['data'], 'commitments'):
-            commitments = channel['data']['commitments']
-            if _def(commitments, 'localCommit'):
-                local_commit = commitments['localCommit']
-                if _def(local_commit, 'spec'):
-                    spec = commitments['localCommit']['spec']
-                    if _def(spec, 'toLocalMsat'):
-                        funds += spec['toLocalMsat']
-    return pb.ChannelBalanceResponse(
-        balance=convert(context, Enf.MSATS, funds))
+    # pylint: disable=no-member
+    channels = ListChannels(pb.ListChannelsRequest(), context).channels
+    return get_channel_balances(context, channels)
 
 
 def ListPeers(request, context):  # pylint: disable=unused-argument

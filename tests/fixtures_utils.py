@@ -15,10 +15,32 @@
 
 """ Fixtures for utils module """
 
+from lighter import lighter_pb2 as pb
+
+
 class FakeMetadatum():
     def __init__(self, key, value):
         self.key = key
         self.value = value
+
+
+CHANNELS = [
+    pb.Channel(local_balance=3111, remote_balance=666,
+               local_reserve=29, remote_reserve=666,
+               active=1, state=1),
+    pb.Channel(local_balance=666, remote_balance=555,
+               local_reserve=401, remote_reserve=33,
+               active=0, state=1),
+    pb.Channel(local_balance=47.3, remote_balance=23.71,
+               local_reserve=77, remote_reserve=24,
+               active=1, state=1),
+   pb.Channel(local_balance=577, remote_balance=2531,
+              local_reserve=30, remote_reserve=40,
+              active=0, state=0),
+]
+
+
+LISTCHANNELRESPONSE = pb.ListChannelsResponse(channels=CHANNELS)
 
 
 METADATA = (

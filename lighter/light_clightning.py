@@ -25,8 +25,8 @@ from os import environ, path
 from . import lighter_pb2 as pb
 from . import settings
 from .utils import check_req_params, command, convert, Enforcer as Enf, \
-    FakeContext, get_thread_timeout, get_node_timeout, handle_thread, \
-    has_amount_encoded
+    FakeContext, get_channel_balances, get_thread_timeout, get_node_timeout, \
+    handle_thread, has_amount_encoded
 from .errors import Err
 
 LOGGER = getLogger(__name__)
@@ -180,15 +180,9 @@ def WalletBalance(request, context):  # pylint: disable=unused-argument
 
 def ChannelBalance(request, context):  # pylint: disable=unused-argument
     """ Returns the off-chain balance in bits available across all channels """
-    cl_req = ['listfunds']
-    cl_res = command(context, *cl_req)
-    _handle_error(context, cl_res, always_abort=False)
-    funds = 0.0
-    if 'channels' in cl_res:
-        for channel in cl_res['channels']:
-            if 'channel_sat' in channel:
-                funds += channel['channel_sat']
-    return pb.ChannelBalanceResponse(balance=convert(context, Enf.SATS, funds))
+    # pylint: disable=no-member
+    channels = ListChannels(pb.ListChannelsRequest(), context).channels
+    return get_channel_balances(context, channels)
 
 
 def ListChannels(request, context):

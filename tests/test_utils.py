@@ -469,6 +469,21 @@ class UtilsTests(TestCase):
         res = MOD._has_numbers('lighter')
         self.assertEqual(res, False)
 
+    def test_get_channel_balances(self):
+        # Full channel list case
+        channels = fix.LISTCHANNELRESPONSE.channels
+        res = MOD.get_channel_balances(CTX, channels)
+        self.assertEqual(res.balance, 3824.3)
+        self.assertEqual(res.out_tot_now, 3158.3)
+        self.assertEqual(res.out_max_now, 3110.71)
+        self.assertEqual(res.in_tot, 1244.71)
+        self.assertEqual(res.in_tot_now, 689.71)
+        self.assertEqual(res.in_max_now, 659.34)
+        # Empty channel list case
+        reset_mocks(vars())
+        res = MOD.get_channel_balances(CTX, [])
+        self.assertEqual(res, pb.ChannelBalanceResponse())
+
     def test_ScryptParams(self):
         salt = b'salt'
         scrypt_params = MOD.ScryptParams(salt)
