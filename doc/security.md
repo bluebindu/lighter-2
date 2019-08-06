@@ -133,6 +133,7 @@ At the moment, we provide 3 different macaroons:
 | ListPayments     |   ☇   |     ☇    |          |
 | ListPeers        |   ☇   |     ☇    |     ☇    |
 | ListTransactions |   ☇   |     ☇    |          |
+| LockLighter      |   ☇   |          |          |
 | NewAddress       |   ☇   |          |          |
 | OpenChannel      |   ☇   |          |          |
 | PayInvoice       |   ☇   |          |          |
