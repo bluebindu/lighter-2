@@ -448,12 +448,12 @@ message Channel {
     Local reserve for the channel (minimum amount that this node is required
     to keep), in sat
     */
-    uint32 local_reserve = 12;
+    uint32 local_reserve_sat = 12;
     /**
     Remote reserve for the channel (minimum amount that the other node is
     required to keep), in sat
     */
-    uint32 remote_reserve = 13;
+    uint32 remote_reserve_sat = 13;
 }
 
 /**

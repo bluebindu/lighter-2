@@ -616,8 +616,8 @@ def _add_channel(context, response, lnd_chan, state, active_only=False,
             local_balance=convert(context, Enf.SATS, lnd_chan.local_balance),
             remote_balance=convert(context, Enf.SATS, lnd_chan.remote_balance),
             state=state,
-            local_reserve=lnd_chan.local_chan_reserve_sat,
-            remote_reserve=lnd_chan.remote_chan_reserve_sat)
+            local_reserve_sat=lnd_chan.local_chan_reserve_sat,
+            remote_reserve_sat=lnd_chan.remote_chan_reserve_sat)
         if open_chan:
             channel.remote_pubkey = lnd_chan.remote_pubkey
             channel.channel_id = str(lnd_chan.chan_id)

@@ -421,12 +421,12 @@ def _add_channel(context, response, ecl_chan, active_only):
                 if _def(local_params, 'toSelfDelay'):
                     grpc_chan.to_self_delay = local_params['toSelfDelay']
                 if _def(local_params, 'channelReserveSatoshis'):
-                    grpc_chan.local_reserve = \
+                    grpc_chan.local_reserve_sat = \
                         local_params['channelReserveSatoshis']
             if _def(commitments, 'remoteParams'):
                 remote_params = commitments['remoteParams']
                 if _def(remote_params, 'channelReserveSatoshis'):
-                    grpc_chan.remote_reserve = \
+                    grpc_chan.remote_reserve_sat = \
                         remote_params['channelReserveSatoshis']
             if _def(commitments, 'localCommit'):
                 local_commit = commitments['localCommit']

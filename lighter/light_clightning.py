@@ -498,9 +498,10 @@ def _add_channel(context, response, cl_peer, cl_chan, state, active_only):
     if 'private' in cl_chan:
         grpc_chan.private = cl_chan['private']
     if 'our_channel_reserve_satoshis' in cl_chan:
-        grpc_chan.local_reserve = cl_chan['our_channel_reserve_satoshis']
+        grpc_chan.local_reserve_sat = cl_chan['our_channel_reserve_satoshis']
     if 'their_channel_reserve_satoshis' in cl_chan:
-        grpc_chan.remote_reserve = cl_chan['their_channel_reserve_satoshis']
+        grpc_chan.remote_reserve_sat = \
+            cl_chan['their_channel_reserve_satoshis']
     # pylint: enable=too-many-arguments
 
 
