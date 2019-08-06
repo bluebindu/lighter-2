@@ -537,7 +537,7 @@ enum Order {
 
 message Invoice {
     /**
-    Amount of the invoice (if exists), in bits
+    Amount encoded in the invoice (if any), in bits
     */
     double amount_bits = 1;
     /**
@@ -576,6 +576,10 @@ message Invoice {
     Bech32 encoded LN invoice
     */
     string payment_request = 10;
+    /**
+    Received amount (if any), in bits
+    */
+    double amount_received_bits = 11;
 }
 
 /**

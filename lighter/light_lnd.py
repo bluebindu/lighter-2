@@ -719,7 +719,9 @@ def _add_invoice(context, response, lnd_invoice, invoice_state):
             expiry_time=lnd_invoice.expiry,
             fallback_addr=lnd_invoice.fallback_addr,
             state=invoice_state,
-            payment_request=lnd_invoice.payment_request)
+            payment_request=lnd_invoice.payment_request,
+            amount_received_bits=convert(
+                context, Enf.MSATS, lnd_invoice.amt_paid_msat))
         for lnd_route in lnd_invoice.route_hints:
             _add_route_hint(invoice, lnd_route)
 

@@ -48,7 +48,8 @@ ROUTE_HINT1 = ln.RouteHint(hop_hints=HOP_HINTS1)
 
 ROUTE_HINTS = [ROUTE_HINT0, ROUTE_HINT1]
 
-INVOICE = ln.Invoice(memo="lighter", value=777, route_hints=ROUTE_HINTS)
+INVOICE = ln.Invoice(memo="lighter", value=777, route_hints=ROUTE_HINTS,
+                     amt_paid_msat=999000)
 
 PAYMENT = ln.Payment(payment_hash="0abc", creation_date=1549277641, value_msat=777)
 

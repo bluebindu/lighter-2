@@ -990,8 +990,11 @@ class LightLndTests(TestCase):
         # Correct case
         response = pb.ListInvoicesResponse()
         MOD._add_invoice(CTX, response, fix.INVOICE, 2)
-        mocked_conv.assert_called_once_with(CTX, Enf.SATS,
-                                            fix.INVOICE.value)
+        calls = [
+            call(CTX, Enf.SATS, fix.INVOICE.value),
+            call(CTX, Enf.MSATS, fix.INVOICE.amt_paid_msat),
+        ]
+        mocked_conv.assert_has_calls(calls)
         calls = []
         for invoice in response.invoices:
             for route in fix.INVOICE.route_hints:
