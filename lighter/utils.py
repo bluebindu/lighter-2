@@ -327,6 +327,7 @@ def get_node_timeout(context, min_time=sett.IMPL_MIN_TIMEOUT):
     client_time = context.time_remaining()
     if client_time and client_time > node_timeout:
         node_timeout = client_time - sett.RESPONSE_RESERVED_TIME
+    node_timeout = min(sett.IMPL_MAX_TIMEOUT, node_timeout)
     return node_timeout
 
 

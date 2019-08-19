@@ -376,10 +376,14 @@ class UtilsTests(TestCase):
         ctx.time_remaining.return_value = None
         res = MOD.get_node_timeout(ctx)
         self.assertEqual(res, settings.IMPL_MIN_TIMEOUT)
-        # Client with long timeout
+        # Client with timeout
         ctx.time_remaining.return_value = 100
         res = MOD.get_node_timeout(ctx)
         self.assertEqual(res, 100 - settings.RESPONSE_RESERVED_TIME)
+        # Client with timeout too long
+        ctx.time_remaining.return_value = 100000000
+        res = MOD.get_node_timeout(ctx)
+        self.assertEqual(res, settings.IMPL_MAX_TIMEOUT)
         # Client with not enough timeout
         ctx.time_remaining.return_value = 0.01
         res = MOD.get_node_timeout(ctx)
