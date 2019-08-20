@@ -1,4 +1,4 @@
-# Lighter - The Lightning Network Wrapper
+# Lighter - enabling the 3rd layer with consensus on the 2nd
 
 Lighter is a Lightning Network node wrapper.
 
