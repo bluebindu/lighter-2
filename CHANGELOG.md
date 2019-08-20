@@ -6,6 +6,54 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.1.0 - 2019-08-21
+
+### Added
+- support for latest implementation versions
+(c-lightning v0.7.1, eclair v0.3, lnd v0.7.1-beta)
+- error log when a request is aborted
+- new common error mappings: `closechannel_failed`, `payinvoice_failed` and
+`payinvoice_pending`
+- dynamic implementation timeout based on client one
+- log message when Lighter is locked
+- config: added option to change console logging level
+- eclair: added `OpenChannel`
+- proto: added `amount_received_bits` field to `Invoice` message
+- proto: added `balance_confirmed` field to `WalletBalanceResponse` message
+- proto: added `CloseChannel` API (full support)
+- proto: added `color` field to `Peer` message
+- proto: added `(local|remote)_reserve_sat` fields to `Channel` message
+- proto: added `LockLighter` API
+- proto: added more granular balances to `ChannelBalanceResponse`
+- proto: added `node_uri` field to `GetInfoResponse` message
+- proto: added `payment_request` field to `Invoice` message
+- proto: added `private` field to `Channel` message
+- proto: added `state` and `active` fields to `Channel` message
+
+### Changed
+- added internal bech32 amount decode to avoid calling the node
+(currently lnd's decode doesn't handle amounts below 1 sat)
+- added operations to invoices macaroon
+- code of conduct
+- description of `unimplemented_method` and `unimplemented_parameter` errors
+- improved implementation errors mapping
+- made `make secure` mandatory
+- refactored `Crypter` and `DbHandler`
+- cli: increased timeout + log fix
+- cli: renamed from `lit-cli` to `cliter`
+
+### Fixed
+- minor bugs in `PayInvoice`, `ListChannels`, `OpenChannel`, `ListPeers` and
+`GetInfo`
+- secure: added keyboard interrupt catching and decryption error handling
+
+### Security
+- generation of macaroon rootkey at runtime
+- password documentation and auto generation
+- using different derived key for each secret
+- using `/dev/random` by default to generate password and salts
+
+
 ## 1.0.0 - 2019-04-23
 
 ### Added
