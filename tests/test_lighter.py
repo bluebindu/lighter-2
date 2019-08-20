@@ -113,7 +113,8 @@ class LighterTests(TestCase):
             res = lightning_func(request, CTX)
         mocked_import.assert_called_once_with('lighter.light_')
         mocked_getattr.assert_called_once_with('module', 'unexistent')
-        mocked_err().unimplemented_method.assert_called_once_with(CTX)
+        mocked_err().unimplemented_method.assert_called_once_with(
+            CTX, 'unexistent')
 
     @patch('lighter.lighter.check_macaroons', autospec=True)
     @patch('lighter.lighter.unary_unary_rpc_method_handler')

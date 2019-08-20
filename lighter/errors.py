@@ -96,7 +96,8 @@ ERRORS = {
     },
     'unimplemented_method': {
         'code': 'UNIMPLEMENTED',
-        'msg': 'This gRPC method is not supported for this implementation'
+        'msg': ('The gRPC method "%PARAM%" is not supported for this '
+                'implementation')
     },
     'unimplemented_parameter': {
         'code': 'UNIMPLEMENTED',

@@ -128,7 +128,7 @@ class LightningServicer():  # pylint: disable=too-few-public-methods
             try:
                 func = getattr(module, name)
             except AttributeError:
-                Err().unimplemented_method(context)
+                Err().unimplemented_method(context, name)
             # Return requested function if implemented
             return func(request, context)
 
