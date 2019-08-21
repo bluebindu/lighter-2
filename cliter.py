@@ -174,7 +174,7 @@ def _metadata_callback(_context, callback):
 
 @group()
 def entrypoint():
-    """ Entrypoint to merge all commands in a Click group """
+    """ Cliter, a CLI for Lighter """
     pass
 
 
