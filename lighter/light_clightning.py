@@ -349,7 +349,8 @@ def PayOnChain(request, context):
     check_req_params(context, request, 'address', 'amount_bits')
     cl_req.append('destination="{}"'.format(request.address))
     cl_req.append('satoshi="{}"'.format(
-        convert(context, Enf.SATS, request.amount_bits, enforce=Enf.OC_TX)))
+        convert(context, Enf.SATS, request.amount_bits, enforce=Enf.OC_TX,
+                max_precision=Enf.SATS)))
     if request.fee_sat_byte:
         if Enf.check_value(
                 context, request.fee_sat_byte, enforce=Enf.OC_FEE):
