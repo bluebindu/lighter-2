@@ -10,7 +10,7 @@ and this project adheres to
 
 ### Added
 - support for latest implementation versions
-(c-lightning v0.7.1, eclair v0.3, lnd v0.7.1-beta)
+(c-lightning v0.7.1, eclair v0.3.1, lnd v0.7.1-beta)
 - error log when a request is aborted
 - new common error mappings: `closechannel_failed`, `payinvoice_failed` and
 `payinvoice_pending`

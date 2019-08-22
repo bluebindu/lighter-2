@@ -32,7 +32,7 @@ Currently, it supports the main LN implementations <sup>1</sup>:
 
 - [c-lightning](https://github.com/ElementsProject/lightning)
   (v0.7.1 <sup>2</sup>) by Blockstream
-- [eclair](https://github.com/ACINQ/eclair) (v0.3) by Acinq
+- [eclair](https://github.com/ACINQ/eclair) (v0.3.1) by Acinq
 - [lnd](https://github.com/lightningnetwork/lnd) (v0.7.1-beta) by Lightning
   Labs
 
