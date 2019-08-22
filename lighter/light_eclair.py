@@ -181,7 +181,7 @@ def CreateInvoice(request, context):
     ecl_req = ['createinvoice']
     if request.min_final_cltv_expiry:
         Err().unimplemented_parameter(context, 'min_final_cltv_expiry')
-    description = settings.DEFAULT_DESCRIPTION
+    description = ''
     if request.description:
         description = request.description
     ecl_req.append('--description="{}"'.format(description))

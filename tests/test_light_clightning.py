@@ -308,7 +308,7 @@ class LightClightningTests(TestCase):
         self.assertEqual(res.payment_hash, fix.INVOICE['payment_hash'])
         self.assertEqual(res.payment_request, fix.INVOICE['bolt11'])
         self.assertEqual(res.expires_at, fix.INVOICE['expires_at'])
-        # Correct case: description default if missing in request
+        # Correct case: description missing in request
         reset_mocks(vars())
         request = pb.CreateInvoiceRequest(amount_bits=7)
         mocked_label.return_value = 'label'
@@ -318,8 +318,8 @@ class LightClightningTests(TestCase):
             CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
         mocked_label.assert_called_once_with()
         mocked_command.assert_called_once_with(
-            CTX, 'invoice', 'msatoshi="700000"', 'description="{}"'.format(
-                settings.DEFAULT_DESCRIPTION), 'label="label"')
+            CTX, 'invoice', 'msatoshi="700000"', 'description=""',
+            'label="label"')
         mocked_handle.assert_called_once_with(
             CTX, fix.INVOICE, always_abort=False)
         self.assertEqual(res.payment_hash, fix.INVOICE['payment_hash'])

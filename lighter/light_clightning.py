@@ -259,10 +259,10 @@ def CreateInvoice(request, context):
                 enforce=Enf.LN_PAYREQ)))
     else:
         cl_req.append('msatoshi="any"')
+    description = ''
     if request.description:
-        cl_req.append('description="{}"'.format(request.description))
-    else:
-        cl_req.append('description="{}"'.format(settings.DEFAULT_DESCRIPTION))
+        description = request.description
+    cl_req.append('description="{}"'.format(description))
     label = _create_label()
     cl_req.append('label="{}"'.format(label))
     if request.expiry_time:

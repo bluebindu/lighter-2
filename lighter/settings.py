@@ -105,7 +105,6 @@ THREAD_TIMEOUT = 3
 CLOSE_TIMEOUT_NODE = 15
 MAX_INVOICES = 200
 INVOICES_TIMES = 3
-DEFAULT_DESCRIPTION = 'Lighter invoice'
 
 # Logging settings
 LOG_TIMEFMT = '%Y-%m-%d %H:%M:%S %z'

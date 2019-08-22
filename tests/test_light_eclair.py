@@ -195,9 +195,7 @@ class LightEclairTests(TestCase):
         res = MOD.CreateInvoice(request, CTX)
         assert not mocked_err().unsettable.called
         mocked_command.assert_called_once_with(
-            CTX, cmd,
-            '--description="{}"'.format(settings.DEFAULT_DESCRIPTION),
-            env=settings.ECL_ENV)
+            CTX, cmd, '--description=""', env=settings.ECL_ENV)
         assert not mocked_handle.called
         self.assertEqual(res.payment_request, pay_req)
         self.assertEqual(res.payment_hash, pay_hash)
