@@ -395,8 +395,8 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
         response.expiry_time = cl_res['expiry']
     if 'min_final_cltv_expiry' in cl_res:
         response.min_final_cltv_expiry = cl_res['min_final_cltv_expiry']
-    if 'fallback' in cl_res and 'addr' in cl_res['fallback']:
-        response.fallback_addr = cl_res['fallback']['addr']
+    if 'fallbacks' in cl_res and 'addr' in cl_res['fallbacks'][0]:
+        response.fallback_addr = cl_res['fallbacks'][0]['addr']
     if 'routes' in cl_res:
         for cl_route in cl_res['routes']:
             _add_route_hint(response, cl_route)
