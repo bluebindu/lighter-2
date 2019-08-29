@@ -217,7 +217,7 @@ class LightClightningTests(TestCase):
     @patch('lighter.light_clightning._add_payment', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
     def test_ListPayments(self, mocked_command, mocked_add, mocked_handle):
-        api = 'listpayments'
+        api = 'listsendpays'
         # Correct case
         request = pb.ListPaymentsRequest()
         mocked_command.return_value = fix.PAYMENTS

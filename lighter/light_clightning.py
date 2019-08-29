@@ -207,7 +207,7 @@ def ListChannels(request, context):
 
 def ListPayments(request, context):  # pylint: disable=unused-argument
     """ Returns a list of lightning invoices paid by the running LN node """
-    cl_req = ['listpayments']
+    cl_req = ['listsendpays']
     cl_res = command(context, *cl_req)
     response = pb.ListPaymentsResponse()
     if 'payments' in cl_res:
