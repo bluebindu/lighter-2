@@ -126,7 +126,8 @@ def get_start_options(warning=False, detect=False):
         sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
     sett.CLI_HOST = env.get('CLI_HOST', sett.CLI_HOST)
-    sett.CLI_ADDR = '{}:{}'.format(sett.CLI_HOST, sett.PORT)
+    if not sett.CLI_ADDR:
+        sett.CLI_ADDR = '{}:{}'.format(sett.CLI_HOST, sett.PORT)
 
 
 def _detect_impl_secret():

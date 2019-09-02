@@ -177,9 +177,23 @@ def _metadata_callback(_context, callback):
 
 
 @group()
-def entrypoint():
+@option('--rpcserver', nargs=1, help='Set host[:port] of Lighter gRPC server')
+def entrypoint(rpcserver):
     """ Cliter, a CLI for Lighter """
-    pass
+    if rpcserver is not None:
+        if rpcserver:
+            server = rpcserver.split(':', 1)
+            host = server[0]
+            port = settings.PORT
+            if len(server) > 1:
+                port = server[1]
+                if not port.isdigit():
+                    slow_exit('Invalid port', wait=False)
+                if int(port) not in range(1, 65536):
+                    slow_exit('Invalid port', wait=False)
+            settings.CLI_ADDR = '{}:{}'.format(host, port)
+        else:
+            slow_exit('Invalid address "{}"'.format(rpcserver), wait=False)
 
 
 @entrypoint.command()
