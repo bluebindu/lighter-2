@@ -105,8 +105,8 @@ def _print_res(response):
     for key in response.DESCRIPTOR.fields_by_name.keys():
         value = getattr(response, key)
         res_dict.update(_recursive_print(key, value))
-    parsed = json.loads(json.dumps(res_dict))
-    print(json.dumps(parsed, indent=4, sort_keys=True))
+    parsed = loads(dumps(res_dict))
+    print(dumps(parsed, indent=4, sort_keys=True))
 
 
 def _recursive_print(key, value):
