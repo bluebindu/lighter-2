@@ -18,6 +18,7 @@
 from codecs import encode
 from contextlib import contextmanager
 from functools import wraps
+from json import dumps, loads
 from os import path
 
 from click import argument, group, option, ParamType
@@ -98,24 +99,27 @@ def handle_call(func):
     return wrapper
 
 
-def _print_res(res):
-    """ Prints response, with pretty printing if available """
-    for key in res.DESCRIPTOR.fields_by_name.keys():
-        value = getattr(res, key)
-        try:
-            from google.protobuf.pyext._message import \
-                RepeatedCompositeContainer
-            if isinstance(value, RepeatedCompositeContainer):
-                print('{}: [\n'.format(key))
-                for elem in value:
-                    for ekey in elem.DESCRIPTOR.fields_by_name.keys():
-                        print('  {}: {}'.format(ekey, getattr(elem, ekey)))
-                    print()
-                print(']')
-            else:
-                print('{}: {}'.format(key, value))
-        except ImportError:
-            print('{}: {}'.format(key, value))
+def _print_res(response):
+    """ Prints response using JSON format """
+    res_dict = {}
+    for key in response.DESCRIPTOR.fields_by_name.keys():
+        value = getattr(response, key)
+        res_dict.update(_recursive_print(key, value))
+    parsed = json.loads(json.dumps(res_dict))
+    print(json.dumps(parsed, indent=4, sort_keys=True))
+
+
+def _recursive_print(key, value):
+    """ Recursively builds response """
+    if not hasattr(value, 'extend'):
+        # value is not iterable (RepeatedCompositeContainer)
+        return {key: value}
+    for inner_elem in value:
+        inner_dict = {}
+        for inner_key in inner_elem.DESCRIPTOR.fields_by_name.keys():
+            inner_value = getattr(inner_elem, inner_key)
+            inner_dict.update(_recursive_print(inner_key, inner_value))
+        return {key: [inner_dict]}
 
 
 def _get_stub_name(api):
