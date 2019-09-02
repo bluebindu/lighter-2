@@ -88,6 +88,9 @@ ERRORS = {
     'Peer already': {
         'fun': 'openchannel_failed'
     },
+    'Still syncing with bitcoin network': {
+        'fun': 'openchannel_failed'
+    },
     'They sent error': {
         'fun': 'openchannel_failed'
     }
