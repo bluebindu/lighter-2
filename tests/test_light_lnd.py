@@ -676,6 +676,7 @@ class LightLndTests(TestCase):
         assert not mocked_add.called
         assert not mocked_handle.called
 
+    @patch('lighter.light_lnd._txid_bytes_to_str', autospec=True)
     @patch('lighter.light_lnd._handle_error', autospec=True)
     @patch('lighter.light_lnd.convert', autospec=True)
     @patch('lighter.light_lnd.get_node_timeout', autospec=True)
@@ -683,11 +684,14 @@ class LightLndTests(TestCase):
     @patch('lighter.light_lnd.Err')
     @patch('lighter.light_lnd.check_req_params', autospec=True)
     def test_OpenChannel(self, mocked_check_par, mocked_err, mocked_connect,
-                         mocked_get_time, mocked_conv, mocked_handle):
+                         mocked_get_time, mocked_conv, mocked_handle,
+                         mocked_txid_bs):
         stub = mocked_connect.return_value.__enter__.return_value
         time = 10
         mocked_get_time.return_value = 10
         amt = 7
+        txid = 'txid'
+        mocked_txid_bs.return_value = txid
         # Filled
         request = pb.OpenChannelRequest(
             funding_bits=amt, node_uri=fix.NODE_URI, push_bits=amt,
@@ -779,8 +783,7 @@ class LightLndTests(TestCase):
         stub.GetChanInfo.return_value = ln.ChannelEdge(chan_point='1rtfm:0')
         future = Mock()
         executor = Mock()
-        future.result.return_value = ln.ChannelCloseUpdate(
-            closing_txid=txid.encode())
+        future.result.return_value = txid.encode()
         executor.submit.return_value = future
         mocked_thread.return_value = executor
         request = pb.CloseChannelRequest(channel_id='777')
@@ -815,11 +818,14 @@ class LightLndTests(TestCase):
         MOD.CloseChannel(request, ctx)
         mocked_handle.assert_called_once_with(ctx, error)
 
+    @patch('lighter.light_lnd._txid_bytes_to_str', autospec=True)
     @patch('lighter.light_lnd.LOGGER', autospec=True)
     @patch('lighter.light_lnd._connect', autospec=True)
-    def test_close_channel(self, mocked_connect, mocked_log):
+    def test_close_channel(self, mocked_connect, mocked_log, mocked_txid_bs):
+        ptxid = 'ptxid'
+        mocked_txid_bs.return_value = ptxid
         stub = mocked_connect.return_value.__enter__.return_value
-        pending_update = ln.PendingUpdate(txid=b'txid')
+        pending_update = ln.PendingUpdate(txid=ptxid.encode())
         channel_close_update = ln.ChannelCloseUpdate(closing_txid=b'ctxid')
         stub.CloseChannel.return_value = [
             ln.CloseStatusUpdate(close_pending=pending_update),
@@ -828,8 +834,8 @@ class LightLndTests(TestCase):
         chan_point = ln.ChannelPoint(funding_txid_str='txid', output_index=0)
         lnd_req = ln.CloseChannelRequest(channel_point=chan_point)
         res = MOD._close_channel(lnd_req, 15)
-        self.assertEqual(mocked_log.debug.call_count, 2)
-        self.assertEqual(res, channel_close_update)
+        self.assertEqual(mocked_log.debug.call_count, 1)
+        self.assertEqual(res, ptxid)
         # stub throws RpcError
         reset_mocks(vars())
         stub.CloseChannel.side_effect = CalledRpcError()
@@ -1070,6 +1076,14 @@ class LightLndTests(TestCase):
         MOD._handle_error(CTX, error)
         mocked_err().report_error.assert_called_with(
             CTX, 'Could not decode error message')
+
+    def test_txid_bytes_to_str(self):
+        btxid = (b'\366\2006?\300l0\361\351W\355\242\265qC#9qk\245c*t<\367'
+                 b'\202\274,~\034U#')
+        ltxid = ('23551c7e2cbc82f73c742a63a56b7139234371b5a2ed57e9f1306cc03f'
+                '3680f6')
+        res = MOD._txid_bytes_to_str(btxid)
+        self.assertEqual(res, ltxid)
 
 
 class CalledRpcError(RpcError):

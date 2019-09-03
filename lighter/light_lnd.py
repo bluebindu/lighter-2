@@ -563,7 +563,7 @@ def OpenChannel(request, context):
             lnd_req, timeout=get_node_timeout(context))
         response.funding_txid = lnd_res.funding_txid_str
         if not lnd_res.funding_txid_str:
-            txid = encode(lnd_res.funding_txid_bytes[::-1], 'hex').decode()
+            txid = _txid_bytes_to_str(lnd_res.funding_txid_bytes)
             response.funding_txid = txid
     return response
 
@@ -593,7 +593,7 @@ def CloseChannel(request, context):
         try:
             lnd_res = future.result(timeout=get_thread_timeout(context))
             if lnd_res:
-                response.closing_txid = lnd_res.closing_txid.decode()
+                response.closing_txid = lnd_res
         except TimeoutFutError:
             executor.shutdown(wait=False)
         except RpcError as err:
@@ -667,14 +667,15 @@ def _check_timestamp(request, lnd_invoice):
 @handle_thread
 def _close_channel(lnd_req, close_timeout):
     """ Returns close channel response or raises exception to caller """
-    final_res = lnd_res = None
+    lnd_res = None
     try:
         with _connect(FakeContext()) as stub:
             for lnd_res in stub.CloseChannel(lnd_req, timeout=close_timeout):
                 LOGGER.debug('[ASYNC] CloseChannel released response: %s',
                              str(lnd_res).replace('\n', ''))
-                if lnd_res.chan_close.closing_txid:
-                    final_res = lnd_res.chan_close
+                if lnd_res.close_pending.txid:
+                    lnd_res = _txid_bytes_to_str(lnd_res.close_pending.txid)
+                    break
     except RpcError as err:
         # pylint: disable=no-member
         error = err.details() if hasattr(err, 'details') else err
@@ -682,7 +683,7 @@ def _close_channel(lnd_req, close_timeout):
         raise err
     except RuntimeError as err:
         raise err
-    return final_res
+    return lnd_res
 
 
 def _parse_invoices(context, response, invoices, request):
@@ -774,3 +775,8 @@ def _handle_error(context, error):
     if not isinstance(error, str):
         error = 'Could not decode error message'
     Err().report_error(context, error)
+
+
+def _txid_bytes_to_str(txid):
+    """ Decodes big-endian TXID bytes to a little-endian TXID string """
+    return encode(txid[::-1], 'hex').decode()
