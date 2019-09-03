@@ -18,10 +18,10 @@
 from codecs import encode
 from contextlib import contextmanager
 from functools import wraps
-from json import dumps, loads
 from os import path
 
 from click import argument, group, option, ParamType
+from google.protobuf.json_format import MessageToJson
 from grpc import channel_ready_future, composite_channel_credentials, \
     FutureTimeoutError, insecure_channel, metadata_call_credentials, \
     RpcError, secure_channel, ssl_channel_credentials
@@ -101,25 +101,8 @@ def handle_call(func):
 
 def _print_res(response):
     """ Prints response using JSON format """
-    res_dict = {}
-    for key in response.DESCRIPTOR.fields_by_name.keys():
-        value = getattr(response, key)
-        res_dict.update(_recursive_print(key, value))
-    parsed = loads(dumps(res_dict))
-    print(dumps(parsed, indent=4, sort_keys=True))
-
-
-def _recursive_print(key, value):
-    """ Recursively builds response """
-    if not hasattr(value, 'extend'):
-        # value is not iterable (RepeatedCompositeContainer)
-        return {key: value}
-    for inner_elem in value:
-        inner_dict = {}
-        for inner_key in inner_elem.DESCRIPTOR.fields_by_name.keys():
-            inner_value = getattr(inner_elem, inner_key)
-            inner_dict.update(_recursive_print(inner_key, inner_value))
-        return {key: [inner_dict]}
+    print(MessageToJson(response, including_default_value_fields=True,
+                        preserving_proto_field_name=True, sort_keys=True))
 
 
 def _get_stub_name(api):
