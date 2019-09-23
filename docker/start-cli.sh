@@ -15,10 +15,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Activates virtual environment
-. "$ENV/bin/activate"
-pip install -q --editable .
-
 # Exports variables so they are available to python
 # Overrides cofiguration variables for docker environment
 set -a
@@ -32,7 +28,5 @@ set +a
 [ -z "$MYUID" ] || usermod -u "$MYUID" "$USER"
 chown -R --silent "$USER" "$APP_DIR"
 
-set_cli
-
 # Starts a bash to command the cli
-exec gosu $USER bash --rcfile $TMP_BASHRC
+exec gosu $USER bash

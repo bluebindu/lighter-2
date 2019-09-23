@@ -54,7 +54,7 @@ eclair: common check_eclair setup_eclair
 lnd: common check_lnd setup_lnd build_lnd
 
 docker:
-	@ $(SCRIPT) docker_build $(DOCKER_REPO) $(VERSION) $(TAGS_ARCH)
+	@ $(SCRIPT) docker_build $(DOCKER_REPO) $(CONFIG_FILE) $(VERSION) $(TAGS_ARCH)
 
 secure:
 	@ $(SCRIPT) secure $(CONFIG_FILE) $(VERSION)

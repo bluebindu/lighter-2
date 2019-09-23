@@ -31,12 +31,9 @@ from subprocess import PIPE, Popen, TimeoutExpired
 from threading import active_count, current_thread
 from time import sleep, strftime, time
 
-from nacl.secret import SecretBox
-from nacl.exceptions import CryptoError
-from pylibscrypt import scrypt
-
 from . import lighter_pb2 as pb
-from . import settings as sett
+
+from . import __version__, settings as sett
 from .errors import Err
 
 LOGGER = getLogger(__name__)
@@ -54,7 +51,7 @@ def update_logger():
     dictConfig(sett.LOGGING)
 
 
-def log_intro(version):
+def log_intro():
     """ Prints a booting boilerplate to ease run distinction """
     LOGGER.info(' '*72)
     LOGGER.info(' '*72)
@@ -62,7 +59,7 @@ def log_intro(version):
     LOGGER.info('*'*72)
     LOGGER.info(' '*72)
     LOGGER.info('Lighter')
-    LOGGER.info('version %s', version)
+    LOGGER.info('version %s', __version__)
     LOGGER.info(' '*72)
     LOGGER.info('booting up at %s', strftime(sett.LOG_TIMEFMT))
     LOGGER.info(' '*72)
@@ -125,9 +122,6 @@ def get_start_options(warning=False, detect=False):
     else:
         sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
-    sett.CLI_HOST = env.get('CLI_HOST', sett.CLI_HOST)
-    if not sett.CLI_ADDR:
-        sett.CLI_ADDR = '{}:{}'.format(sett.CLI_HOST, sett.PORT)
 
 
 def _detect_impl_secret():
@@ -507,6 +501,7 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
     @staticmethod
     def gen_derived_key(password, scrypt_params):
         """ Derives a key from a password using Scrypt """
+        from pylibscrypt import scrypt
         return scrypt(
             bytes(password, 'utf-8'),
             scrypt_params.salt,
@@ -521,6 +516,7 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
         Crypts data using Secretbox and the access key.
         It returns the encrypted data in a serialized form
         """
+        from nacl.secret import SecretBox
         return SecretBox(derived_key).encrypt(clear_data)
 
     @staticmethod
@@ -529,6 +525,8 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
         Decrypts serialized data using Secretbox and the access key.
         Throws an error when password is wrong
         """
+        from nacl.exceptions import CryptoError
+        from nacl.secret import SecretBox
         try:
             return SecretBox(derived_key).decrypt(encrypted_data)
         except CryptoError:

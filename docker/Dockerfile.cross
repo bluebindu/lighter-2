@@ -1,8 +1,8 @@
 FROM %%BASEIMAGE_ARCH%%/debian:stretch-slim
 
 RUN apt-get update && \
-    apt-get -y install \
-    curl gosu jq libscrypt0 make unzip virtualenv && \
+    apt-get -y install --no-install-recommends \
+    curl gosu jq libscrypt0 make python3-pip unzip virtualenv && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 %%ENVS%%
@@ -39,6 +39,19 @@ COPY main.py cliter.py setup.py secure.py ./
 COPY lighter/__init__.py lighter/lighter.py lighter/macaroons.py lighter/settings.py $L_DIR/
 COPY lighter/utils.py lighter/errors.py lighter/light_* $L_DIR/
 
+# Install Cliter on user's PATH
+RUN chown -R $USER /srv/env /srv/app
+ARG DEVELOPMENT
+ENV DEVELOPMENT=$DEVELOPMENT
+USER $USER
+RUN pip3 install --user setuptools \
+    && if [ "$DEVELOPMENT" = '1' ]; then \
+        echo "Development mode ON" && pip3 install --user --editable .; \
+    else pip3 install --user .; fi \
+    && echo 'PATH="$PATH:$APP_DIR/.local/bin"' >> $HOME/.bashrc \
+    && echo 'eval "$(_CLITER_COMPLETE=source cliter)"' >> $HOME/.bashrc
+
+USER root
 VOLUME $APP_DIR/lighter-data/logs/
 EXPOSE 1708
 ENTRYPOINT ["/usr/local/bin/start-lighter.sh"]

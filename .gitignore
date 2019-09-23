@@ -10,7 +10,8 @@
 !/docker/Dockerfile.cross
 !/docker/Dockerfile.ci
 /complete-cliter.sh
-/.bashrc_tmp
+/.bashrc
+/.zshrc
 /cliter.egg-info/
 *.swp
 

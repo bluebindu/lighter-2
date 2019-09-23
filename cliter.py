@@ -15,12 +15,16 @@
 
 """ Implementation of a CLI (Command Line Interface) to command Lighter """
 
+import sys
+
 from codecs import encode
 from contextlib import contextmanager
 from functools import wraps
-from os import path
+from json import dumps
+from os import environ as env, path
 
-from click import argument, group, option, ParamType
+from click import argument, echo, group, option, ParamType, pass_context, \
+    version_option
 from google.protobuf.json_format import MessageToJson
 from grpc import channel_ready_future, composite_channel_credentials, \
     FutureTimeoutError, insecure_channel, metadata_call_credentials, \
@@ -29,11 +33,8 @@ from grpc import channel_ready_future, composite_channel_credentials, \
 import lighter.lighter_pb2 as pb
 import lighter.lighter_pb2_grpc as pb_grpc
 
-from lighter import settings
-from lighter.utils import get_start_options, slow_exit
-
-MAC_PATH = path.join(
-    path.expanduser(settings.MACAROONS_DIR), settings.MAC_ADMIN)
+from lighter import __version__, settings
+from lighter.utils import str2bool
 
 
 class AddressType(ParamType):
@@ -78,6 +79,38 @@ def _get_order(ctx, args, incomplete):
         return [k for k in orders if k.startswith(incomplete)]
 
 
+def _die(message):
+    """ Prints message to stderr with error code 1 """
+    echo(message, err=True)
+    sys.exit(1)
+
+
+def _get_cli_options():
+    """ Sets CLI options """
+    bool_opt = {
+        'INSECURE_CONNECTION': settings.INSECURE_CONNECTION,
+        'DISABLE_MACAROONS': settings.DISABLE_MACAROONS}
+    for opt, def_val in bool_opt.items():
+        if not getattr(settings, 'CLI_{}'.format(opt)):
+            setattr(settings, 'CLI_{}'.format(opt),
+                    str2bool(env.get(opt, def_val)))
+    settings.PORT = env.get('PORT', settings.PORT)
+    settings.CLI_HOST = env.get('CLI_HOST', settings.CLI_HOST)
+    if not settings.CLI_ADDR:
+        settings.CLI_ADDR = '{}:{}'.format(settings.CLI_HOST, settings.PORT)
+    if not settings.CLI_INSECURE_CONNECTION:
+        if not settings.CLI_CRT:
+            settings.CLI_CRT = env.get('SERVER_CRT', settings.SERVER_CRT)
+    else:
+        settings.CLI_DISABLE_MACAROONS = True
+    if not settings.CLI_DISABLE_MACAROONS:
+        settings.MACAROONS_DIR = env.get(
+            'MACAROONS_DIR', settings.MACAROONS_DIR)
+        if not settings.CLI_MAC:
+            settings.CLI_MAC = path.join(
+                path.expanduser(settings.MACAROONS_DIR), settings.MAC_ADMIN)
+
+
 def handle_call(func):
     """ Decorator to handle a gRPC call to Lighter """
 
@@ -85,24 +118,27 @@ def handle_call(func):
     def wrapper(*args, **kwargs):
         """ Gets start options and runs wrapped function """
         try:
-            get_start_options()
+            _get_cli_options()
             api, req = func(*args, **kwargs)
             stub_name = _get_stub_name(api)
             with _connect(stub_name) as stub:
                 res = getattr(stub, api)(req, timeout=settings.CLI_TIMEOUT)
             _print_res(res)
         except RpcError as err:
-            print(err.code(), err.details())
+            # pylint: disable=no-member
+            json_err = {
+                'code': err.code().name, 'details': err.details()}
+            echo(dumps(json_err, indent=4, sort_keys=True))
         except Exception as err:
-            slow_exit('Error, terminating cli: {}'.format(err), wait=False)
+            _die('Error, terminating cli: {}'.format(err))
 
     return wrapper
 
 
 def _print_res(response):
     """ Prints response using JSON format """
-    print(MessageToJson(response, including_default_value_fields=True,
-                        preserving_proto_field_name=True, sort_keys=True))
+    echo(MessageToJson(response, including_default_value_fields=True,
+                       preserving_proto_field_name=True, sort_keys=True))
 
 
 def _get_stub_name(api):
@@ -116,10 +152,10 @@ def _get_stub_name(api):
 def _connect(stub_class):
     """ Connects to Lighter using gRPC (securely or insecurely) """
     channel = None
-    if settings.INSECURE_CONNECTION:
+    if settings.CLI_INSECURE_CONNECTION:
         channel = insecure_channel(settings.CLI_ADDR)
     else:
-        if settings.DISABLE_MACAROONS:
+        if settings.CLI_DISABLE_MACAROONS:
             creds = _get_credentials(None)
         else:
             creds = _get_credentials(_metadata_callback)
@@ -129,7 +165,7 @@ def _connect(stub_class):
         future_channel.result(timeout=settings.CLI_TIMEOUT)
     except FutureTimeoutError:
         # Handle gRPC channel that did not connect
-        slow_exit('Failed to dial server', wait=False)
+        _die('Failed to dial server')
     else:
         stub = getattr(pb_grpc, stub_class)(channel)
         yield stub
@@ -140,12 +176,12 @@ def _get_credentials(callback):
     """
     Gets credentials to open a secure gRPC channel (with or without macaroons)
     """
-    with open(settings.SERVER_CRT, 'rb') as file:
+    with open(settings.CLI_CRT, 'rb') as file:
         cert = file.read()
     creds = cert_creds = ssl_channel_credentials(root_certificates=cert)
     if callback:  # macaroons are enabled
-        if not path.exists(MAC_PATH):
-            slow_exit('Macaroon file not found', wait=False)
+        if not path.exists(settings.CLI_MAC):
+            _die('Macaroon file not found')
         auth_creds = metadata_call_credentials(callback)
         creds = composite_channel_credentials(cert_creds, auth_creds)
     return creds
@@ -153,7 +189,7 @@ def _get_credentials(callback):
 
 def _metadata_callback(_context, callback):
     """ Gets Lighter's macaroon to be included in the gRPC request """
-    with open(MAC_PATH, 'rb') as file:
+    with open(settings.CLI_MAC, 'rb') as file:
         macaroon_bytes = file.read()
         macaroon = encode(macaroon_bytes, 'hex')
     callback([('macaroon', macaroon)], None)
@@ -161,22 +197,49 @@ def _metadata_callback(_context, callback):
 
 @group()
 @option('--rpcserver', nargs=1, help='Set host[:port] of Lighter gRPC server')
-def entrypoint(rpcserver):
+@option('--tlscert', nargs=1, help='Path to Lighter\'s TLS certificate')
+@option('--macaroon', nargs=1, help='Path to Lighter\'s macaroon')
+@option('--insecure', is_flag=True, help='Do not use TLS and macaroon')
+@option('--no-macaroon', is_flag=True, help='Do not use macaroon')
+@version_option(version=__version__, message='%(version)s')
+@pass_context
+def entrypoint(ctx, rpcserver, tlscert, macaroon, insecure, no_macaroon):
     """ Cliter, a CLI for Lighter """
+    incompatible_opts = {
+        'insecure': ['tlscert', 'macaroon'],
+        'no_macaroon': ['macaroon'],
+    }
+    passed_params = [param for param in ctx.params if ctx.params[param]]
+    for param in passed_params:
+        if param in incompatible_opts:
+            if any(opt in passed_params for opt in incompatible_opts[param]):
+                _die('Incompatible options')
+
     if rpcserver is not None:
-        if rpcserver:
-            server = rpcserver.split(':', 1)
-            host = server[0]
-            port = settings.PORT
-            if len(server) > 1:
-                port = server[1]
-                if not port.isdigit():
-                    slow_exit('Invalid port', wait=False)
-                if int(port) not in range(1, 65536):
-                    slow_exit('Invalid port', wait=False)
-            settings.CLI_ADDR = '{}:{}'.format(host, port)
-        else:
-            slow_exit('Invalid address "{}"'.format(rpcserver), wait=False)
+        if not rpcserver:
+            _die('Invalid address "{}"'.format(rpcserver))
+        server = rpcserver.split(':', 1)
+        host = server[0]
+        port = settings.PORT
+        if len(server) > 1:
+            port = server[1]
+            if not port.isdigit():
+                _die('Invalid port')
+            if int(port) not in range(1, 65536):
+                _die('Invalid port')
+        settings.CLI_ADDR = '{}:{}'.format(host, port)
+    if tlscert is not None:
+        if not tlscert or not path.exists(tlscert):
+            _die('Missing TLS certificate "{}"'.format(tlscert))
+        settings.CLI_CRT = tlscert
+    if macaroon is not None:
+        if not macaroon or not path.exists(macaroon):
+            _die('Missing macaroon "{}"'.format(macaroon))
+        settings.CLI_MAC = macaroon
+    if insecure:
+        settings.CLI_INSECURE_CONNECTION = True
+    if no_macaroon:
+        settings.CLI_DISABLE_MACAROONS = True
 
 
 @entrypoint.command()

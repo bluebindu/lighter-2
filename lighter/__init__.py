@@ -14,3 +14,5 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """ Lighter module """
+
+__version__ = "1.1.0"

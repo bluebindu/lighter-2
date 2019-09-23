@@ -41,7 +41,7 @@ signal(SIGTERM, sigterm_handler)
 @handle_keyboardinterrupt
 def main():
     update_logger()
-    log_intro(sys.argv[1])
+    log_intro()
     start()
 
 
