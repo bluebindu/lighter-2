@@ -215,8 +215,8 @@ $ make stop
 # Using
 
 Lighter can be operated through its gRPC client interface.
-A CLI with bash completion support is also available for maintenance and
-testing.
+A CLI with bash and zsh completion support is also available for maintenance
+and testing.
 
 The `lighter.proto` defines the structure for the data to be serialized
 and can be found [here](/lighter/lighter.proto).
