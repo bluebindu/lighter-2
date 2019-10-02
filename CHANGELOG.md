@@ -6,6 +6,30 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.1.1 - 2019-10-02
+
+### Added
+- cliter: add check for incompatible options
+- cliter: add `--insecure`, `--macaroon`, `--no-macaroon`, `--rpcserver`,
+`--tlscert`, `--version` options
+- cliter: add installation in docker image
+- support for c-lightning v0.7.2 (v0.7.2.1)
+
+### Changed
+- c-lightning: changed `listpayments` (deprecated) to `listsendpays`
+- cliter: changed output format to JSON
+- cliter: cli errors are now redirected to stderr (except for lighter errors)
+and exit code is 1
+- cliter: lighter errors are now printed in JSON format (`code` and `details`)
+- removed default description from invoices
+
+### Fixed
+- c-lightning: fixed parsing of fallback address in `DecodeInvoice`
+- c-lightning: fixed `PayOnChain`
+- cliter: fixed packaging (add generation of proto files in `setup.py`)
+- lnd: fixed closing txid decoding
+
+
 ## 1.1.0 - 2019-08-21
 
 ### Added
