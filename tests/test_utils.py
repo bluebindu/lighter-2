@@ -62,7 +62,7 @@ class UtilsTests(TestCase):
 
     @patch('lighter.utils.LOGGER', autospec=True)
     def test_log_intro(self, mocked_logger):
-        MOD.log_intro('7.7.7')
+        MOD.log_intro()
         self.assertEqual(mocked_logger.info.call_count, 11)
 
     @patch('lighter.utils.LOGGER', autospec=True)
@@ -122,7 +122,6 @@ class UtilsTests(TestCase):
             'SERVER_KEY': 'key',
             'DB_DIR': 'mac_db_dir',
             'MACAROONS_DIR': 'mac_dir',
-            'CLI_HOST': 'cli',
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options(detect=True)
@@ -132,7 +131,6 @@ class UtilsTests(TestCase):
         values = {
             'IMPLEMENTATION': 'asd',
             'INSECURE_CONNECTION': '1',
-            'CLI_HOST': 'cli',
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options()
@@ -144,7 +142,6 @@ class UtilsTests(TestCase):
             'IMPLEMENTATION': 'clightning',
             'INSECURE_CONNECTION': '1',
             'DISABLE_MACAROONS': '1',
-            'CLI_HOST': 'cli',
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options(warning=True)
@@ -526,7 +523,7 @@ class UtilsTests(TestCase):
         decrypted_data = MOD.Crypter.decrypt(CTX, crypt_data, derived_key)
         self.assertEqual(plain_data, decrypted_data)
         # Error case
-        with patch('lighter.utils.SecretBox') as mocked_box:
+        with patch('nacl.secret.SecretBox') as mocked_box:
             mocked_box.return_value.decrypt.side_effect = CryptoError
             decrypted_data = MOD.Crypter.decrypt(CTX, crypt_data, derived_key)
             mocked_err().wrong_password.assert_called_once_with(CTX)
