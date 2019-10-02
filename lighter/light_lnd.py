@@ -117,6 +117,9 @@ ERRORS = {
         'fun': 'invalid',
         'params': 'payment_hash'
     },
+    'signature mismatch': {
+        'fun': 'node_error'
+    },
     'Socket closed': {
         'fun': 'node_error'
     },
