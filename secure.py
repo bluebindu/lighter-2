@@ -27,13 +27,20 @@ from logging import getLogger
 from select import select
 from time import time, sleep
 from os import environ, path, remove, urandom
+from os.path import getsize
 
 from lighter import settings as sett
+from lighter.db import get_secret_from_db, init_db, is_db_ok, \
+    save_mac_params_to_db, save_secret_to_db, save_token_to_db, \
+    session_scope
 from lighter.macaroons import get_baker, MACAROONS, MAC_VERSION
-from lighter.utils import check_password, Crypter, DbHandler, FakeContext, \
+from lighter.utils import check_password, Crypter, FakeContext, \
     get_start_options, ScryptParams, str2bool, update_logger
 
 LOGGER = getLogger(__name__)
+
+DONE = False
+NEW_DB = False
 
 SEARCHING_ENTROPY = True
 COLLECTING_INPUT = True
@@ -74,11 +81,16 @@ def _handle_keyboardinterrupt(func):
     def wrapper(*args, **kwargs):
         global COLLECTING_INPUT
         global SEARCHING_ENTROPY
+        global DONE
+        global NEW_DB
         try:
             func(*args, **kwargs)
         except KeyboardInterrupt:
             COLLECTING_INPUT = False
             SEARCHING_ENTROPY = False
+            database = path.join(sett.DB_DIR, sett.DB_NAME)
+            if not DONE and NEW_DB:
+                _remove_files()
             _exit('\nKeyboard interrupt detected. Exiting...')
 
     return wrapper
@@ -152,36 +164,34 @@ def _set_lnd(secret):
     return data, activate_secret
 
 
-def _encrypt_token(password, scrypt_params):
+def _encrypt_token(session, password, scrypt_params):
     """ Encrypts token and saves it into db to verify password correctness """
     derived_key = Crypter.gen_derived_key(password, scrypt_params)
     encrypted_token = Crypter.crypt(sett.ACCESS_TOKEN, derived_key)
-    DbHandler.save_token_in_db(
-        FakeContext(), encrypted_token, scrypt_params.serialize())
+    save_token_to_db(session, encrypted_token, scrypt_params.serialize())
     LOGGER.info('Encrypted token stored in the DB')
 
 
-def _encrypt_secret(password, scrypt_params, secret, activate_secret):
+def _encrypt_secret(session, password, scrypt_params, secret, activate_secret):
     """ Encrypts implementation secret into db """
     derived_key = Crypter.gen_derived_key(password, scrypt_params)
     encrypted_secret = Crypter.crypt(secret, derived_key)
-    DbHandler.save_secret_in_db(
-        FakeContext(), sett.IMPLEMENTATION, activate_secret, encrypted_secret,
+    save_secret_to_db(
+        session, sett.IMPLEMENTATION, activate_secret, encrypted_secret,
         scrypt_params.serialize())
 
-def _recover_secrets(password):
+
+def _recover_secrets(session, password):
     """ Recovers secrets from db, making sure password is correct """
     ecl_sec = lnd_sec = None
     try:
-        ecl_sec, _, params = DbHandler.get_secret_from_db(
-            FakeContext(), sett.IMPLEMENTATION)
+        ecl_sec, _, params = get_secret_from_db(session, 'eclair')
         if ecl_sec:
             ecl_params = ScryptParams('')
             ecl_params.deserialize(params)
             derived_key = Crypter.gen_derived_key(password, ecl_params)
             ecl_sec = Crypter.decrypt(FakeContext(), ecl_sec, derived_key)
-        lnd_sec, _, params = DbHandler.get_secret_from_db(
-            FakeContext(), sett.IMPLEMENTATION)
+        lnd_sec, _, params = get_secret_from_db(session, 'lnd')
         if lnd_sec:
             lnd_params = ScryptParams('')
             lnd_params.deserialize(params)
@@ -192,11 +202,11 @@ def _recover_secrets(password):
     return ecl_sec, lnd_sec
 
 
-def _create_lightning_macaroons(password, scrypt_params):
+def _create_lightning_macaroons(session, password, scrypt_params):
     """ Creates macaroon files to use the LightningServicer """
     print('Creating macaroons...')
     sett.MAC_ROOT_KEY = Crypter.gen_derived_key(password, scrypt_params)
-    DbHandler.save_mac_params_in_db(FakeContext(), scrypt_params.serialize())
+    save_mac_params_to_db(session, scrypt_params.serialize())
     baker = get_baker(sett.MAC_ROOT_KEY)
     for file_name, permitted_ops in MACAROONS.items():
         macaroon_file = path.join(sett.MACAROONS_DIR, file_name)
@@ -331,20 +341,9 @@ def _gen_password(seed):
     return ''.join(alpha[i % len(alpha)] for i in seed)
 
 
-@_handle_keyboardinterrupt
-def secure():
-    """ Handles Lighter and implementation secrets """
-    update_logger()
-    no_db = environ.get('NO_DB')
-    rm_db = environ.get('RM_DB')
-    if rm_db: _remove_files()
-    get_start_options()
-    new = False
-    if no_db or rm_db:
-        new = True
-    else:
-        if not DbHandler.is_db_ok(FakeContext()):
-            _exit('Detected an incomplete configuration. Delete database.')
+def configure_db(session, new):
+    """ Configures a new or existing database """
+    ecl_sec = lnd_sec = None
     if new:
         print('Lighter is about to ask for a new password! As humans are '
               'really bad at\ngenerating entropy, we suggest using a password '
@@ -367,21 +366,22 @@ def secure():
         if password != password_check:
             _exit("Passwords do not match")
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
-        _encrypt_token(password, scrypt_params)
-        ecl_sec = lnd_sec = None
+        _encrypt_token(session, password, scrypt_params)
     else:
+        if not is_db_ok(session):
+            _exit('Detected an incomplete configuration. Delete database.')
         password = getpass("Insert Lighter's password: ")
         try:
-            check_password(FakeContext(), password)
+            check_password(FakeContext(), session, password)
         except RuntimeError:
             _exit('')
-        ecl_sec, lnd_sec = _recover_secrets(password)
+        ecl_sec, lnd_sec = _recover_secrets(session, password)
         seed = _gen_random_data(sett.SALT_LEN * 2)  # for macaroon and secret
-    create_mac = input('Do you want to create macaroon files (warning: '
-                       'macaroons should not be kept in\nthis host)? [y/N] ')
+    create_mac = input('Do you want to create macaroons (warning: generated '
+                       'files should not be kept in\nthis host)? [y/N] ')
     if str2bool(create_mac):
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
-        _create_lightning_macaroons(password, scrypt_params)
+        _create_lightning_macaroons(session, password, scrypt_params)
     data = crypt_data = None
     activate_secret = 1
     if sett.IMPLEMENTATION == 'eclair':
@@ -390,5 +390,24 @@ def secure():
         data, activate_secret = _set_lnd(lnd_sec)
     if data:  # user gave us data to encrypt and save
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
-        _encrypt_secret(password, scrypt_params, data, activate_secret)
+        _encrypt_secret(
+            session, password, scrypt_params, data, activate_secret)
+
+
+@_handle_keyboardinterrupt
+def secure():
+    """ Handles Lighter and implementation secrets """
+    update_logger()
+    get_start_options()
+    no_db = environ.get('NO_DB')
+    rm_db = environ.get('RM_DB')
+    if rm_db:
+        _remove_files()
+    global NEW_DB
+    NEW_DB = no_db or rm_db
+    init_db(new_db=NEW_DB)
+    with session_scope(FakeContext()) as session:
+        configure_db(session, NEW_DB)
+    global DONE
+    DONE = True
     _exit('All done!')

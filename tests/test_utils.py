@@ -18,16 +18,14 @@ from codecs import encode
 from decimal import InvalidOperation
 from importlib import import_module
 from os import urandom
+from subprocess import PIPE, TimeoutExpired
 
 from nacl.exceptions import CryptoError
-from sqlite3 import Error
-from subprocess import PIPE, TimeoutExpired
-from time import sleep
-from unittest import TestCase, skip
+from unittest import TestCase
 from unittest.mock import Mock, mock_open, patch
 
 from lighter import lighter_pb2 as pb
-from lighter import settings, utils
+from lighter import settings
 from lighter.utils import Enforcer as Enf
 from tests import fixtures_utils as fix
 
@@ -143,35 +141,36 @@ class UtilsTests(TestCase):
         with patch.dict('os.environ', values):
             MOD.get_start_options(warning=True)
 
-    @patch('lighter.utils.DbHandler', autospec=True)
-    def test_detect_impl_secret(self, mocked_db):
+    @patch('lighter.utils.get_secret_from_db', autospec=True)
+    def test_detect_impl_secret(self, mocked_db_sec):
         sec = 'secret'
+        ses = 'session'
         # c-lightning case
         settings.IMPLEMENTATION = 'clightning'
-        res = MOD.detect_impl_secret()
+        res = MOD.detect_impl_secret(ses)
         self.assertEqual(res, False)
         # lnd with no secrets case
         settings.IMPLEMENTATION = 'lnd'
-        mocked_db.get_secret_from_db.return_value = None, None, None
-        res = MOD.detect_impl_secret()
+        mocked_db_sec.return_value = None, None, None
+        res = MOD.detect_impl_secret(ses)
         self.assertEqual(res, False)
         # lnd with secrets case
-        mocked_db.get_secret_from_db.return_value = sec, 1, None
-        res = MOD.detect_impl_secret()
+        mocked_db_sec.return_value = sec, 1, None
+        res = MOD.detect_impl_secret(ses)
         self.assertEqual(res, True)
         # lnd with active but no secret
-        mocked_db.get_secret_from_db.return_value = None, 1, None
+        mocked_db_sec.return_value = None, 1, None
         with self.assertRaises(RuntimeError):
-            res = MOD.detect_impl_secret()
+            res = MOD.detect_impl_secret(ses)
         # eclair with secrets case
         settings.IMPLEMENTATION = 'eclair'
-        mocked_db.get_secret_from_db.return_value = sec, 1, None
-        res = MOD.detect_impl_secret()
+        mocked_db_sec.return_value = sec, 1, None
+        res = MOD.detect_impl_secret(ses)
         self.assertEqual(res, True)
         # eclair with no secrets case
-        mocked_db.get_secret_from_db.return_value = None, None, None
+        mocked_db_sec.return_value = None, None, None
         with self.assertRaises(RuntimeError):
-            res = MOD.detect_impl_secret()
+            res = MOD.detect_impl_secret(ses)
 
     def test_str2bool(self):
         ## force_true=False
@@ -471,19 +470,20 @@ class UtilsTests(TestCase):
     @patch('lighter.utils.Err')
     @patch('lighter.utils.Crypter')
     @patch('lighter.utils.ScryptParams', autospec=True)
-    @patch('lighter.utils.DbHandler', autospec=True)
-    def test_check_password(self, mocked_db, mocked_params, mocked_crypter,
+    @patch('lighter.utils.get_token_from_db', autospec=True)
+    def test_check_password(self, mocked_db_tok, mocked_params, mocked_crypter,
                             mocked_err):
         pwd = 'password'
+        ses = 'session'
         # Correct
-        mocked_db.get_token_from_db.return_value = ['token', 'params']
+        mocked_db_tok.return_value = ['token', 'params']
         mocked_crypter.decrypt.return_value = settings.ACCESS_TOKEN
-        MOD.check_password(CTX, pwd)
+        MOD.check_password(CTX, ses, pwd)
         mocked_err().wrong_password.assert_not_called()
         # Wrong
         wrong_token = 'wrong_token'
         mocked_crypter.decrypt.return_value = wrong_token
-        MOD.check_password(CTX, pwd)
+        MOD.check_password(CTX, ses, pwd)
         mocked_err().wrong_password.assert_called_once_with(CTX)
 
     @patch('lighter.utils.Err')
@@ -507,160 +507,6 @@ class UtilsTests(TestCase):
         wrong_data = 'random_wrong_stuff'
         MOD.Crypter.decrypt(CTX, wrong_data, derived_key)
         mocked_err().wrong_password.assert_called_once_with(CTX)
-
-    @patch('lighter.utils.Err')
-    def test_handle_db_errors(self, mocked_err):
-        func = Mock()
-        # Db error case
-        func.side_effect = Error()
-        wrapped = MOD._handle_db_errors(func)
-        mocked_err.side_effect = RuntimeError()
-        with self.assertRaises(RuntimeError):
-            res = wrapped()
-            self.assertEqual(res, None)
-        self.assertEqual(func.call_count, 1)
-        # Correct case
-        reset_mocks(vars())
-        mocked_err.side_effect = None
-        smt = '777'
-        func.side_effect = None
-        func.return_value = smt
-        wrapped = MOD._handle_db_errors(func)
-        res = wrapped()
-        self.assertEqual(res, smt)
-        self.assertEqual(func.call_count, 1)
-
-    def test_save_in_db(self):
-        data = params = b'data'
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            res = MOD.DbHandler._save_in_db(CTX, 'table', data, params)
-            self.assertEqual(connection.execute.call_count, 2)
-
-    @patch('lighter.utils.path', autospec=True)
-    def test_is_db_ok(self, mocked_path):
-        mocked_path.isfile.return_value = True
-        # correct case
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            cursor = connection.cursor.return_value
-            cursor.fetchone.side_effect = [(1,), (0,)]
-            res = MOD.DbHandler.is_db_ok(CTX)
-            self.assertEqual(res, True)
-        # missing token case
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            cursor = connection.cursor.return_value
-            cursor.fetchone.side_effect = [(0,), (0,)]
-            res = MOD.DbHandler.is_db_ok(CTX)
-            self.assertEqual(res, False)
-        # existing old salt table
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            cursor = connection.cursor.return_value
-            cursor.fetchone.side_effect = [(0,), (1,)]
-            res = MOD.DbHandler.is_db_ok(CTX)
-            self.assertEqual(res, False)
-        # missing database case
-        mocked_path.isfile.return_value = False
-        res = MOD.DbHandler.is_db_ok(CTX)
-        self.assertEqual(res, False)
-
-
-    def test_get_from_db(self):
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            cursor = connection.cursor.return_value
-            cursor.fetchone.side_effect = [(1,), 'a']
-            res = MOD.DbHandler._get_from_db(CTX, 'table')
-            self.assertEqual(res, 'a')
-        # missing entry case
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            cursor = connection.cursor.return_value
-            cursor.fetchone.side_effect = [(None,)]
-            res = MOD.DbHandler._get_from_db(CTX, 'table')
-            self.assertEqual(res, (None, None))
-
-    @patch('lighter.utils.DbHandler._save_in_db')
-    def test_save_token_in_db(self, mocked_save):
-        data = b'data'
-        MOD.DbHandler.save_token_in_db(CTX, 1, data)
-        assert mocked_save.called
-
-    def test_get_token_from_db(self):
-        data = b'data'
-        with patch('lighter.utils.DbHandler._get_from_db') as mocked_get:
-            mocked_get.return_value = data
-            res = MOD.DbHandler.get_token_from_db(CTX)
-            self.assertEqual(res, data)
-
-    @patch('lighter.utils.DbHandler._save_in_db')
-    def test_save_mac_params_in_db(self, mocked_save):
-        params = b'data'
-        MOD.DbHandler.save_mac_params_in_db(CTX, params)
-        assert mocked_save.called
-
-    def test_get_mac_params_from_db(self):
-        data = (b'data', b'params')
-        with patch('lighter.utils.DbHandler._get_from_db') as mocked_get:
-            mocked_get.return_value = data
-            res = MOD.DbHandler.get_mac_params_from_db(CTX)
-            self.assertEqual(res, data[1])
-
-    def test_save_secret_in_db(self):
-        data = params = b'data'
-        implementation = 'impl'
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            res = MOD.DbHandler.save_secret_in_db(
-                CTX, implementation, 1, data, params)
-            self.assertEqual(connection.execute.call_count, 2)
-
-    @patch('lighter.utils.path', autospec=True)
-    def test_get_secret_from_db(self, mocked_path):
-        impl = 'implementation'
-        sec = 'secret'
-        act = 1
-        par = b'params'
-        mocked_path.isfile.return_value = True
-        # with entry case
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            cursor = connection.cursor.return_value
-            cursor.fetchone.side_effect = [(1,), (impl,act,sec,par,)]
-            secret, active, params = \
-                MOD.DbHandler.get_secret_from_db(CTX, impl)
-            self.assertEqual(sec, secret)
-            self.assertEqual(active, act)
-            self.assertEqual(par, params)
-        # missing table case
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            cursor = connection.cursor.return_value
-            cursor.fetchone.side_effect = [(None,)]
-            secret, active, params = \
-                MOD.DbHandler.get_secret_from_db(CTX, impl)
-            self.assertEqual(secret, None)
-            self.assertEqual(active, None)
-            self.assertEqual(params, None)
-        # missing entry for implementation case
-        with patch('lighter.utils.connect') as mocked_connect:
-            connection = mocked_connect.return_value.__enter__.return_value
-            cursor = connection.cursor.return_value
-            cursor.fetchone.side_effect = [(1,), ()]
-            secret, active, params = \
-                MOD.DbHandler.get_secret_from_db(CTX, impl)
-            self.assertEqual(secret, None)
-            self.assertEqual(active, None)
-            self.assertEqual(params, None)
-        # missing db case
-        mocked_path.isfile.return_value = False
-        secret, active, params = \
-            MOD.DbHandler.get_secret_from_db(CTX, impl)
-        self.assertEqual(secret, None)
-        self.assertEqual(active, None)
-        self.assertEqual(params, None)
 
 
 def reset_mocks(params):

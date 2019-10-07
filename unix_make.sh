@@ -487,6 +487,7 @@ test_code() {
 	export dock_tag="$1"
 	rm -rf tests/__pycache__ $L_DIR/__pycache__
 	docker run --rm \
+		-v "$(pwd)/$L_DIR/db.py:$APP_DIR/$L_DIR/db.py:ro" \
 		-v "$(pwd)/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro" \
 		-v "$(pwd)/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro" \
 		-v "$(pwd)/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro" \

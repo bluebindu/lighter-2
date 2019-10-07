@@ -35,12 +35,15 @@ class LighterTests(TestCase):
     @patch('lighter.lighter.import_module', autospec=True)
     @patch('lighter.lighter.ScryptParams', autospec=True)
     @patch('lighter.lighter.get_baker', autospec=True)
-    @patch('lighter.lighter.DbHandler', autospec=True)
+    @patch('lighter.lighter.get_secret_from_db', autospec=True)
+    @patch('lighter.lighter.get_mac_params_from_db', autospec=True)
     @patch('lighter.lighter.Crypter', autospec=True)
     @patch('lighter.lighter.check_password', autospec=True)
+    @patch('lighter.lighter.session_scope', autospec=True)
     @patch('lighter.lighter.check_req_params', autospec=True)
-    def test_UnlockLighter(self, mocked_check_par, mocked_check_password,
-                           mocked_crypter, mocked_db, mocked_baker,
+    def test_UnlockLighter(self, mocked_check_par, mocked_ses,
+                           mocked_check_password, mocked_crypter,
+                           mocked_db_mac, mocked_db_sec, mocked_baker,
                            mocked_params, mocked_import):
         unlock_self = MOD.UnlockerServicer()
         unlock_func = unwrap(unlock_self.UnlockLighter)
@@ -48,8 +51,8 @@ class LighterTests(TestCase):
         params = b'params'
         # with macaroon enabled but no implementation secrets
         request = pb.UnlockLighterRequest(password=password)
-        mocked_db.get_mac_params_from_db.return_value = params
-        mocked_db.get_secret_from_db.return_value = ('secret', 1, params)
+        mocked_db_mac.return_value = params
+        mocked_db_sec.return_value = ('secret', 1, params)
         mocked_check_password.return_value = True
         res = unlock_func(unlock_self, request, CTX)
         mocked_import.return_value.update_settings.assert_called_once_with(
@@ -58,8 +61,8 @@ class LighterTests(TestCase):
         reset_mocks(vars())
         settings.IMPLEMENTATION_SECRETS = True
         request = pb.UnlockLighterRequest(password=password)
-        mocked_db.get_mac_params_from_db.return_value = params
-        mocked_db.get_secret_from_db.return_value = ('secret', 1, params)
+        mocked_db_mac.return_value = params
+        mocked_db_sec.return_value = ('secret', 1, params)
         mocked_crypter.decrypt.return_value = 'plain_data'
         mocked_check_password.return_value = True
         res = unlock_func(unlock_self, request, CTX)
@@ -68,9 +71,10 @@ class LighterTests(TestCase):
 
     @patch('lighter.lighter.Thread', autospec=True)
     @patch('lighter.lighter.check_password', autospec=True)
+    @patch('lighter.lighter.session_scope', autospec=True)
     @patch('lighter.lighter.check_req_params', autospec=True)
-    def test_LockLighter(self, mocked_check_par, mocked_check_password,
-                         mocked_thread):
+    def test_LockLighter(self, mocked_check_par, mocked_ses,
+                         mocked_check_password, mocked_thread):
         password = 'password'
         settings.RUNTIME_SERVER = Mock()
         request = pb.LockLighterRequest(password=password)
@@ -291,18 +295,21 @@ class LighterTests(TestCase):
     @patch('lighter.lighter._serve_unlocker', autospec=True)
     @patch('lighter.lighter.Thread', autospec=True)
     @patch('lighter.lighter.import_module')
-    @patch('lighter.lighter.DbHandler', autospec=True)
+    @patch('lighter.lighter.is_db_ok', autospec=True)
+    @patch('lighter.lighter.session_scope', autospec=True)
+    @patch('lighter.lighter.init_db', autospec=True)
     @patch('lighter.lighter.get_start_options', autospec=True)
-    def test_start(self, mocked_get_start_opt, mocked_db, mocked_import,
-                   mocked_thread, mocked_serve_unlocker, mocked_serve_runtime,
-                   mocked_log):
+    def test_start(self, mocked_get_start_opt, mocked_init_db, mocked_ses,
+                   mocked_db_ok, mocked_import, mocked_thread,
+                   mocked_serve_unlocker, mocked_serve_runtime, mocked_log):
         # with secrets case
-        mocked_db.is_db_ok.return_value = True
+        mocked_db_ok.return_value = True
         MOD.start()
         mocked_get_start_opt.assert_called_once_with(warning=True)
         mocked_serve_unlocker.assert_called_once_with()
         mocked_serve_runtime.assert_called_once_with()
         assert not mocked_log.error.called
+        mocked_init_db.assert_called_once_with()
         # no secrets case
         reset_mocks(vars())
         settings.IMPLEMENTATION = 'asd'
@@ -315,13 +322,13 @@ class LighterTests(TestCase):
         assert not mocked_log.error.called
         # no encrypted token in db
         reset_mocks(vars())
-        mocked_db.is_db_ok.return_value = False
+        mocked_db_ok.return_value = False
         settings.DISABLE_MACAROONS = False
         MOD.start()
         assert mocked_log.error.called
         # old db version case
         reset_mocks(vars())
-        mocked_db.is_db_ok.return_value = False
+        mocked_db_ok.return_value = False
         MOD.start()
         assert mocked_log.error.called
         mocked_get_start_opt.assert_called_once_with(warning=True)
@@ -333,7 +340,7 @@ class LighterTests(TestCase):
             mocked_get_start_opt.side_effect = exc('msg')
             MOD.start()
         reset_mocks(vars())
-        mocked_db.return_value.is_db_ok.return_value = None
+        mocked_db_ok.return_value = None
         MOD.start()
 
 

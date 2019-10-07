@@ -51,7 +51,7 @@ RUN pip3 install --user setuptools \
     && echo 'eval "$(_CLITER_COMPLETE=source cliter)"' >> $HOME/.bashrc
 
 COPY main.py secure.py ./
-COPY lighter/lighter.py lighter/macaroons.py $L_DIR/
+COPY lighter/db.py lighter/lighter.py lighter/macaroons.py $L_DIR/
 COPY lighter/utils.py lighter/errors.py lighter/light_* $L_DIR/
 
 USER root

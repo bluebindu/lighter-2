@@ -27,10 +27,12 @@ from grpc import server, ServerInterceptor, ssl_server_credentials, \
 from . import lighter_pb2_grpc as pb_grpc
 from . import lighter_pb2 as pb
 from . import settings as sett
+from .db import get_mac_params_from_db, get_secret_from_db, init_db, \
+    is_db_ok, session_scope
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
 from .utils import check_connection, check_password, check_req_params, \
-    Crypter, DbHandler, detect_impl_secret, FakeContext, get_start_options, \
+    Crypter, detect_impl_secret, FakeContext, get_start_options, \
     handle_keyboardinterrupt, handle_logs, ScryptParams
 
 LOGGER = getLogger(__name__)
@@ -55,22 +57,26 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
         """
         check_req_params(context, request, 'password')
         password = request.password
-        check_password(context, password)
-        if not sett.DISABLE_MACAROONS:
-            mac_params = ScryptParams('')
-            mac_params.deserialize(DbHandler.get_mac_params_from_db(context))
-            sett.MAC_ROOT_KEY = Crypter.gen_derived_key(password, mac_params)
-            baker = get_baker(sett.MAC_ROOT_KEY, put_ops=True)
-            sett.RUNTIME_BAKER = baker
-        plain_secret = None
-        if sett.IMPLEMENTATION_SECRETS:
-            secret, active, params = DbHandler.get_secret_from_db(
-                context, sett.IMPLEMENTATION)
-            if secret and active:
-                secret_params = ScryptParams('')
-                secret_params.deserialize(params)
-                derived_key = Crypter.gen_derived_key(password, secret_params)
-                plain_secret = Crypter.decrypt(context, secret, derived_key)
+        with session_scope(context) as session:
+            check_password(context, session, password)
+            if not sett.DISABLE_MACAROONS:
+                mac_params = ScryptParams('')
+                mac_params.deserialize(get_mac_params_from_db(session))
+                sett.MAC_ROOT_KEY = Crypter.gen_derived_key(
+                    password, mac_params)
+                baker = get_baker(sett.MAC_ROOT_KEY, put_ops=True)
+                sett.RUNTIME_BAKER = baker
+            plain_secret = None
+            if sett.IMPLEMENTATION_SECRETS:
+                secret, active, params = get_secret_from_db(
+                    session, sett.IMPLEMENTATION)
+                if secret and active:
+                    secret_params = ScryptParams('')
+                    secret_params.deserialize(params)
+                    derived_key = Crypter.gen_derived_key(
+                        password, secret_params)
+                    plain_secret = Crypter.decrypt(
+                        context, secret, derived_key)
         # Checks if implementation is supported, could throw an ImportError
         mod = import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
         # Calls the implementation specific update method
@@ -96,7 +102,8 @@ class LockerServicer(pb_grpc.LockerServicer):
         """
         check_req_params(context, request, 'password')
         password = request.password
-        check_password(context, password)
+        with session_scope(context) as session:
+            check_password(context, session, password)
         sett.RUNTIME_SERVER.stop(sett.GRPC_GRACE_TIME)
         restart_thread = Thread(target=start)
         restart_thread.daemon = True
@@ -293,11 +300,13 @@ def start():
     """
     try:
         get_start_options(warning=True)
-        if not DbHandler.is_db_ok(FakeContext()):
-            raise RuntimeError(
-                'Your database configuration is incomplete or old. '
-                'Update it by running make secure (and deleting db)')
-        sett.IMPLEMENTATION_SECRETS = detect_impl_secret()
+        init_db()
+        with session_scope(FakeContext()) as session:
+            if not is_db_ok(session):
+                raise RuntimeError(
+                    'Your database configuration is incomplete or old. '
+                    'Update it by running make secure (and deleting db)')
+            sett.IMPLEMENTATION_SECRETS = detect_impl_secret(session)
         # Checks if implementation is supported, could throw an ImportError
         import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
         _serve_unlocker()

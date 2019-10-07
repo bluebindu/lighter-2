@@ -24,7 +24,6 @@ from logging import getLogger
 from logging.config import dictConfig
 from marshal import dumps as mdumps, loads as mloads
 from os import environ as env, path
-from sqlite3 import connect, Error
 from subprocess import PIPE, Popen, TimeoutExpired
 from threading import active_count, current_thread
 from time import sleep, strftime, time
@@ -32,6 +31,7 @@ from time import sleep, strftime, time
 from . import lighter_pb2 as pb
 
 from . import __version__, settings as sett
+from .db import get_secret_from_db, get_token_from_db
 from .errors import Err
 
 LOGGER = getLogger(__name__)
@@ -120,14 +120,13 @@ def get_start_options(warning=False):
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
 
 
-def detect_impl_secret():
+def detect_impl_secret(session):
     """ Detects if implementation has a secret stored """
     if sett.IMPLEMENTATION == 'clightning':
         return False
     detected = False
     error = False
-    secret, active, _ = DbHandler.get_secret_from_db(
-        FakeContext(), sett.IMPLEMENTATION)
+    secret, active, _ = get_secret_from_db(session, sett.IMPLEMENTATION)
     if sett.IMPLEMENTATION == 'eclair':
         detected = True  # secret always necessary when using eclair
         if not secret:
@@ -424,12 +423,12 @@ def get_channel_balances(context, channels):
         in_tot=in_tot, in_tot_now=in_tot_now, in_max_now=in_max_now)
 
 
-def check_password(context, password):
+def check_password(context, session, password):
     """
     Checks the inserted password by generating an access key and trying
     to decrypt the token in the db
     """
-    encrypted_token, params = DbHandler.get_token_from_db(context)
+    encrypted_token, params = get_token_from_db(session)
     token_params = ScryptParams('')
     token_params.deserialize(params)
     derived_key = Crypter.gen_derived_key(password, token_params)
@@ -510,156 +509,3 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
             return SecretBox(derived_key).decrypt(encrypted_data)
         except CryptoError:
             Err().wrong_password(context)
-
-
-def _handle_db_errors(func):
-    """ Decorator to handle sqlite3 errors """
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Error:
-            Err().db_error(args[0])
-
-    return wrapper
-
-
-class DbHandler():
-    """
-    DbHandler saves and retrieves data from a sqlite3 database.
-    """
-
-    DATABASE = path.join(sett.DB_DIR, sett.DB_NAME)
-    TABLE_TOKEN = 'access_token_table'
-    TABLE_MAC = 'mac_root_key_table'
-    TABLE_SECRETS = 'implementation_secrets'
-    DEPRECATED_TABLE_SALT = 'salt_table'
-
-    @staticmethod
-    @_handle_db_errors
-    # pylint: disable=unused-argument
-    def is_db_ok(context):
-        """
-        It returns wheter the db is ok (not containing old data or missing
-        essential data)
-        """
-        # pylint: enable=unused-argument
-        # checking if encrypted token exists
-        encrypted_token_exists = False
-        table = DbHandler.TABLE_TOKEN
-        if not path.isfile(DbHandler.DATABASE):
-            return False
-        with connect(DbHandler.DATABASE) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''SELECT count(*) FROM sqlite_master
-                           WHERE type="table"
-                           AND name="{}"'''.format(table))
-            encrypted_token_exists = cursor.fetchone()[0]
-        # checking if old salt table exists
-        salt_table_exists = True
-        table = DbHandler.DEPRECATED_TABLE_SALT
-        with connect(DbHandler.DATABASE) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''SELECT count(*) FROM sqlite_master
-                           WHERE type="table"
-                           AND name="{}"'''.format(table))
-            salt_table_exists = cursor.fetchone()[0]
-        return encrypted_token_exists and not salt_table_exists
-
-    @staticmethod
-    @_handle_db_errors
-    # pylint: disable=unused-argument
-    def _get_from_db(context, table):
-        """ Returns the content of a database table """
-        # pylint: enable=unused-argument
-        with connect(DbHandler.DATABASE) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''SELECT count(*) FROM sqlite_master
-                           WHERE type="table"
-                           AND name="{}"'''.format(table))
-            entry = cursor.fetchone()[0]
-            if not entry:
-                return None, None
-            cursor.execute('SELECT * FROM {}'.format(table))
-            return cursor.fetchone()
-
-    @staticmethod
-    @_handle_db_errors
-    # pylint: disable=unused-argument
-    def _save_in_db(context, table, data, scrypt_params):
-        """ Stores data into database table """
-        # pylint: enable=unused-argument
-        with connect(DbHandler.DATABASE) as connection:
-            connection.execute(
-                '''CREATE TABLE IF NOT EXISTS {}
-                (data BLOB, scrypt_params BLOB, PRIMARY KEY(data))'''
-                .format(table))
-            connection.execute(
-                'INSERT OR REPLACE INTO {} VALUES (?,?)'
-                .format(table), (data, scrypt_params,))
-
-    @staticmethod
-    def save_token_in_db(context, token, scrypt_params):
-        """ Saves the encrypted token in database """
-        DbHandler._save_in_db(
-            context, DbHandler.TABLE_TOKEN, token, scrypt_params)
-
-    @staticmethod
-    def get_token_from_db(context):
-        """ Gets the encrypted token from database """
-        return DbHandler._get_from_db(context, DbHandler.TABLE_TOKEN)
-
-    @staticmethod
-    def save_mac_params_in_db(context, scrypt_params):
-        """ Saves macaroon root key parameters in database """
-        DbHandler._save_in_db(
-            context, DbHandler.TABLE_MAC, 'mac_params', scrypt_params)
-
-    @staticmethod
-    def get_mac_params_from_db(context):
-        """ Gets macaroon root key parameters from database """
-        return DbHandler._get_from_db(context, DbHandler.TABLE_MAC)[1]
-
-    @staticmethod
-    @_handle_db_errors
-    # pylint: disable=unused-argument
-    def save_secret_in_db(context, implementation, active, data,
-                          scrypt_params):
-        """ Saves implementation's secret in database """
-        # pylint: enable=unused-argument
-        table = DbHandler.TABLE_SECRETS
-        with connect(DbHandler.DATABASE) as connection:
-            connection.execute(
-                '''CREATE TABLE IF NOT EXISTS {}
-                (implementation TEXT, active INTEGER, secret BLOB,
-                scrypt_params BLOB, PRIMARY KEY(implementation))'''
-                .format(table))
-            connection.execute(
-                'INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?)'
-                .format(table), (implementation, active, data, scrypt_params,))
-
-    @staticmethod
-    @_handle_db_errors
-    # pylint: disable=unused-argument
-    def get_secret_from_db(context, implementation):
-        """ Gets implementation's secret from database """
-        # pylint: enable=unused-argument
-        if not path.isfile(DbHandler.DATABASE):
-            return None, None, None
-        table = DbHandler.TABLE_SECRETS
-        with connect(DbHandler.DATABASE) as connection:
-            cursor = connection.cursor()
-            cursor.execute('''SELECT count(*) FROM sqlite_master
-                  WHERE type="table" AND name="{}"'''.format(table))
-            if not cursor.fetchone()[0]:
-                return None, None, None
-            cursor.execute('SELECT * FROM {} WHERE implementation="{}"'
-                           .format(table, implementation))
-            entry = cursor.fetchone()
-            if not entry:
-                return None, None, None
-            secret = entry[2]
-            active = entry[1]
-            scrypt_params = entry[3]
-            return secret, active, scrypt_params
