@@ -30,8 +30,8 @@ from . import settings as sett
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
 from .utils import check_connection, check_password, check_req_params, \
-    Crypter, DbHandler, FakeContext, get_start_options, \
-    handle_keyboardinterrupt, handle_logs, ScryptParams, slow_exit
+    Crypter, DbHandler, detect_impl_secret, FakeContext, get_start_options, \
+    handle_keyboardinterrupt, handle_logs, ScryptParams
 
 LOGGER = getLogger(__name__)
 
@@ -292,10 +292,12 @@ def start():
     Any raised exception will be handled with a slow exit.
     """
     try:
-        get_start_options(warning=True, detect=True)
+        get_start_options(warning=True)
         if not DbHandler.is_db_ok(FakeContext()):
-            slow_exit('Your database configuration is incomplete or old. '
-                      'Update it by running make secure (and deleting db)')
+            raise RuntimeError(
+                'Your database configuration is incomplete or old. '
+                'Update it by running make secure (and deleting db)')
+        sett.IMPLEMENTATION_SECRETS = detect_impl_secret()
         # Checks if implementation is supported, could throw an ImportError
         import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
         _serve_unlocker()
@@ -304,10 +306,11 @@ def start():
         con_thread.start()
         _serve_runtime()
     except ImportError:
-        slow_exit('{} is not supported'.format(sett.IMPLEMENTATION))
+        LOGGER.error('%s is not supported', sett.IMPLEMENTATION)
     except KeyError as err:
-        slow_exit('{} environment variable needs to be set'.format(err))
+        LOGGER.error('%s environment variable needs to be set', err)
     except RuntimeError as err:
-        slow_exit(str(err))
+        if str(err):
+            LOGGER.error(str(err))
     except FileNotFoundError as err:
-        slow_exit(str(err))
+        LOGGER.error(str(err))

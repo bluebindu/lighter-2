@@ -15,8 +15,6 @@
 
 """ The utils module for Lighter """
 
-import sys
-
 from contextlib import suppress
 from decimal import Decimal, InvalidOperation
 from functools import wraps
@@ -98,7 +96,7 @@ def check_connection():
             LOGGER.info('Using %s', sett.IMPLEMENTATION)
 
 
-def get_start_options(warning=False, detect=False):
+def get_start_options(warning=False):
     """ Sets Lighter start options """
     sett.IMPLEMENTATION = env['IMPLEMENTATION'].lower()
     bool_opt = {
@@ -113,8 +111,6 @@ def get_start_options(warning=False, detect=False):
     else:
         sett.SERVER_KEY = env.get('SERVER_KEY', sett.SERVER_KEY)
         sett.SERVER_CRT = env.get('SERVER_CRT', sett.SERVER_CRT)
-    if detect:
-        sett.IMPLEMENTATION_SECRETS = _detect_impl_secret()
     if sett.DISABLE_MACAROONS:
         if warning:
             LOGGER.warning('Disabling macaroons is not safe, '
@@ -124,7 +120,7 @@ def get_start_options(warning=False, detect=False):
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
 
 
-def _detect_impl_secret():
+def detect_impl_secret():
     """ Detects if implementation has a secret stored """
     if sett.IMPLEMENTATION == 'clightning':
         return False
@@ -141,7 +137,8 @@ def _detect_impl_secret():
         if not secret:
             error = True
     if error:
-        slow_exit('Cannot obtain implementation secret (hint: make secure)')
+        raise RuntimeError(
+            'Cannot obtain implementation secret (hint: make secure)')
     return detected
 
 
@@ -294,25 +291,6 @@ def check_req_params(context, request, *parameters):
             Err().missing_parameter(context, param)
 
 
-def slow_exit(message, wait=True):
-    """
-    Exits with optional sleep, useful when autorestarting (docker).
-    If wait is False, a voluntary exit is assumed.
-    """
-    exit_code = 0
-    if wait:
-        LOGGER.error(message)
-        LOGGER.info(
-            'Sleeping for %s secs before exiting...',
-            sett.RESTART_THROTTLE)
-        sleep(sett.RESTART_THROTTLE)
-        exit_code = 1
-    else:
-        LOGGER.error(message)
-    log_outro()
-    sys.exit(exit_code)
-
-
 def get_node_timeout(context, min_time=sett.IMPL_MIN_TIMEOUT):
     """
     Calculates timeout to use when calling LN node considering client's
@@ -356,7 +334,8 @@ def handle_keyboardinterrupt(func):
                     LOGGER.error('Waiting for %s threads to complete...',
                                  active_count())
                     sleep(3)
-            slow_exit('All threads shutdown correctly', wait=False)
+            LOGGER.info('All threads shutdown correctly')
+            raise RuntimeError
 
     return wrapper
 

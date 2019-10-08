@@ -70,13 +70,12 @@ class UtilsTests(TestCase):
         MOD.log_outro()
         self.assertEqual(mocked_logger.info.call_count, 2)
 
-    @patch('lighter.utils.slow_exit', autospec=True)
     @patch('lighter.utils.sleep', autospec=True)
     @patch('lighter.utils.LOGGER', autospec=True)
     @patch('lighter.utils.getattr')
     @patch('lighter.utils.import_module')
     def test_check_connection(self, mocked_import, mocked_getattr,
-                              mocked_logger, mocked_sleep, mocked_slow_exit):
+                              mocked_logger, mocked_sleep):
         # Correct case (with version)
         settings.IMPLEMENTATION = 'imp'
         mocked_import.return_value = 'mod'
@@ -110,11 +109,9 @@ class UtilsTests(TestCase):
         res = MOD.FakeContext().time_remaining()
         self.assertEqual(res, None)
 
-    @patch('lighter.utils._detect_impl_secret', autospec=True)
-    def test_get_start_options(self, mocked_detect):
+    def test_get_start_options(self):
         settings.INSECURE_CONNECTION = 0
-        mocked_detect.return_value = False
-        # Secure connection case with macaroons enabled and detect
+        # Secure connection case with macaroons enabled
         reset_mocks(vars())
         values = {
             'IMPLEMENTATION': 'asd',
@@ -124,7 +121,7 @@ class UtilsTests(TestCase):
             'MACAROONS_DIR': 'mac_dir',
         }
         with patch.dict('os.environ', values):
-            MOD.get_start_options(detect=True)
+            MOD.get_start_options()
         self.assertEqual(settings.INSECURE_CONNECTION, False)
         # Insecure connection case
         settings.IMPLEMENTATION_SECRETS = False
@@ -146,39 +143,35 @@ class UtilsTests(TestCase):
         with patch.dict('os.environ', values):
             MOD.get_start_options(warning=True)
 
-    @patch('lighter.utils.slow_exit', autospec=True)
     @patch('lighter.utils.DbHandler', autospec=True)
-    def test_detect_impl_secret(self, mocked_db, mocked_exit):
+    def test_detect_impl_secret(self, mocked_db):
         sec = 'secret'
-        mocked_exit.side_effect = Exception()
         # c-lightning case
         settings.IMPLEMENTATION = 'clightning'
-        res = MOD._detect_impl_secret()
+        res = MOD.detect_impl_secret()
         self.assertEqual(res, False)
         # lnd with no secrets case
         settings.IMPLEMENTATION = 'lnd'
         mocked_db.get_secret_from_db.return_value = None, None, None
-        res = MOD._detect_impl_secret()
+        res = MOD.detect_impl_secret()
         self.assertEqual(res, False)
         # lnd with secrets case
         mocked_db.get_secret_from_db.return_value = sec, 1, None
-        res = MOD._detect_impl_secret()
+        res = MOD.detect_impl_secret()
         self.assertEqual(res, True)
         # lnd with active but no secret
         mocked_db.get_secret_from_db.return_value = None, 1, None
-        with self.assertRaises(Exception):
-            res = MOD._detect_impl_secret()
-        assert mocked_exit.called
+        with self.assertRaises(RuntimeError):
+            res = MOD.detect_impl_secret()
         # eclair with secrets case
         settings.IMPLEMENTATION = 'eclair'
         mocked_db.get_secret_from_db.return_value = sec, 1, None
-        res = MOD._detect_impl_secret()
+        res = MOD.detect_impl_secret()
         self.assertEqual(res, True)
         # eclair with no secrets case
         mocked_db.get_secret_from_db.return_value = None, None, None
-        with self.assertRaises(Exception):
-            res = MOD._detect_impl_secret()
-        assert mocked_exit.called
+        with self.assertRaises(RuntimeError):
+            res = MOD.detect_impl_secret()
 
     def test_str2bool(self):
         ## force_true=False
@@ -350,23 +343,6 @@ class UtilsTests(TestCase):
             MOD.check_req_params(CTX, request, 'node_uri', 'funding_bits')
         mocked_err().missing_parameter.assert_called_once_with(CTX, 'node_uri')
 
-    @patch('lighter.utils.log_outro', autospec=True)
-    @patch('lighter.utils.sleep', autospec=True)
-    @patch('lighter.utils.LOGGER', autospec=True)
-    def test_slow_exit(self, mocked_logger, mocked_sleep, mocked_logoutro):
-        msg = 'message'
-        # Waiting
-        with self.assertRaises(SystemExit):
-            MOD.slow_exit(msg)
-        mocked_logger.error.assert_called_once_with(msg)
-        mocked_sleep.assert_called_once_with(settings.RESTART_THROTTLE)
-        # Not waiting
-        reset_mocks(vars())
-        with self.assertRaises(SystemExit):
-            MOD.slow_exit(msg, wait=False)
-        mocked_logger.error.assert_called_once_with(msg)
-        assert not mocked_sleep.called
-
     def test_get_node_timeout(self):
         # Client without timeout
         ctx = Mock()
@@ -401,9 +377,8 @@ class UtilsTests(TestCase):
         res = MOD.get_thread_timeout(ctx)
         self.assertEqual(res, 0)
 
-    @patch('lighter.utils.slow_exit', autospec=True)
     @patch('lighter.utils.sleep', autospec=True)
-    def test_handle_keyboardinterrupt(self, mocked_sleep, mocked_slow_exit):
+    def test_handle_keyboardinterrupt(self, mocked_sleep):
         grpc_server = Mock()
         # Correct case
         func = Mock()
@@ -418,12 +393,12 @@ class UtilsTests(TestCase):
         close_event.is_set.side_effect = [False, True]
         grpc_server.stop.return_value = close_event
         wrapped = MOD.handle_keyboardinterrupt(func)
-        res = wrapped(grpc_server)
+        with self.assertRaises(RuntimeError):
+            res = wrapped(grpc_server)
         assert mocked_sleep.called
         self.assertEqual(res, None)
         self.assertEqual(func.call_count, 1)
         grpc_server.stop.assert_called_once_with(settings.GRPC_GRACE_TIME)
-        assert mocked_slow_exit.called
 
     def test_handle_logs(self):
         req = pb.GetInfoRequest()

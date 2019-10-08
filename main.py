@@ -43,6 +43,7 @@ def main():
     update_logger()
     log_intro()
     start()
+    log_outro()
 
 
 if __name__ == '__main__':

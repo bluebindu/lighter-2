@@ -32,7 +32,6 @@ CTX = 'context'
 class LighterTests(TestCase):
     """ Tests for lighter module """
 
-    @patch('lighter.lighter.slow_exit', autospec=True)
     @patch('lighter.lighter.import_module', autospec=True)
     @patch('lighter.lighter.ScryptParams', autospec=True)
     @patch('lighter.lighter.get_baker', autospec=True)
@@ -42,7 +41,7 @@ class LighterTests(TestCase):
     @patch('lighter.lighter.check_req_params', autospec=True)
     def test_UnlockLighter(self, mocked_check_par, mocked_check_password,
                            mocked_crypter, mocked_db, mocked_baker,
-                           mocked_params, mocked_import, mocked_slow_exit):
+                           mocked_params, mocked_import):
         unlock_self = MOD.UnlockerServicer()
         unlock_func = unwrap(unlock_self.UnlockLighter)
         password = 'password'
@@ -287,7 +286,7 @@ class LighterTests(TestCase):
         with self.assertRaises(Exception):
             MOD._lightning_wait(grpc_server)
 
-    @patch('lighter.lighter.slow_exit', autospec=True)
+    @patch('lighter.lighter.LOGGER', autospec=True)
     @patch('lighter.lighter._serve_runtime', autospec=True)
     @patch('lighter.lighter._serve_unlocker', autospec=True)
     @patch('lighter.lighter.Thread', autospec=True)
@@ -296,52 +295,46 @@ class LighterTests(TestCase):
     @patch('lighter.lighter.get_start_options', autospec=True)
     def test_start(self, mocked_get_start_opt, mocked_db, mocked_import,
                    mocked_thread, mocked_serve_unlocker, mocked_serve_runtime,
-                   mocked_slow_exit):
-        mocked_slow_exit.side_effect = Exception()
+                   mocked_log):
         # with secrets case
         mocked_db.is_db_ok.return_value = True
         MOD.start()
-        mocked_get_start_opt.assert_called_once_with(warning=True, detect=True)
+        mocked_get_start_opt.assert_called_once_with(warning=True)
         mocked_serve_unlocker.assert_called_once_with()
         mocked_serve_runtime.assert_called_once_with()
-        assert not mocked_slow_exit.called
+        assert not mocked_log.error.called
         # no secrets case
         reset_mocks(vars())
         settings.IMPLEMENTATION = 'asd'
         MOD.start()
-        mocked_get_start_opt.assert_called_once_with(warning=True, detect=True)
+        mocked_get_start_opt.assert_called_once_with(warning=True)
         mocked_import.assert_called_once_with('lighter.light_asd')
         mocked_thread.assert_called_once_with(target=utils.check_connection)
         mocked_thread.return_value.start.assert_called_once_with()
         mocked_serve_runtime.assert_called_once_with()
-        assert not mocked_slow_exit.called
+        assert not mocked_log.error.called
         # no encrypted token in db
         reset_mocks(vars())
         mocked_db.is_db_ok.return_value = False
         settings.DISABLE_MACAROONS = False
-        with self.assertRaises(Exception):
-            MOD.start()
-        assert mocked_slow_exit.called
+        MOD.start()
+        assert mocked_log.error.called
         # old db version case
         reset_mocks(vars())
         mocked_db.is_db_ok.return_value = False
-        with self.assertRaises(Exception):
-            MOD.start()
-        assert mocked_slow_exit.called
-        mocked_get_start_opt.assert_called_once_with(warning=True, detect=True)
+        MOD.start()
+        assert mocked_log.error.called
+        mocked_get_start_opt.assert_called_once_with(warning=True)
         # Exceptions handling case
         reset_mocks(vars())
-        mocked_slow_exit.side_effect = None
         exceptions = [ImportError, KeyError, RuntimeError, FileNotFoundError]
         for exc in exceptions:
             reset_mocks(vars())
             mocked_get_start_opt.side_effect = exc('msg')
             MOD.start()
-            assert mocked_slow_exit.called
         reset_mocks(vars())
         mocked_db.return_value.is_db_ok.return_value = None
         MOD.start()
-        assert mocked_slow_exit.called
 
 
 def reset_mocks(params):
