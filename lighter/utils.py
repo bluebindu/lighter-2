@@ -42,9 +42,7 @@ def update_logger():
     sett.LOGS_LEVEL = env.get('LOGS_LEVEL', sett.LOG_LEVEL_CONSOLE).upper()
     sett.LOGGING['handlers']['console']['level'] = sett.LOGS_LEVEL
     sett.LOGS_DIR = env.get('LOGS_DIR', sett.LOGS_DIR)
-    log_path = path.join(path.abspath(sett.LOGS_DIR), 'lighter.log')
-    sett.LOGGING['handlers'].update(sett.FILE_LOGGING)
-    sett.LOGGING['loggers']['']['handlers'].append('file')
+    log_path = path.join(path.abspath(sett.LOGS_DIR), sett.LOGS_LIGHTER)
     sett.LOGGING['handlers']['file']['filename'] = log_path
     dictConfig(sett.LOGGING)
 
@@ -116,8 +114,8 @@ def get_start_options(warning=False):
             LOGGER.warning('Disabling macaroons is not safe, '
                            'do not disable them in production')
     else:
-        sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
+    sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
 
 
 def detect_impl_secret(session):

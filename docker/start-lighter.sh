@@ -31,5 +31,10 @@ set +a
 [ -z "$MYUID" ] || usermod -u "$MYUID" "$USER"
 chown -R --silent "$USER" "$APP_DIR"
 
+# Applies migrations
+gosu "$USER" python3 -c 'from migrate import migrate; migrate()'
+
 # Starts lighter
-exec gosu "$USER" python3 -u main.py
+if [ $? -eq 0 ]; then
+    exec gosu "$USER" python3 -u main.py
+fi

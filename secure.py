@@ -27,7 +27,6 @@ from logging import getLogger
 from select import select
 from time import time, sleep
 from os import environ, path, remove, urandom
-from os.path import getsize
 
 from lighter import settings as sett
 from lighter.db import get_secret_from_db, init_db, is_db_ok, \
@@ -86,9 +85,9 @@ def _handle_keyboardinterrupt(func):
         try:
             func(*args, **kwargs)
         except KeyboardInterrupt:
+            print()
             COLLECTING_INPUT = False
             SEARCHING_ENTROPY = False
-            database = path.join(sett.DB_DIR, sett.DB_NAME)
             if not DONE and NEW_DB:
                 _remove_files()
             _exit('\nKeyboard interrupt detected. Exiting...')
@@ -172,13 +171,14 @@ def _encrypt_token(session, password, scrypt_params):
     LOGGER.info('Encrypted token stored in the DB')
 
 
-def _encrypt_secret(session, password, scrypt_params, secret, activate_secret):
+def _encrypt_secret(session, password, scrypt_params, sec_type, secret,
+                    activate_secret):
     """ Encrypts implementation secret into db """
     derived_key = Crypter.gen_derived_key(password, scrypt_params)
     encrypted_secret = Crypter.crypt(secret, derived_key)
     save_secret_to_db(
-        session, sett.IMPLEMENTATION, activate_secret, encrypted_secret,
-        scrypt_params.serialize())
+        session, sett.IMPLEMENTATION, sec_type, activate_secret,
+        encrypted_secret, scrypt_params.serialize())
 
 
 def _recover_secrets(session, password):
@@ -384,14 +384,17 @@ def configure_db(session, new):
         _create_lightning_macaroons(session, password, scrypt_params)
     data = crypt_data = None
     activate_secret = 1
+    sec_type = ''
     if sett.IMPLEMENTATION == 'eclair':
         data = _set_eclair(ecl_sec)
+        sec_type = 'password'
     if sett.IMPLEMENTATION == 'lnd':
         data, activate_secret = _set_lnd(lnd_sec)
+        sec_type = 'macaroon'
     if data:  # user gave us data to encrypt and save
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
         _encrypt_secret(
-            session, password, scrypt_params, data, activate_secret)
+            session, password, scrypt_params, sec_type, data, activate_secret)
 
 
 @_handle_keyboardinterrupt

@@ -19,7 +19,7 @@ from os import path
 
 
 # Empty variables are set at runtime
-# Some variables contain default values, cpuld be overwritten
+# Some variables contain default values, could be overwritten
 
 IMPLEMENTATION = ''
 
@@ -31,10 +31,7 @@ LIGHTER_ADDR = ''
 INSECURE_CONNECTION = 0
 SERVER_KEY = path.join(L_DATA, 'certs/server.key')
 SERVER_CRT = path.join(L_DATA, 'certs/server.crt')
-DB_DIR = path.join(L_DATA, 'db')
-DB_NAME = 'lighter.db'
 IMPLEMENTATION_SECRETS = False
-LOGS_DIR = path.join(L_DATA, 'logs')
 CERTS_DIR = path.join(L_DATA, 'certs')
 
 # Macaroons settings
@@ -57,6 +54,11 @@ SCRYPT_PARAMS = {
     'parallelization_factor': 1,
     'key_len': 32
 }
+
+# DB settings
+DB_DIR = path.join(L_DATA, 'db')
+DB_NAME = 'lighter.db'
+ALEMBIC_CFG = 'migrations/alembic.ini'
 
 # Server settings
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
@@ -110,11 +112,13 @@ MAX_INVOICES = 200
 INVOICES_TIMES = 3
 
 # Logging settings
+LOGS_DIR = path.join(L_DATA, 'logs')
+LOGS_LIGHTER = 'lighter.log'
+LOGS_MIGRATIONS = 'migrations.log'
 LOG_TIMEFMT = '%Y-%m-%d %H:%M:%S %z'
 LOG_TIMEFMT_SIMPLE = '%d %b %H:%M:%S'
 LOG_LEVEL_CONSOLE = 'INFO'
 LOG_LEVEL_FILE = 'DEBUG'
-
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -134,24 +138,21 @@ LOGGING = {
             'level': LOG_LEVEL_CONSOLE,
             'class': 'logging.StreamHandler',
             'formatter': 'simple'
+        },
+        'file': {
+            'level': LOG_LEVEL_FILE,
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': path.join(LOGS_DIR, LOGS_LIGHTER),
+            'maxBytes': 1048576,
+            'backupCount': 7,
+            'formatter': 'verbose'
         }
     },
     'loggers': {
         '': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
             'level': 'DEBUG'
-        }
-    }
-}
-
-FILE_LOGGING = {
-    'file': {
-        'level': LOG_LEVEL_FILE,
-        'class': 'logging.handlers.RotatingFileHandler',
-        'filename': './lighter-data/logs/lighter.log',
-        'maxBytes': 1048576,
-        'backupCount': 7,
-        'formatter': 'verbose'
+        },
     }
 }
 

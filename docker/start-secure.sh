@@ -33,5 +33,10 @@ chown -R --silent "$USER" "$APP_DIR"
 
 [ "$IMPLEMENTATION" = "lnd" ] && set_lnd_mac /srv/lnd/tmp/lnd.macaroon
 
+# Applies migrations
+gosu "$USER" python3 -c 'from migrate import migrate; migrate()'
+
 # Starts secure
-exec gosu $USER python3 -c 'from secure import secure; secure()'
+if [ $? -eq 0 ]; then
+    exec gosu $USER python3 -c 'from secure import secure; secure()'
+fi

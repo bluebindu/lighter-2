@@ -269,7 +269,10 @@ _run_local() {
 		mkdir -p "${!dir}" 2> /dev/null
 		[ -w "${!dir}" ] || _die "Cannot create or write to ${!dir}"
 	done
-	python3 main.py
+	python3 -c 'from migrate import migrate; migrate()'
+	if [ $? -eq 0 ]; then
+		python3 main.py
+	fi
 }
 
 
@@ -288,6 +291,7 @@ secure() {
 	[ "$IMPLEMENTATION" = "lnd" ] && _init_lnd
 	if [ "$DOCKER" = "0" ]; then
 		# Local secure
+		python3 -c 'from migrate import migrate; migrate()'
 		python3 -c 'from secure import secure; secure()'
 	else
 		# Docker secure

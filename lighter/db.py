@@ -20,6 +20,10 @@ from logging import getLogger
 from platform import system
 from pathlib import Path
 
+from alembic.command import stamp
+from alembic.config import Config
+from alembic.runtime import migration
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, Column, Integer, LargeBinary, String
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
@@ -31,7 +35,7 @@ from .errors import Err
 LOGGER = getLogger(__name__)
 
 
-def _get_db_url(new_db):
+def get_db_url(new_db):
     """
     Constructs the DB's URL for SQLAlchemy.
     It fails when DB is missing at runtime.
@@ -66,10 +70,19 @@ def init_db(new_db=False):
     """ Initialize DB connection, creating missing tables if requested """
     global ENGINE  # pylint: disable=global-statement
     global Session  # pylint: disable=global-statement
-    ENGINE = create_engine(_get_db_url(new_db))
+    ENGINE = create_engine(get_db_url(new_db))
     Session = sessionmaker(bind=ENGINE, autoflush=False, autocommit=False)
     if new_db:
+        LOGGER.info('Creating database')
         Base.metadata.create_all(ENGINE)
+        stamp(get_alembic_cfg(new_db), 'head')
+
+
+def get_alembic_cfg(new_db):
+    """ Returns alembic Config object """
+    alembic_cfg = Config(sett.ALEMBIC_CFG)
+    alembic_cfg.set_main_option('sqlalchemy.url', get_db_url(new_db))
+    return alembic_cfg
 
 
 @contextmanager
@@ -91,7 +104,7 @@ def session_scope(context):
 
 def is_db_ok(session):
     """
-    It returns wheter the DB is ok (not containing old data nor missing
+    It returns whether the DB is ok (not containing old data nor missing
     essential data)
     """
     global ENGINE  # pylint: disable=global-statement
@@ -109,7 +122,19 @@ def is_db_ok(session):
             LOGGER.error('Please make sure you have generated macaroon at '
                          'least one time')
             return False
+    if not is_db_at_head(get_alembic_cfg(False), ENGINE):
+        LOGGER.error('Migrations may not have applied correctly')
+        return False
     return True
+
+
+def is_db_at_head(alembic_cfg, connectable):
+    """ Returns whether the DB revision is at head """
+    directory = ScriptDirectory.from_config(alembic_cfg)
+    with connectable.begin() as connection:
+        getLogger('alembic').propagate = False
+        context = migration.MigrationContext.configure(connection)
+        return set(context.get_current_heads()) == set(directory.get_heads())
 
 
 def save_token_to_db(session, token, scrypt_params):
@@ -138,11 +163,14 @@ def get_mac_params_from_db(session):
     return mac_params.scrypt_params
 
 
-def save_secret_to_db(session, implementation, active, data, scrypt_params):
+# pylint: disable=too-many-arguments
+def save_secret_to_db(session, implementation, sec_type, active, data,
+                      scrypt_params):
     """ Saves implementation's secret in database """
     session.merge(ImplementationSecret(
-        implementation=implementation, active=active, secret=data,
-        scrypt_params=scrypt_params))
+        implementation=implementation, secret_type=sec_type, active=active,
+        secret=data, scrypt_params=scrypt_params))
+    # pylint: enable=too-many-arguments
 
 
 def get_secret_from_db(session, implementation):
@@ -173,15 +201,17 @@ class ImplementationSecret(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = 'implementation_secrets'
 
     implementation = Column(String, primary_key=True)
+    secret_type = Column(String, primary_key=True)
     active = Column(Integer)
     secret = Column(LargeBinary)
     scrypt_params = Column(LargeBinary)
 
     def __repr__(self):
-        return ('<ImplementationSecret(implementation="{}", active="{}", ' +
-                'secret="{}", scrypt_params="{}")>').format(
-                    self.implementation, self.active, self.secret,
-                    self.scrypt_params)
+        return ('<ImplementationSecret(implementation="{}", ' +
+                'secret_type="{}", active="{}", secret="{}", ' +
+                'scrypt_params="{}")>').format(
+                    self.implementation, self.secret_type, self.active,
+                    self.secret, self.scrypt_params)
 
 
 class MacRootKey(Base):  # pylint: disable=too-few-public-methods
