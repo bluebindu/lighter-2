@@ -62,7 +62,7 @@ VOLUMES_IMPLEMENTATIONS = {
     },
     'lnd': {
         'LND_CERT_DIR': '/srv/lnd/certs:ro',
-        'LND_MAC': '/srv/lnd/tmp/lnd.macaroon:ro'
+        'LND_MAC_PATH': '/srv/lnd/tmp/lnd.macaroon:ro'
     }
 }
 

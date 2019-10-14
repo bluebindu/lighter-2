@@ -31,7 +31,7 @@ set +a
 [ -z "$MYUID" ] || usermod -u "$MYUID" "$USER"
 chown -R --silent "$USER" "$APP_DIR"
 
-set_lnd_mac /srv/lnd/tmp/lnd.macaroon
+[ "$IMPLEMENTATION" = "lnd" ] && set_lnd_mac /srv/lnd/tmp/lnd.macaroon
 
 # Starts secure
 exec gosu $USER python3 -c 'from secure import secure; secure()'

@@ -133,7 +133,7 @@ def _set_lnd(secret):
     """ Handles storage of lnd's macaroon """
     data = None
     activate_secret = 1
-    macaroon_path = environ.get('LND_MAC')
+    macaroon_path = environ.get('LND_MAC_PATH')
     if not secret and not macaroon_path:
         print("You have not provided a path and there's no macaroon "
               "stored for lnd, assuming\nusage of lnd without macaroon")

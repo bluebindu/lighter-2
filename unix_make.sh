@@ -320,7 +320,7 @@ _init_lnd() {
 			_die "Could not find macaroon in specified path"
 		[ ! -r "$macaroon_path" ] && \
 			_die "Could not read macaroon in specified path (hint: check file permissions)"
-		export LND_MAC="$macaroon_path"
+		export LND_MAC_PATH="$macaroon_path"
 	fi
 }
 
@@ -328,9 +328,12 @@ set_lnd_mac() {
 	file="$1"
 	temp_file="/srv/lnd/macaroons/lnd.macaroon"
 	mkdir -p "/srv/lnd/macaroons"
-	cp "$file" "$temp_file"
-	chown "$USER" "$temp_file"
-	chmod 600 "$temp_file"
+	if [ -r "$file" ]; then
+		cp "$file" "$temp_file"
+		chown "$USER" "$temp_file"
+		chmod 600 "$temp_file"
+		export LND_MAC_PATH="$temp_file"
+	fi
 }
 
 cli() {
@@ -447,7 +450,6 @@ docker_bash_env() {
 	CL_RPC_DIR="$CL_DIR/.lightning"
 	CL_CLI_DIR="$CL_DIR/cli"
 	LND_CERT_DIR="$LND_DIR/certs"
-	LND_MAC="$LND_DIR/macaroons/lnd.macaroon"
 }
 
 set_defaults() {
