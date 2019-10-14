@@ -116,6 +116,10 @@ def get_start_options(warning=False):
     else:
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
     sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
+    if sett.IMPLEMENTATION == 'eclair':
+        sett.IMPL_SEC_TYPE = 'password'
+    if sett.IMPLEMENTATION == 'lnd':
+        sett.IMPL_SEC_TYPE = 'macaroon'
 
 
 def detect_impl_secret(session):
@@ -124,18 +128,21 @@ def detect_impl_secret(session):
         return False
     detected = False
     error = False
-    secret, active, _ = get_secret_from_db(session, sett.IMPLEMENTATION)
+    impl_secret = get_secret_from_db(
+        session, sett.IMPLEMENTATION, sett.IMPL_SEC_TYPE)
     if sett.IMPLEMENTATION == 'eclair':
         detected = True  # secret always necessary when using eclair
-        if not secret:
+        if not impl_secret or not impl_secret.secret:
             error = True
-    if sett.IMPLEMENTATION == 'lnd' and active:
-        detected = True
-        if not secret:
-            error = True
+    if sett.IMPLEMENTATION == 'lnd':
+        if impl_secret and impl_secret.active:
+            detected = True
+            if not impl_secret.secret:
+                error = True
     if error:
         raise RuntimeError(
-            'Cannot obtain implementation secret (hint: make secure)')
+            'Cannot obtain implementation secret, add it by running make '
+            'secure')
     return detected
 
 
@@ -435,6 +442,21 @@ def check_password(context, session, password):
         Err().wrong_password(context)
 
 
+# pylint: disable=too-many-arguments
+def get_secret(context, session, password, impl, sec_type, active_only=False):
+    """ Retrieves and decrypts implementation secret from DB """
+    impl_secret = get_secret_from_db(session, impl, sec_type)
+    if not impl_secret or not impl_secret.secret:
+        return None
+    if active_only and not impl_secret.active:
+        return None
+    params = ScryptParams('')
+    params.deserialize(impl_secret.scrypt_params)
+    derived_key = Crypter.gen_derived_key(password, params)
+    return Crypter.decrypt(context, impl_secret.secret, derived_key)
+    # pylint: enable=too-many-arguments
+
+
 class ScryptParams():
     """ Convenient class to store scrypt parameters """
 
@@ -477,6 +499,7 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
     @staticmethod
     def gen_derived_key(password, scrypt_params):
         """ Derives a key from a password using Scrypt """
+        # pylint: disable=import-outside-toplevel
         from pylibscrypt import scrypt
         return scrypt(
             bytes(password, 'utf-8'),
@@ -492,6 +515,7 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
         Crypts data using Secretbox and the access key.
         It returns the encrypted data in a serialized form
         """
+        # pylint: disable=import-outside-toplevel
         from nacl.secret import SecretBox
         return SecretBox(derived_key).encrypt(clear_data)
 
@@ -501,6 +525,7 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
         Decrypts serialized data using Secretbox and the access key.
         Throws an error when password is wrong
         """
+        # pylint: disable=import-outside-toplevel
         from nacl.exceptions import CryptoError
         from nacl.secret import SecretBox
         try:

@@ -29,11 +29,10 @@ from time import time, sleep
 from os import environ, path, remove, urandom
 
 from lighter import settings as sett
-from lighter.db import get_secret_from_db, init_db, is_db_ok, \
-    save_mac_params_to_db, save_secret_to_db, save_token_to_db, \
-    session_scope
+from lighter.db import init_db, is_db_ok, save_mac_params_to_db, \
+    save_secret_to_db, save_token_to_db, session_scope
 from lighter.macaroons import get_baker, MACAROONS, MAC_VERSION
-from lighter.utils import check_password, Crypter, FakeContext, \
+from lighter.utils import check_password, Crypter, FakeContext, get_secret, \
     get_start_options, ScryptParams, str2bool, update_logger
 
 LOGGER = getLogger(__name__)
@@ -117,30 +116,44 @@ def _remove_files():
             remove(macaroon_file)
 
 
-def _get_eclair_secret():
+def _get_eclair_password():
     """ Gets eclair's password from stdin """
-    data = getpass('Insert eclair password: ')
-    return data.encode()
+    while True:
+        data = getpass('Insert eclair password (cannot be empty): ')
+        if data:
+            return data.encode()
 
 
-def _get_lnd_secret(macaroon_path):
+def _get_lnd_macaroon(macaroon_path):
     """ Gets lnd's macaroon from file """
     print('Reading lnd macaroon from the provided path...')
     with open(macaroon_path, 'rb') as file:
         return file.read()
 
 
-def _set_eclair(secret):
+def _get_lnd_password():
+    """ Gets lnd's password from stdin """
+    data = getpass('Insert lnd password or press enter to skip '
+                   '(node unlocking will not be available): ')
+    return data.encode()
+
+
+def _set_eclair_password(secret):
     """ Handles storage of eclair's password """
+    data = None
+    activate_secret = 1
     if not secret:
-        return _get_eclair_secret()
-    rm_sec = input("A password for eclair is already stored, "
-                   "do you want to update it? [y/N] ")
-    if str2bool(rm_sec):
-        return _get_eclair_secret()
+        data = _get_eclair_password()
+    else:
+        data = secret
+        rm_sec = input("A password for eclair is already stored, "
+                       "do you want to update it? [y/N] ")
+        if str2bool(rm_sec):
+            data = _get_eclair_password()
+    return data, activate_secret, 'password'
 
 
-def _set_lnd(secret):
+def _set_lnd_macaroon(secret):
     """ Handles storage of lnd's macaroon """
     data = None
     activate_secret = 1
@@ -148,11 +161,11 @@ def _set_lnd(secret):
     if not secret and not macaroon_path:
         print("You have not provided a path and there's no macaroon "
               "stored for lnd, assuming\nusage of lnd without macaroon")
-        return None, 0
+        activate_secret = 0
     if macaroon_path:
-        data = _get_lnd_secret(macaroon_path)
+        data = _get_lnd_macaroon(macaroon_path)
         secret = None
-    if secret:
+    elif secret:
         print('A macaroon for lnd is already stored')
         data = secret
     if secret or macaroon_path:
@@ -160,10 +173,27 @@ def _set_lnd(secret):
                     "(warning: insecure without)? [Y/n] ")
         if not str2bool(res, force_true=True):
             activate_secret = 0
-    return data, activate_secret
+    return data, activate_secret, 'macaroon'
 
 
-def _encrypt_token(session, password, scrypt_params):
+def _set_lnd_password(secret):
+    """ Handles storage of lnd's password """
+    data = None
+    activate_secret = 0
+    if not secret:
+        data = _get_lnd_password()
+    else:
+        data = secret
+        rm_sec = input("A password for lnd is already stored, "
+                       "do you want to update it? [y/N] ")
+        if str2bool(rm_sec):
+            data = _get_lnd_password()
+    if data:
+        activate_secret = 1
+    return data, activate_secret, 'password'
+
+
+def _save_token(session, password, scrypt_params):
     """ Encrypts token and saves it into db to verify password correctness """
     derived_key = Crypter.gen_derived_key(password, scrypt_params)
     encrypted_token = Crypter.crypt(sett.ACCESS_TOKEN, derived_key)
@@ -171,11 +201,13 @@ def _encrypt_token(session, password, scrypt_params):
     LOGGER.info('Encrypted token stored in the DB')
 
 
-def _encrypt_secret(session, password, scrypt_params, sec_type, secret,
-                    activate_secret):
-    """ Encrypts implementation secret into db """
-    derived_key = Crypter.gen_derived_key(password, scrypt_params)
-    encrypted_secret = Crypter.crypt(secret, derived_key)
+def _save_secret(session, password, scrypt_params, sec_type, secret,
+                 activate_secret):
+    """ Encrypts implementation secret and saves it into DB """
+    encrypted_secret = None
+    if secret:
+        derived_key = Crypter.gen_derived_key(password, scrypt_params)
+        encrypted_secret = Crypter.crypt(secret, derived_key)
     save_secret_to_db(
         session, sett.IMPLEMENTATION, sec_type, activate_secret,
         encrypted_secret, scrypt_params.serialize())
@@ -183,23 +215,17 @@ def _encrypt_secret(session, password, scrypt_params, sec_type, secret,
 
 def _recover_secrets(session, password):
     """ Recovers secrets from db, making sure password is correct """
-    ecl_sec = lnd_sec = None
+    ecl_pass = lnd_mac = lnd_pass = None
     try:
-        ecl_sec, _, params = get_secret_from_db(session, 'eclair')
-        if ecl_sec:
-            ecl_params = ScryptParams('')
-            ecl_params.deserialize(params)
-            derived_key = Crypter.gen_derived_key(password, ecl_params)
-            ecl_sec = Crypter.decrypt(FakeContext(), ecl_sec, derived_key)
-        lnd_sec, _, params = get_secret_from_db(session, 'lnd')
-        if lnd_sec:
-            lnd_params = ScryptParams('')
-            lnd_params.deserialize(params)
-            derived_key = Crypter.gen_derived_key(password, lnd_params)
-            lnd_sec = Crypter.decrypt(FakeContext(), lnd_sec, derived_key)
+        ecl_pass = get_secret(
+            FakeContext(), session, password, 'eclair', 'password')
+        lnd_mac = get_secret(
+            FakeContext(), session, password, 'lnd', 'macaroon')
+        lnd_pass = get_secret(
+            FakeContext(), session, password, 'lnd', 'password')
     except RuntimeError as err:
         _exit(err)
-    return ecl_sec, lnd_sec
+    return ecl_pass, lnd_mac, lnd_pass
 
 
 def _create_lightning_macaroons(session, password, scrypt_params):
@@ -270,7 +296,9 @@ def _read(source, num_bytes):
             sleep(1)
         random_bytes = source.read(num_bytes)
         return random_bytes
-    except Exception:
+    except IOError:
+        if not SEARCHING_ENTROPY:
+            return
         use_urand = input("Cannot retrieve available entropy, do you want to "
                           "use whatever your os provides\nto python's "
                           "os.urandom? [Y/n] ")
@@ -289,8 +317,8 @@ def _gen_random_data(num_bytes):
             source = open("/dev/random", "rb")
             executor = ThreadPoolExecutor(max_workers=2)
             future_input = None
-            future = executor.submit(_read, source, num_bytes)
-            data = future.result(timeout=1)
+            future_read = executor.submit(_read, source, num_bytes)
+            data = future_read.result(timeout=1)
             if data:
                 return data
         except FileNotFoundError:
@@ -310,7 +338,7 @@ def _gen_random_data(num_bytes):
                   " - type 'unsafe' and press enter to use a non-blocking "
                   "entropy source; this choice will NOT be remembered for "
                   "later\n")
-            while future.running():
+            while future_read.running():
                 if not future_input:
                     future_input = executor.submit(_input)
                 if future_input.done():
@@ -322,7 +350,7 @@ def _gen_random_data(num_bytes):
                 sleep(1)
             COLLECTING_INPUT = False
             print("\nEnough entropy was collected, thanks for waiting")
-            result = future.result()
+            result = future_read.result()
             if result:
                 return result
         finally:
@@ -341,9 +369,21 @@ def _gen_password(seed):
     return ''.join(alpha[i % len(alpha)] for i in seed)
 
 
+def _get_req_salt_len(new):
+    """ Determines maximum bytes of salt that will be needed """
+    secrets = 1  # for lighter's macaroons
+    if sett.IMPLEMENTATION == 'eclair':
+        secrets += 1  # for eclair password
+    elif sett.IMPLEMENTATION == 'lnd':
+        secrets += 2  # for lnd password and macaroon
+    if new:
+        secrets += 1  # for access token
+    return sett.SALT_LEN * secrets
+
+
 def configure_db(session, new):
     """ Configures a new or existing database """
-    ecl_sec = lnd_sec = None
+    ecl_pass = lnd_mac = lnd_pass = None
     if new:
         print('Lighter is about to ask for a new password! As humans are '
               'really bad at\ngenerating entropy, we suggest using a password '
@@ -352,7 +392,7 @@ def configure_db(session, new):
         gen_psw = input('Do you want Lighter to generate a safe random '
                         'password for you? (new password\nwill be printed to '
                         'stdout) [Y/n] ')
-        salts_len = sett.SALT_LEN * 3  # for token, secret and macaroon
+        salts_len = _get_req_salt_len(new)
         if str2bool(gen_psw, force_true=True):
             seed = _gen_random_data(sett.PASSWORD_LEN + salts_len)
             password = _gen_password(_consume_bytes(seed, sett.PASSWORD_LEN))
@@ -366,7 +406,7 @@ def configure_db(session, new):
         if password != password_check:
             _exit("Passwords do not match")
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
-        _encrypt_token(session, password, scrypt_params)
+        _save_token(session, password, scrypt_params)
     else:
         if not is_db_ok(session):
             _exit('Detected an incomplete configuration. Delete database.')
@@ -375,26 +415,26 @@ def configure_db(session, new):
             check_password(FakeContext(), session, password)
         except RuntimeError:
             _exit('')
-        ecl_sec, lnd_sec = _recover_secrets(session, password)
-        seed = _gen_random_data(sett.SALT_LEN * 2)  # for macaroon and secret
+        ecl_pass, lnd_mac, lnd_pass = _recover_secrets(session, password)
+        seed = _gen_random_data(_get_req_salt_len(new))
     create_mac = input('Do you want to create macaroons (warning: generated '
                        'files should not be kept in\nthis host)? [y/N] ')
     if str2bool(create_mac):
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
         _create_lightning_macaroons(session, password, scrypt_params)
-    data = crypt_data = None
+    secrets = []
     activate_secret = 1
     sec_type = ''
     if sett.IMPLEMENTATION == 'eclair':
-        data = _set_eclair(ecl_sec)
-        sec_type = 'password'
+        secrets = [_set_eclair_password(ecl_pass)]
     if sett.IMPLEMENTATION == 'lnd':
-        data, activate_secret = _set_lnd(lnd_sec)
-        sec_type = 'macaroon'
-    if data:  # user gave us data to encrypt and save
-        scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
-        _encrypt_secret(
-            session, password, scrypt_params, sec_type, data, activate_secret)
+        secrets = [_set_lnd_macaroon(lnd_mac), _set_lnd_password(lnd_pass)]
+    if secrets:  # user gave us secrets to encrypt and save
+        for secret in secrets:
+            scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
+            _save_secret(
+                session, password, scrypt_params, secret[2], secret[0],
+                secret[1])
 
 
 @_handle_keyboardinterrupt

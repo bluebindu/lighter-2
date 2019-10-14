@@ -19,6 +19,7 @@ Here's a table of Lighter APIs availability for each implementation:
 | OpenChannel      |      ☇      |    ☇   |  ☇  |
 | PayInvoice       |      ☇      |    ☇   |  ☇  |
 | PayOnChain       |      ☇      |        |  ☇  |
+| UnlockNode       |             |        |  ☇  |
 | WalletBalance    |      ☇      |        |  ☇  |
 
 

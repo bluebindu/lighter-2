@@ -15,7 +15,8 @@
 
 """ The Python implementation of the gRPC Lighter server """
 
-from concurrent import futures
+from concurrent.futures import TimeoutError as TimeoutFutError, \
+    ThreadPoolExecutor
 from importlib import import_module
 from logging import getLogger
 from threading import Thread
@@ -27,12 +28,11 @@ from grpc import server, ServerInterceptor, ssl_server_credentials, \
 from . import lighter_pb2_grpc as pb_grpc
 from . import lighter_pb2 as pb
 from . import settings as sett
-from .db import get_mac_params_from_db, get_secret_from_db, init_db, \
-    is_db_ok, session_scope
+from .db import get_mac_params_from_db, init_db, is_db_ok, session_scope
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
 from .utils import check_connection, check_password, check_req_params, \
-    Crypter, detect_impl_secret, FakeContext, get_start_options, \
+    Crypter, detect_impl_secret, FakeContext, get_secret, get_start_options, \
     handle_keyboardinterrupt, handle_logs, ScryptParams
 
 LOGGER = getLogger(__name__)
@@ -57,6 +57,9 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
         """
         check_req_params(context, request, 'password')
         password = request.password
+        # Checks if implementation is supported, could throw an ImportError
+        mod = import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
+        plain_secret = None
         with session_scope(context) as session:
             check_password(context, session, password)
             if not sett.DISABLE_MACAROONS:
@@ -66,21 +69,25 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
                     password, mac_params)
                 baker = get_baker(sett.MAC_ROOT_KEY, put_ops=True)
                 sett.RUNTIME_BAKER = baker
-            plain_secret = None
             if sett.IMPLEMENTATION_SECRETS:
-                secret, active, params = get_secret_from_db(
-                    session, sett.IMPLEMENTATION)
-                if secret and active:
-                    secret_params = ScryptParams('')
-                    secret_params.deserialize(params)
-                    derived_key = Crypter.gen_derived_key(
-                        password, secret_params)
-                    plain_secret = Crypter.decrypt(
-                        context, secret, derived_key)
-        # Checks if implementation is supported, could throw an ImportError
-        mod = import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
+                plain_secret = get_secret(
+                    context, session, password, sett.IMPLEMENTATION,
+                    sett.IMPL_SEC_TYPE, active_only=True)
         # Calls the implementation specific update method
         mod.update_settings(plain_secret)
+        if request.unlock_node:
+            executor = ThreadPoolExecutor(max_workers=1)
+            try:
+                future = executor.submit(
+                    mod.unlock_node, FakeContext(), password)
+                future.result(timeout=1)  # max 1 second to unlock node
+            except TimeoutFutError:
+                executor.shutdown(wait=False)
+            except RuntimeError as err:
+                # don't fail lighter unlock if node unlock fails
+                LOGGER.info(err)
+            except AttributeError:
+                pass  # don't fail if node unlock is unimplemented
         sett.UNLOCKER_STOP = True
         return pb.UnlockLighterResponse()
 
@@ -216,12 +223,12 @@ def _create_server(interceptors):
     """ Creates a gRPC server in insecure or secure mode """
     if sett.INSECURE_CONNECTION:
         grpc_server = server(
-            futures.ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS),
+            ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS),
             interceptors=interceptors)
         grpc_server.add_insecure_port(sett.LIGHTER_ADDR)
     else:
         grpc_server = server(
-            futures.ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS),
+            ThreadPoolExecutor(max_workers=sett.GRPC_WORKERS),
             interceptors=interceptors)
         with open(sett.SERVER_KEY, 'rb') as key:
             private_key = key.read()

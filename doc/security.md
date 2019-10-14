@@ -94,15 +94,20 @@ update its password.
 
 ### lnd
 
-We crypt lnd's macaroon, if given. <sup>2</sup>
+We crypt lnd's macaroon <sup>2</sup> and password, if given.
 
 If configured to run with lnd, `make secure` will insert or update the macaroon
 (if a path to the file has been provided) and then ask if it should be used when
 connecting to lnd. Connection with no macaroon will be attempted if none is
 available (implies `--no-macaroons` set on the lnd node).
+Finally it will ask to insert, skip or update lnd's password
+(updating and then skipping will remove any precedently saved password).
 
 Attention, the choice of lnd macaroon could impact some Lighter functionalities,
 as some operations could be forbidden.
+
+The `UnlockNode` API and the `UnlockLighter`'s boolean option `unlock_node`
+will be enabled after providing lnd's password.
 
 #### Notes
 
@@ -138,4 +143,5 @@ At the moment, we provide 3 different macaroons:
 | OpenChannel      |   ☇   |          |          |
 | PayInvoice       |   ☇   |          |          |
 | PayOnChain       |   ☇   |          |          |
+| UnlockNode       |   ☇   |          |          |
 | WalletBalance    |   ☇   |     ☇    |          |

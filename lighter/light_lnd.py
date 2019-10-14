@@ -19,7 +19,7 @@ from binascii import hexlify
 from codecs import encode
 from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager, ExitStack, suppress
 from datetime import datetime
 from functools import wraps
 from logging import getLogger
@@ -33,10 +33,11 @@ from . import rpc_pb2 as ln
 from . import rpc_pb2_grpc as lnrpc
 from . import lighter_pb2 as pb
 from . import settings
+from .db import session_scope
 from .errors import Err
-from .utils import check_req_params, convert, Enforcer as Enf, FakeContext, \
-    get_channel_balances, get_thread_timeout, get_node_timeout, \
-    handle_thread, has_amount_encoded
+from .utils import check_password, check_req_params, convert, \
+    Enforcer as Enf, FakeContext, get_channel_balances, get_secret, \
+    get_thread_timeout, get_node_timeout, handle_thread, has_amount_encoded
 
 LOGGER = getLogger(__name__)
 
@@ -175,7 +176,8 @@ def update_settings(macaroon):
     with open(lnd_tls_cert_path, 'rb') as file:
         cert = file.read()
     # Build ssl credentials using the cert
-    settings.LND_CREDS = cert_creds = ssl_channel_credentials(cert)
+    settings.LND_CREDS_FULL = settings.LND_CREDS_SSL = \
+        ssl_channel_credentials(cert)
     if macaroon:
         LOGGER.info("Connecting to lnd in secure mode (tls + macaroon)")
         settings.LND_MAC = macaroon
@@ -183,8 +185,8 @@ def update_settings(macaroon):
         auth_creds = metadata_call_credentials(_metadata_callback)
         # Combine the cert credentials and the macaroon auth credentials
         # Such that every call is properly encrypted and authenticated
-        settings.LND_CREDS = composite_channel_credentials(
-            cert_creds, auth_creds)
+        settings.LND_CREDS_FULL = composite_channel_credentials(
+            settings.LND_CREDS_SSL, auth_creds)
     else:
         LOGGER.info("Connecting to lnd in insecure mode")
 
@@ -209,9 +211,12 @@ def _handle_rpc_errors(func):
 
 
 @contextmanager
-def _connect(context):
+def _connect(context, stub_class=None, force_no_macaroon=False):
     """ Securely connects to the lnd node using gRPC """
-    channel = secure_channel(settings.LND_ADDR, settings.LND_CREDS)
+    creds = settings.LND_CREDS_FULL
+    if force_no_macaroon:
+        creds = settings.LND_CREDS_SSL
+    channel = secure_channel(settings.LND_ADDR, creds)
     future_channel = channel_ready_future(channel)
     try:
         future_channel.result(timeout=get_node_timeout(context))
@@ -219,9 +224,47 @@ def _connect(context):
         # Handle gRPC channel that did not connect
         Err().node_error(context, 'Failed to dial server')
     else:
-        stub = lnrpc.LightningStub(channel)
+        if stub_class is None:
+            stub_class = lnrpc.LightningStub
+        stub = stub_class(channel)
         yield stub
         channel.close()
+
+
+def unlock_node(ctx, password, session=None):
+    """ Unlocks node with password saved in lighter's DB """
+    with ExitStack() if session else session_scope(ctx) as ses:
+        if session:
+            ses = session
+        lnd_pass = get_secret(ctx, ses, password, 'lnd', 'password')
+        if not lnd_pass:
+            Err().node_error(ctx, 'No password stored, add one by '
+                             'running make secure')
+        lnd_req = ln.UnlockWalletRequest(wallet_password=lnd_pass)
+        try:
+            with _connect(ctx, stub_class=lnrpc.WalletUnlockerStub,
+                          force_no_macaroon=True) as stub:
+                lnd_res = stub.UnlockWallet(
+                    lnd_req, timeout=get_node_timeout(ctx))
+        except RpcError as err:
+            if 'invalid passphrase for master public key' in str(err):
+                Err().node_error(ctx, 'Stored node password is incorrect, '
+                                      'update it by running make secure')
+            elif 'unknown service lnrpc.WalletUnlocker' in str(err):
+                LOGGER.info('Node is already unlocked')
+            else:
+                _handle_error(ctx, err)
+
+
+@_handle_rpc_errors
+def UnlockNode(request, context):
+    """ Tries to unlock node """
+    check_req_params(context, request, 'password')
+    response = pb.UnlockNodeResponse()
+    with session_scope(context) as session:
+        check_password(context, session, request.password)
+        unlock_node(context, request.password, session=session)
+    return response
 
 
 @_handle_rpc_errors

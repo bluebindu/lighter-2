@@ -255,28 +255,33 @@ def entrypoint(ctx, rpcserver, tlscert, macaroon, insecure, no_macaroon):
 
 
 @entrypoint.command()
-@option('--password', prompt='Insert Lighter\'s password',
-        hide_input=True, help='Lighter\'s password')
+@option('--password', prompt='Insert Lighter\'s password', hide_input=True,
+        help='Lighter\'s password to unlock the runtime service')
+@option('--unlock-node', is_flag=True, help='Whether to also unlock the LN '
+        'node. Node unlock may not be available (implementation does not have'
+        ' a locking system) or fail (missing configuration or connection '
+        'issues) but the whole UnlockLighter operation will still succeed')
 @handle_call
-def unlocklighter(password):
+def unlocklighter(password, unlock_node):
     """
-    UnlockLighter unlocks Lighter's secrets using the password choosen in
-    initialization phase. This call does not require macaroons authentication.
+    UnlockLighter unlocks Lighter's secrets using the password chosen during
+    the secure phase. The underlying node can also be unlocked, but failures
+    will be ignored. This call does not require macaroon authentication.
     """
-    req = pb.UnlockLighterRequest(password=password)
+    req = pb.UnlockLighterRequest(password=password, unlock_node=unlock_node)
     return 'UnlockLighter', req
 
 
 @entrypoint.command()
 @option('--password', prompt='Insert Lighter\'s password',
-        hide_input=True, help='Lighter\'s password')
+        hide_input=True, help='Lighter\'s password to lock the runtime '
+        'service')
 @handle_call
 def locklighter(password):
     """
-    LockLighter asks for the password chosen during the initialization phase,
-    then locks Lighter. This stops the runtime server (LightningServicer +
-    LockerServicer), deletes secrets from runtime memory and starts the
-    Unlocker which then allows to unlock Ligher at will.
+    LockLighter locks Lighter using the password chosen during the secure
+    phase. This stops the runtime server (LightningServicer + LockerServicer)
+    and deletes secrets from runtime memory.
     """
     req = pb.LockLighterRequest(password=password)
     return 'LockLighter', req
@@ -502,6 +507,21 @@ def payonchain(address, amount_bits, fee_sat_byte):
         amount_bits=amount_bits,
         fee_sat_byte=fee_sat_byte)
     return 'PayOnChain', req
+
+
+@entrypoint.command()
+@option('--password', prompt='Insert Lighter\'s password',
+        hide_input=True, help='Lighter\'s password to decrypt the underlying '
+        'node\'s secret')
+@handle_call
+def unlocknode(password):
+    """
+    UnlockNode tries to unlock the underlying node. Requires an implementation
+    that supports a locking mechanism and the password must have been provided
+    during Lighter's secure phase.
+    """
+    req = pb.UnlockNodeRequest(password=password)
+    return 'UnlockNode', req
 
 
 @entrypoint.command()

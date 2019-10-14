@@ -75,7 +75,7 @@ const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__)|(urlpatterns.*)|(register)|(logger)|(User
 class-rgx=[A-Z_][a-zA-Z0-9]+$
 
 # Regular expression which should only match correct function names
-function-rgx=([a-z_][a-z0-9_]{2,50}|CloseChannel|GetInfo|NewAddress|WalletBalance|ChannelBalance|ListChannels|ListInvoices|ListPayments|ListPeers|ListTransactions|CreateInvoice|CheckInvoice|PayInvoice|PayOnChain|DecodeInvoice|OpenChannel|LockLighter)$
+function-rgx=([a-z_][a-z0-9_]{2,50}|CloseChannel|GetInfo|NewAddress|WalletBalance|ChannelBalance|ListChannels|ListInvoices|ListPayments|ListPeers|ListTransactions|CreateInvoice|CheckInvoice|PayInvoice|PayOnChain|DecodeInvoice|OpenChannel|LockLighter|UnlockNode)$
 
 # Regular expression which should only match correct method names
 method-rgx=(([a-z_][a-z0-9_]{2,50})|(setUp))$

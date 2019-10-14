@@ -65,7 +65,7 @@ class LightLndTests(TestCase):
         self.assertEqual(
             settings.LND_ADDR, '{}:{}'.format(values['LND_HOST'],
                                               values['LND_PORT']))
-        self.assertEqual(settings.LND_CREDS, 'combined_creds')
+        self.assertEqual(settings.LND_CREDS_FULL, 'combined_creds')
         # Correct case: without macaroons
         reset_mocks(vars())
         values = {
@@ -87,7 +87,7 @@ class LightLndTests(TestCase):
         self.assertEqual(
             settings.LND_ADDR, '{}:{}'.format(values['LND_HOST'],
                                               values['LND_PORT']))
-        self.assertEqual(settings.LND_CREDS, 'cert_creds')
+        self.assertEqual(settings.LND_CREDS_FULL, 'cert_creds')
 
     def test_metadata_callback(self):
         settings.LND_MAC = b'macaroon_bytes'
@@ -115,29 +115,109 @@ class LightLndTests(TestCase):
         self.assertEqual(func.call_count, 1)
         mocked_handle_err.assert_called_once_with('context', error)
 
+    @patch('lighter.light_lnd.lnrpc.WalletUnlockerStub', autospec=True)
     @patch('lighter.light_lnd.lnrpc.LightningStub', autospec=True)
     @patch('lighter.light_lnd.Err')
     @patch('lighter.light_lnd.get_node_timeout', autospec=True)
     @patch('lighter.light_lnd.channel_ready_future', autospec=True)
     @patch('lighter.light_lnd.secure_channel', autospec=True)
     def test_connect(self, mocked_secure_chan, mocked_future, mocked_get_time,
-                     mocked_err, mocked_stub):
+                     mocked_err, mocked_ln_stub, mocked_wu_stub):
         settings.LND_ADDR = 'lnd:10009'
-        settings.LND_CREDS = 'creds'
-        mocked_stub.return_value = 'stub'
+        settings.LND_CREDS_FULL = 'creds'
+        settings.LND_CREDS_SSL = 'cert'
         # correct case
         with MOD._connect(CTX) as stub:
-            self.assertEqual(stub, 'stub')
+            self.assertEqual(stub, mocked_ln_stub.return_value)
         mocked_secure_chan.assert_called_once_with('lnd:10009', 'creds')
-        mocked_stub.assert_called_once_with(mocked_secure_chan.return_value)
+        mocked_ln_stub.assert_called_once_with(mocked_secure_chan.return_value)
+        mocked_secure_chan.return_value.close.assert_called_once_with()
+        # with different stub_class and force_no_macaroon=True case
+        reset_mocks(vars())
+        with MOD._connect(CTX, stub_class=MOD.lnrpc.WalletUnlockerStub,
+                force_no_macaroon=True) as stub:
+            self.assertEqual(stub, mocked_wu_stub.return_value)
+        mocked_secure_chan.assert_called_once_with('lnd:10009', 'cert')
+        assert not mocked_ln_stub.called
         mocked_secure_chan.return_value.close.assert_called_once_with()
         # error case
+        stub_class = Mock(return_value='stub')
         reset_mocks(vars())
         mocked_future.return_value.result.side_effect = FutureTimeoutError()
         mocked_err().node_error.side_effect = Exception()
         with self.assertRaises(Exception):
             with MOD._connect(CTX) as stub:
                 self.assertEqual(stub, 'stub')
+
+    @patch('lighter.light_lnd._handle_error', autospec=True)
+    @patch('lighter.light_lnd.LOGGER', autospec=True)
+    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
+    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch('lighter.light_lnd.Err')
+    @patch('lighter.light_lnd.get_secret', autospec=True)
+    @patch('lighter.light_lnd.session_scope', autospec=True)
+    @patch('lighter.light_lnd.ExitStack', autospec=True)
+    def test_unlock_node(self, mocked_stack, mocked_ses, mocked_get_sec,
+                         mocked_err, mocked_connect, mocked_get_time,
+                         mocked_log, mocked_handle_err):
+        pwd = 'password'
+        stub = mocked_connect.return_value.__enter__.return_value
+        lnd_pwd = b'lnd_password'
+        mocked_get_sec.return_value = lnd_pwd
+        mocked_err().node_error.side_effect = Exception()
+        mocked_handle_err.side_effect = Exception()
+        # with no session, correct password
+        MOD.unlock_node(CTX, pwd)
+        mocked_ses.assert_called_once_with(CTX)
+        mocked_connect.assert_called_once_with(
+            CTX, stub_class=MOD.lnrpc.WalletUnlockerStub,
+            force_no_macaroon=True)
+        # with no session, incorrect password
+        reset_mocks(vars())
+        stub.UnlockWallet.side_effect = RpcError(
+            'invalid passphrase for master public key')
+        with self.assertRaises(Exception):
+            MOD.unlock_node(CTX, pwd)
+        assert mocked_err().node_error.called
+        # with no session, already unlocked
+        reset_mocks(vars())
+        stub.UnlockWallet.side_effect = RpcError(
+            'unknown service lnrpc.WalletUnlocker')
+        MOD.unlock_node(CTX, pwd)
+        assert not mocked_err().node_error.called
+        assert mocked_log.info.called
+        # with no session, other errors
+        reset_mocks(vars())
+        err = RpcError('error')
+        stub.UnlockWallet.side_effect = err
+        with self.assertRaises(Exception):
+            MOD.unlock_node(CTX, pwd)
+        assert not mocked_err().node_error.called
+        assert not mocked_log.info.called
+        mocked_handle_err.assert_called_once_with(CTX, err)
+        # with passed session, no password stored
+        reset_mocks(vars())
+        stub.UnlockWallet.side_effect = None
+        ses = 'session'
+        mocked_get_sec.return_value = None
+        with self.assertRaises(Exception):
+            MOD.unlock_node(CTX, pwd, session=ses)
+        assert not mocked_ses.called
+        assert mocked_err().node_error.called
+
+    @patch('lighter.light_lnd.unlock_node', autospec=True)
+    @patch('lighter.light_lnd.check_password', autospec=True)
+    @patch('lighter.light_lnd.session_scope', autospec=True)
+    def test_UnlockNode(self, mocked_ses, mocked_check, mocked_unlock):
+        pwd = 'password'
+        req = pb.UnlockNodeRequest(password=pwd)
+        res = MOD.UnlockNode(req, CTX)
+        self.assertEqual(res, pb.UnlockNodeResponse())
+        mocked_ses.assert_called_once_with(CTX)
+        mocked_check.assert_called_once_with(
+            CTX, mocked_ses.return_value.__enter__.return_value, pwd)
+        mocked_unlock.assert_called_once_with(
+            CTX, pwd, session=mocked_ses.return_value.__enter__.return_value)
 
     @patch('lighter.light_lnd._handle_error', autospec=True)
     @patch('lighter.light_lnd.get_node_timeout', autospec=True)

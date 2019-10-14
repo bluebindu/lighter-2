@@ -173,13 +173,11 @@ def save_secret_to_db(session, implementation, sec_type, active, data,
     # pylint: enable=too-many-arguments
 
 
-def get_secret_from_db(session, implementation):
+def get_secret_from_db(session, implementation, sec_type):
     """ Gets implementation's secret from database """
     sec = session.query(ImplementationSecret).filter_by(
-        implementation=implementation).first()
-    if not sec:
-        return None, None, None
-    return sec.secret, sec.active, sec.scrypt_params
+        implementation=implementation, secret_type=sec_type).first()
+    return sec
 
 
 class AccessToken(Base):  # pylint: disable=too-few-public-methods

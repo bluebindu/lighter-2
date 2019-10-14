@@ -282,29 +282,20 @@ class DbTests(TestCase):
 
     def test_get_secret_from_db(self):
         impl = 'implementation'
-        sec = b'secret'
-        act = 1
-        par = b'params'
+        sec_type = 'password'
+        impl_sec = MOD.ImplementationSecret(
+            implementation=impl, secret_type=sec_type, active=1, secret=b'sec')
         # correct case
-        impl_sec = Mock()
-        impl_sec.implementation = impl
-        impl_sec.active = act
-        impl_sec.secret = sec
-        impl_sec.scrypt_params = par
         SES.query.return_value.filter_by.return_value.first.return_value = \
             impl_sec
-        res_sec, res_act, res_par = MOD.get_secret_from_db(SES, impl)
-        self.assertEqual(res_sec, sec)
-        self.assertEqual(res_act, act)
-        self.assertEqual(res_par, par)
+        res = MOD.get_secret_from_db(SES, impl, sec_type)
+        self.assertEqual(res, impl_sec)
         # missing case
         reset_mocks(vars())
         SES.query.return_value.filter_by.return_value.first.return_value = \
             None
-        res_sec, res_act, res_par = MOD.get_secret_from_db(SES, impl)
-        self.assertEqual(res_sec, None)
-        self.assertEqual(res_act, None)
-        self.assertEqual(res_par, None)
+        res = MOD.get_secret_from_db(SES, impl, sec_type)
+        self.assertEqual(res, None)
 
     def test_AccessToken(self):
         data = b'token'

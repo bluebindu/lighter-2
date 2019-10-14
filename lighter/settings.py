@@ -31,8 +31,9 @@ LIGHTER_ADDR = ''
 INSECURE_CONNECTION = 0
 SERVER_KEY = path.join(L_DATA, 'certs/server.key')
 SERVER_CRT = path.join(L_DATA, 'certs/server.crt')
-IMPLEMENTATION_SECRETS = False
 CERTS_DIR = path.join(L_DATA, 'certs')
+IMPLEMENTATION_SECRETS = False
+IMPL_SEC_TYPE = ''
 
 # Macaroons settings
 RUNTIME_BAKER = None
@@ -99,7 +100,8 @@ LND_HOST = 'localhost'
 LND_PORT = 10009
 LND_CERT = 'tls.cert'
 LND_ADDR = ''
-LND_CREDS = ''
+LND_CREDS_SSL = ''
+LND_CREDS_FULL = ''
 LND_MAC = ''
 
 # Common settings
@@ -219,6 +221,10 @@ ALL_PERMS = {
     },
     '/lighter.Lightning/PayOnChain': {
         'entity': 'transaction',
+        'action': 'write'
+    },
+    '/lighter.Lightning/UnlockNode': {
+        'entity': 'unlock',
         'action': 'write'
     },
     '/lighter.Lightning/WalletBalance': {

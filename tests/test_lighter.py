@@ -15,7 +15,7 @@
 
 """ Tests for lighter module """
 
-from concurrent import futures
+from concurrent.futures import TimeoutError as TimeoutFutError
 from grpc import ssl_server_credentials, StatusCode
 from importlib import import_module
 from inspect import unwrap
@@ -32,10 +32,12 @@ CTX = 'context'
 class LighterTests(TestCase):
     """ Tests for lighter module """
 
+    @patch('lighter.lighter.LOGGER', autospec=True)
+    @patch('lighter.lighter.ThreadPoolExecutor', autospec=True)
     @patch('lighter.lighter.import_module', autospec=True)
     @patch('lighter.lighter.ScryptParams', autospec=True)
     @patch('lighter.lighter.get_baker', autospec=True)
-    @patch('lighter.lighter.get_secret_from_db', autospec=True)
+    @patch('lighter.lighter.get_secret', autospec=True)
     @patch('lighter.lighter.get_mac_params_from_db', autospec=True)
     @patch('lighter.lighter.Crypter', autospec=True)
     @patch('lighter.lighter.check_password', autospec=True)
@@ -43,8 +45,9 @@ class LighterTests(TestCase):
     @patch('lighter.lighter.check_req_params', autospec=True)
     def test_UnlockLighter(self, mocked_check_par, mocked_ses,
                            mocked_check_password, mocked_crypter,
-                           mocked_db_mac, mocked_db_sec, mocked_baker,
-                           mocked_params, mocked_import):
+                           mocked_db_mac, mocked_get_sec, mocked_baker,
+                           mocked_params, mocked_import, mocked_thread,
+                           mocked_log):
         unlock_self = MOD.UnlockerServicer()
         unlock_func = unwrap(unlock_self.UnlockLighter)
         password = 'password'
@@ -52,22 +55,60 @@ class LighterTests(TestCase):
         # with macaroon enabled but no implementation secrets
         request = pb.UnlockLighterRequest(password=password)
         mocked_db_mac.return_value = params
-        mocked_db_sec.return_value = ('secret', 1, params)
+        mocked_get_sec.return_value = 'plain_data'
         mocked_check_password.return_value = True
         res = unlock_func(unlock_self, request, CTX)
         mocked_import.return_value.update_settings.assert_called_once_with(
             None)
-        # with macaroon enabled and implementation secrets
+        # with macaroon enabled and implementation secrets (lnd macaroon)
         reset_mocks(vars())
+        settings.IMPLEMENTATION = 'lnd'
         settings.IMPLEMENTATION_SECRETS = True
         request = pb.UnlockLighterRequest(password=password)
         mocked_db_mac.return_value = params
-        mocked_db_sec.return_value = ('secret', 1, params)
-        mocked_crypter.decrypt.return_value = 'plain_data'
+        mocked_get_sec.return_value = 'plain_data'
         mocked_check_password.return_value = True
         res = unlock_func(unlock_self, request, CTX)
         mocked_import.return_value.update_settings.assert_called_once_with(
             'plain_data')
+        # with macaroon disabled and implementation secrets (eclair password)
+        reset_mocks(vars())
+        settings.IMPLEMENTATION = 'eclair'
+        settings.DISABLE_MACAROONS = True
+        res = unlock_func(unlock_self, request, CTX)
+        assert not mocked_db_mac.called
+        # with unlock_node, no implementation secrets and disabled macaroons
+        future = Mock()
+        executor = Mock()
+        executor.submit.return_value = future
+        mocked_thread.return_value = executor
+        ## result within timeout
+        reset_mocks(vars())
+        request = pb.UnlockLighterRequest(password=password, unlock_node=True)
+        res = unlock_func(unlock_self, request, CTX)
+        assert mocked_thread.return_value.submit.called
+        assert not executor.shutdown.called
+        future.result.assert_called_once_with(timeout=1)
+        self.assertEqual(res, pb.UnlockLighterResponse())
+        ## result times out
+        reset_mocks(vars())
+        future.result.side_effect = TimeoutFutError()
+        res = unlock_func(unlock_self, request, CTX)
+        executor.shutdown.assert_called_once_with(wait=False)
+        self.assertEqual(res, pb.UnlockLighterResponse())
+        ## result throws RuntimeError
+        reset_mocks(vars())
+        future.result.side_effect = RuntimeError()
+        res = unlock_func(unlock_self, request, CTX)
+        assert not executor.shutdown.called
+        assert mocked_log.info.called
+        self.assertEqual(res, pb.UnlockLighterResponse())
+        ## unimplemented method
+        reset_mocks(vars())
+        executor.submit.side_effect = AttributeError()
+        res = unlock_func(unlock_self, request, CTX)
+        assert not executor.shutdown.called
+        assert not mocked_log.called
 
     @patch('lighter.lighter.Thread', autospec=True)
     @patch('lighter.lighter.check_password', autospec=True)

@@ -26,6 +26,7 @@ from unittest.mock import Mock, mock_open, patch
 
 from lighter import lighter_pb2 as pb
 from lighter import settings
+from lighter.db import ImplementationSecret
 from lighter.utils import Enforcer as Enf
 from tests import fixtures_utils as fix
 
@@ -112,7 +113,7 @@ class UtilsTests(TestCase):
         # Secure connection case with macaroons enabled
         reset_mocks(vars())
         values = {
-            'IMPLEMENTATION': 'asd',
+            'IMPLEMENTATION': 'lnd',
             'SERVER_CRT': 'crt',
             'SERVER_KEY': 'key',
             'DB_DIR': 'mac_db_dir',
@@ -121,16 +122,18 @@ class UtilsTests(TestCase):
         with patch.dict('os.environ', values):
             MOD.get_start_options()
         self.assertEqual(settings.INSECURE_CONNECTION, False)
+        self.assertEqual(settings.IMPL_SEC_TYPE, 'macaroon')
         # Insecure connection case
         settings.IMPLEMENTATION_SECRETS = False
         values = {
-            'IMPLEMENTATION': 'asd',
+            'IMPLEMENTATION': 'eclair',
             'INSECURE_CONNECTION': '1',
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options()
         self.assertEqual(settings.INSECURE_CONNECTION, True)
         self.assertEqual(settings.DISABLE_MACAROONS, True)
+        self.assertEqual(settings.IMPL_SEC_TYPE, 'password')
         # No secrets case (with warning)
         reset_mocks(vars())
         values = {
@@ -151,24 +154,28 @@ class UtilsTests(TestCase):
         self.assertEqual(res, False)
         # lnd with no secrets case
         settings.IMPLEMENTATION = 'lnd'
-        mocked_db_sec.return_value = None, None, None
+        mocked_db_sec.return_value = ImplementationSecret(
+            implementation='lnd', active=0)
         res = MOD.detect_impl_secret(ses)
         self.assertEqual(res, False)
         # lnd with secrets case
-        mocked_db_sec.return_value = sec, 1, None
+        mocked_db_sec.return_value = ImplementationSecret(
+            implementation='lnd', active=1, secret=sec)
         res = MOD.detect_impl_secret(ses)
         self.assertEqual(res, True)
         # lnd with active but no secret
-        mocked_db_sec.return_value = None, 1, None
+        mocked_db_sec.return_value = ImplementationSecret(
+            implementation='lnd', active=1)
         with self.assertRaises(RuntimeError):
             res = MOD.detect_impl_secret(ses)
         # eclair with secrets case
         settings.IMPLEMENTATION = 'eclair'
-        mocked_db_sec.return_value = sec, 1, None
+        mocked_db_sec.return_value = ImplementationSecret(
+            implementation='eclair', active=1, secret=sec)
         res = MOD.detect_impl_secret(ses)
         self.assertEqual(res, True)
         # eclair with no secrets case
-        mocked_db_sec.return_value = None, None, None
+        mocked_db_sec.return_value = None
         with self.assertRaises(RuntimeError):
             res = MOD.detect_impl_secret(ses)
 
@@ -485,6 +492,27 @@ class UtilsTests(TestCase):
         mocked_crypter.decrypt.return_value = wrong_token
         MOD.check_password(CTX, ses, pwd)
         mocked_err().wrong_password.assert_called_once_with(CTX)
+
+    @patch('lighter.utils.Crypter')
+    @patch('lighter.utils.ScryptParams', autospec=True)
+    @patch('lighter.utils.get_secret_from_db', autospec=True)
+    def test_get_secret(self, mocked_db_sec, mocked_params, mocked_crypter):
+        ses = 'session'
+        pwd = 'password'
+        impl = 'implementation'
+        sec_type = 'macaroon'
+        # active_only=False (default) with secret case
+        res = MOD.get_secret(CTX, ses, pwd, impl, sec_type)
+        self.assertEqual(res, mocked_crypter.decrypt.return_value)
+        # active_only=False (default) with no secret case
+        mocked_db_sec.return_value = None
+        res = MOD.get_secret(CTX, ses, pwd, impl, sec_type)
+        self.assertEqual(res, None)
+        # active_only=True and inactive secret case
+        mocked_db_sec.return_value = ImplementationSecret(
+            implementation=impl, active=0, secret=b'sec')
+        res = MOD.get_secret(CTX, ses, pwd, impl, sec_type, active_only=True)
+        self.assertEqual(res, None)
 
     @patch('lighter.utils.Err')
     def test_Crypter(self, mocked_err):

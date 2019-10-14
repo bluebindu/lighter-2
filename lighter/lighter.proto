@@ -17,13 +17,14 @@ syntax = "proto3";
 
 package lighter;
 
-// Unlocker service exposes a single operation used to unlock the Lightning
-// service.
+// Unlocker service exposes a single operation used to unlock lighter and
+// optionally LN nodes with locking mechanisms.
 service Unlocker {
 
     /**
-    UnlockLighter unlocks Lighter's secrets using the password choosen in
-    initialization phase. This call does not require macaroons authentication.
+    UnlockLighter unlocks Lighter's secrets using the password chosen during
+    the secure phase. The underlying node can also be unlocked, but failures
+    will be ignored. This call does not require macaroon authentication.
     */
     rpc UnlockLighter (UnlockLighterRequest) returns (UnlockLighterResponse);
 
@@ -33,9 +34,9 @@ service Unlocker {
 service Locker {
 
     /**
-    LockLighter locks Lighter using the password choosen in initialization
+    LockLighter locks Lighter using the password chosen during the secure
     phase. This stops the runtime server (LightningServicer + LockerServicer)
-    and deletes secrets from runtime memory
+    and deletes secrets from runtime memory.
     */
     rpc LockLighter (LockLighterRequest) returns (LockLighterResponse);
 
@@ -133,6 +134,13 @@ service Lightning {
     rpc PayOnChain (PayOnChainRequest) returns (PayOnChainResponse);
 
     /**
+    UnlockNode tries to unlock the underlying node. Requires an implementation
+    that supports a locking mechanism and the password must have been provided
+    during Lighter's secure phase.
+    */
+    rpc UnlockNode (UnlockNodeRequest) returns (UnlockNodeResponse);
+
+    /**
     WalletBalance returns the on-chain balance, in bits.
     */
     rpc WalletBalance (WalletBalanceRequest) returns (WalletBalanceResponse);
@@ -141,9 +149,16 @@ service Lightning {
 
 message UnlockLighterRequest {
     /**
-    Password to unlock Lighter
+    Lighter's password to unlock the runtime service
     */
     string password = 1;
+    /**
+    Whether to also unlock the LN node. Node unlock may not be available
+    (implementation does not have a locking system) or fail (missing
+    configuration or connection issues) but the whole UnlockLighter operation
+    will still succeed
+    */
+    bool unlock_node = 2;
 }
 
 message UnlockLighterResponse {
@@ -151,7 +166,7 @@ message UnlockLighterResponse {
 
 message LockLighterRequest {
     /**
-    Password to lock Lighter
+    Lighter's password to lock the runtime service
     */
     string password = 1;
 }
@@ -811,6 +826,16 @@ message PayOnChainResponse {
     Hash of the newly created bitcoin transaction
     */
     string txid = 1;
+}
+
+message UnlockNodeRequest {
+    /**
+    Lighter's password to decrypt the underlying node's secret
+    */
+    string password = 1;
+}
+
+message UnlockNodeResponse {
 }
 
 message WalletBalanceRequest {
