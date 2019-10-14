@@ -34,7 +34,6 @@ import lighter.lighter_pb2 as pb
 import lighter.lighter_pb2_grpc as pb_grpc
 
 from lighter import __version__, settings
-from lighter.utils import str2bool
 
 
 class AddressType(ParamType):
@@ -93,7 +92,7 @@ def _get_cli_options():
     for opt, def_val in bool_opt.items():
         if not getattr(settings, 'CLI_{}'.format(opt)):
             setattr(settings, 'CLI_{}'.format(opt),
-                    str2bool(env.get(opt, def_val)))
+                    _str2bool(env.get(opt, def_val)))
     settings.PORT = env.get('PORT', settings.PORT)
     settings.CLI_HOST = env.get('CLI_HOST', settings.CLI_HOST)
     if not settings.CLI_ADDR:
@@ -109,6 +108,19 @@ def _get_cli_options():
         if not settings.CLI_MAC:
             settings.CLI_MAC = path.join(
                 path.expanduser(settings.MACAROONS_DIR), settings.MAC_ADMIN)
+
+
+def _str2bool(string, force_true=False):
+    """ Casts a string to boolean, forcing to a default value """
+    if isinstance(string, int):
+        string = str(string)
+    if not string and not force_true:
+        return False
+    if not string and force_true:
+        return True
+    if force_true:
+        return string.lower() not in ('no', 'false', 'n', '0')
+    return string.lower() in ('yes', 'true', 'y', '1')
 
 
 def handle_call(func):
