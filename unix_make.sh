@@ -56,7 +56,7 @@ ECL_URL='https://raw.githubusercontent.com/ACINQ/eclair'
 ECL_CLI='eclair-cli'
 
 # Lnd variables
-LND_REF=${LND_REF:-'v0.7.1-beta'}
+LND_REF=${LND_REF:-'v0.8.0-beta'}
 LND_URL='https://raw.githubusercontent.com/lightningnetwork/lnd'
 LND_PROTO='rpc.proto'
 GOOGLEAPIS_URL='https://github.com/googleapis/googleapis/archive'
