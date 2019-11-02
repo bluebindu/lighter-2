@@ -6,7 +6,6 @@
 *_pb2*.py
 /lighter/google
 /compose.yml
-/docker/qemu-*
 /docker/Dockerfile.*
 !/docker/Dockerfile.cross
 !/docker/Dockerfile.ci
