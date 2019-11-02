@@ -13,6 +13,7 @@
 /.bashrc
 /.zshrc
 /cliter.egg-info/
+/.eggs
 *.swp
 
 # Tests coverage, lint and cache
