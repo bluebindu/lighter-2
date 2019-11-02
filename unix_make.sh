@@ -471,15 +471,15 @@ set_defaults() {
 lint_code() {
 	export dock_tag="$1"
 	docker run --rm \
+		-v "$(pwd)/$L_DIR/db.py:$APP_DIR/$L_DIR/db.py:ro" \
 		-v "$(pwd)/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro" \
 		-v "$(pwd)/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro" \
 		-v "$(pwd)/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro" \
 		-v "$(pwd)/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro" \
 		-v "$(pwd)/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro" \
 		-v "$(pwd)/$L_DIR/macaroons.py:$APP_DIR/$L_DIR/macaroons.py:ro" \
-		-v "$(pwd)/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro" \
 		-v "$(pwd)/$L_DIR/settings.py:$APP_DIR/$L_DIR/settings.py:ro" \
-		-v "$(pwd)/tests:$APP_DIR/tests:ro" \
+		-v "$(pwd)/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro" \
 		-v "$(pwd)/$LINT_DIR:$APP_DIR/$LINT_DIR:rw" \
 		-v "$(pwd)/.pylintrc:$APP_DIR/.pylintrc:ro" \
 		--entrypoint $APP_DIR/$LINT_DIR/lint.sh \
@@ -498,8 +498,8 @@ test_code() {
 		-v "$(pwd)/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro" \
 		-v "$(pwd)/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro" \
 		-v "$(pwd)/$L_DIR/macaroons.py:$APP_DIR/$L_DIR/macaroons.py:ro" \
-		-v "$(pwd)/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro" \
 		-v "$(pwd)/$L_DIR/settings.py:$APP_DIR/$L_DIR/settings.py:ro" \
+		-v "$(pwd)/$L_DIR/utils.py:$APP_DIR/$L_DIR/utils.py:ro" \
 		-v "$(pwd)/tests:$APP_DIR/tests:ro" \
 		-v "$(pwd)/.coveragerc:$APP_DIR/.coveragerc:ro" \
 		--entrypoint $ENV_DIR/bin/pytest \
