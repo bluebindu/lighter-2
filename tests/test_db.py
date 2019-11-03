@@ -155,7 +155,8 @@ class DbTests(TestCase):
         settings.DISABLE_MACAROONS = False
         # correct case
         with patch('lighter.db.ENGINE') as mocked_engine:
-            mocked_engine.dialect.has_table.side_effect = [False, True, True]
+            mocked_engine.dialect.has_table.side_effect = \
+                [False, True, True, True]
             mocked_db_tok.return_value = b'access_token'
             mocked_db_mac.return_value = 'mac_params'
             mocked_db_head.return_value = True
@@ -180,10 +181,17 @@ class DbTests(TestCase):
             res = MOD.is_db_ok(SES)
             self.assertEqual(res, False)
             assert mocked_log.error.called
+        # missing implementation_secrets table
+        with patch('lighter.db.ENGINE') as mocked_engine:
+            mocked_engine.dialect.has_table.side_effect = \
+                [False, True, True, False]
+            res = MOD.is_db_ok(SES)
+            self.assertEqual(res, False)
         # db revision not at head
         reset_mocks(vars())
         with patch('lighter.db.ENGINE') as mocked_engine:
-            mocked_engine.dialect.has_table.side_effect = [False, True, True]
+            mocked_engine.dialect.has_table.side_effect = \
+                [False, True, True, True]
             mocked_db_head.return_value = False
             res = MOD.is_db_ok(SES)
             self.assertEqual(res, False)

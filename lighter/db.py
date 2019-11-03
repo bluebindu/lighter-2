@@ -122,6 +122,9 @@ def is_db_ok(session):
             LOGGER.error('Please make sure you have generated macaroon at '
                          'least one time')
             return False
+    # checking if implementation_secrets table exists
+    if not ENGINE.dialect.has_table(ENGINE, 'implementation_secrets'):
+        return False
     if not is_db_at_head(get_alembic_cfg(False), ENGINE):
         LOGGER.error('Migrations may not have applied correctly')
         return False
