@@ -236,7 +236,7 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
                 grpc_peer.pubkey = peer['id']
                 cl_req = ['listnodes', 'id={}'.format(peer['id'])]
                 cl_res = command(context, *cl_req)
-                if 'nodes' in cl_res:
+                if 'nodes' in cl_res and cl_res['nodes']:
                     node = cl_res['nodes'][0]
                     if 'alias' in node:
                         grpc_peer.alias = node['alias']
@@ -330,7 +330,7 @@ def PayInvoice(request, context):
         check_req_params(context, request, 'amount_bits')
     # pylint: enable=no-member
     if request.description:
-        cl_req.append('description="{}"'.format(request.description))
+        Err().unimplemented_parameter(context, 'description')
     if request.cltv_expiry_delta:
         if Enf.check_value(
                 context, request.cltv_expiry_delta,
@@ -424,7 +424,7 @@ def OpenChannel(request, context):
         Err().connect_failed(context)
     cl_req = ['fundchannel']
     cl_req.append('id="{}"'.format(pubkey))
-    cl_req.append('satoshi="{}"'.format(
+    cl_req.append('amount="{}"'.format(
         convert(context, Enf.SATS, request.funding_bits,
                 enforce=Enf.FUNDING_SATOSHIS, max_precision=Enf.SATS)))
     if request.private:
@@ -445,11 +445,8 @@ def CloseChannel(request, context):
     close_timeout = get_node_timeout(
         context, min_time=settings.CLOSE_TIMEOUT_NODE)
     if request.force:
-        cl_req.append('force=true')
-        # setting a zero timeout to force an immediate unilateral close
-        cl_req.append('timeout=0')
-    else:
-        cl_req.append('timeout={}'.format(close_timeout))
+        # setting a 1 second timeout to force an immediate unilateral close
+        cl_req.append('unilateraltimeout=1')
     executor = ThreadPoolExecutor(max_workers=1)
     future = executor.submit(_close_channel, cl_req, close_timeout)
     try:

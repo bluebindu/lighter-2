@@ -455,7 +455,7 @@ class LightClightningTests(TestCase):
             CTX, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)
         mocked_command.assert_called_once_with(
             CTX, 'pay', 'bolt11="lntb77u1something"', 'msatoshi="77700000"',
-            'description="funny"', 'maxdelay="7"')
+            'maxdelay="7"')
         mocked_handle.assert_called_once_with(
             CTX, fix.PAY, always_abort=False)
         self.assertEqual(
