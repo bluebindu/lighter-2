@@ -31,7 +31,9 @@ CTX = 'context'
 class LightEclairTests(TestCase):
     """ Tests for light_eclair module """
 
-    def test_update_settings(self):
+    @patch('lighter.light_eclair.FileInput', autospec=True)
+    @patch('lighter.light_eclair.path', autospec=True)
+    def test_update_settings(self, mocked_path, mocked_finput):
         password = b'password'
         # Correct case
         reset_mocks(vars())
@@ -39,9 +41,12 @@ class LightEclairTests(TestCase):
             'ECL_HOST': 'eclair',
             'ECL_PORT': '8080',
         }
+        ecl_cli_path = '/srv/app/lighter/eclair-cli'
+        mocked_path.abspath.return_value = ecl_cli_path
+        mocked_finput.return_value.__enter__.return_value = \
+            ['api_host', 'api_password=asd']
         with patch.dict('os.environ', values):
             MOD.update_settings(password)
-        ecl_cli_path = '/srv/app/lighter/eclair-cli'
         self.assertEqual(
             settings.CMD_BASE,
             [ecl_cli_path, '-a', '{}:{}'.format(

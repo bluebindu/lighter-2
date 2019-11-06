@@ -90,7 +90,7 @@ dependencies, based on its configuration.
     - Linux <sup>1</sup>
       or macOS <sup>2</sup>
       (_Windows may work, but is not supported_)
-    - Python 3.5
+    - Python 3.5+
 
 - **in docker**
     - Linux <sup>1</sup>,
@@ -122,10 +122,10 @@ as gathered real-world usage data grows.
 
 #### Notes
 
-1. _tested on Debian 9 Stretch_
+1. _tested on Debian 10 Buster_
 2. _tested on macOS 10.13 High Sierra_
 3. _not tested_
-4. _tested with python3.5_
+4. _tested with python3.7_
 
 
 # Building

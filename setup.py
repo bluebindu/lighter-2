@@ -103,12 +103,13 @@ if __name__ == '__main__':
         py_modules=['cliter'],
         packages=['lighter'],
         install_requires=[
-            'Click>=7.0',
-            'grpcio>=1.19.0',
-            'protobuf>=3.7.1',
+            'Click~=7.0',
+            'grpcio~=1.22.1',
+            'protobuf~=3.9.2',
         ],
         setup_requires=[
-            'grpcio-tools==1.19.0'
+            'grpcio-tools~=1.25.0',
+            'wheel~=0.33.6'
         ],
         entry_points={
             'console_scripts': [

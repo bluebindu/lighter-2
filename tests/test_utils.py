@@ -38,16 +38,19 @@ class UtilsTests(TestCase):
     """ Tests for the utils module """
 
     @patch('lighter.utils.dictConfig')
-    def test_update_logger(self, mocked_dictConfig):
+    @patch('lighter.utils.path', autospec=True)
+    def test_update_logger(self, mocked_path, mocked_dictConfig):
         # Correct case: absolute path
-        values = {'LOGS_DIR': '/path'}
+        values = {'LOGS_DIR': '/srv/app/lighter-data/logs'}
+        log_path = '/srv/app/lighter-data/logs/lighter.log'
+        mocked_path.join.return_value = log_path
         with patch.dict('os.environ', values):
             MOD.update_logger()
         mocked_dictConfig.assert_called_once_with(settings.LOGGING)
-        self.assertEqual(settings.LOGS_DIR, '/path')
+        self.assertEqual(settings.LOGS_DIR, '/srv/app/lighter-data/logs')
         self.assertIn('file', settings.LOGGING['loggers']['']['handlers'])
         self.assertEqual(settings.LOGGING['handlers']['file']['filename'],
-                         '/path/lighter.log')
+                         log_path)
         # Correct case: relative path
         reset_mocks(vars())
         values = {'LOGS_DIR': './lighter-data/logs'}
@@ -57,7 +60,7 @@ class UtilsTests(TestCase):
         self.assertEqual(settings.LOGS_DIR, './lighter-data/logs')
         self.assertIn('file', settings.LOGGING['loggers']['']['handlers'])
         self.assertEqual(settings.LOGGING['handlers']['file']['filename'],
-                         '/srv/app/lighter-data/logs/lighter.log')
+                         log_path)
 
     @patch('lighter.utils.LOGGER', autospec=True)
     def test_log_intro(self, mocked_logger):
