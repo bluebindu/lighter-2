@@ -513,6 +513,93 @@ set_defaults() {
 	[ "$DOCKER" = "1" ] && export CLI_HOST="$NAME"
 }
 
+pairing() {
+	export config_file="$1"
+	_parse_config > /dev/null
+	[ "${INSECURE_CONNECTION}" == "1" ] && DISABLE_MACAROONS="1"
+	_init_venv > /dev/null
+	. "$ENV/bin/activate"
+	$PROG _install_pips qrcode[pil]  > /dev/null
+	$PROG check_deps curl  > /dev/null
+
+	echo -e "\nStep 1: paring mode selection"
+	PS3="Which one do you want to use? "
+	options=("QR code image (recommended)" "Plain text")
+	select opt in "${options[@]}"
+	do
+		case $opt in
+			"QR code image (recommended)")
+				PAIR_MODE='qr'
+				break
+				;;
+			"Plain text")
+				PAIR_MODE='txt'
+				break
+				;;
+			*) echo "invalid option $REPLY, Ctrl-c to abort";;
+		esac
+	done
+
+	echo -e "\nStep 2: connection pairing"
+	ip=$(curl -s http://ipinfo.io/ip)
+	read -rp "Insert your host (empty to use IP ${ip}): " i_host
+	host=${i_host:-$ip}
+	read -rp "Insert your port (empty to use port ${PORT}): " i_port
+	declare -i port=${i_port:-$PORT}
+	if [ ${port} -lt 1 ] || [ ${port} -gt 65535 ]; then
+		_die "Invalid port"
+	fi
+	conn_par=$(echo -n "lighterconnect://${host}:${port}")
+	if [ "${INSECURE_CONNECTION}" == "0" ]; then
+		[ ! -f ${SERVER_CRT} ] && _die "Certificate is missing"
+		cert=$(grep -v 'CERTIFICATE' ${SERVER_CRT} | tr -d '=' | tr '/+' '_-' | awk 'NF {sub(/\r/, ""); printf "%s",$0;}')
+		conn_par=$(echo -n "${conn_par}?cert=${cert}")
+	else
+		echo -e "\nWARNING: connection security disabled"
+	fi
+	echo -e "\nLighter connection pairing (contains host, port and TLS certificate)."
+	echo -e "Use this to connect your client (e.g. Globular) to this Lighter instance:\n"
+	if [ ${PAIR_MODE} == "qr" ]; then
+		qr -- "${conn_par}"
+	else
+		echo "${conn_par}"
+	fi
+
+	if [ "${DISABLE_MACAROONS}" == "0" ]; then
+		echo -e "\nStep 3: authorization pairing (link to doc?)"
+		PS3="Which set of permissions do you want to use? "
+		options=("admin     (all ops)" "readonly  (read-only ops)" "invoices  (create and check invoices only)")
+		select opt in "${options[@]}"
+		do
+			case $opt in
+				"admin     (all ops)")
+					MAC_TYPE='admin'
+					break
+					;;
+				"readonly  (read-only ops)")
+					MAC_TYPE='readonly'
+					break
+					;;
+				"invoices  (create and check invoices only)")
+					MAC_TYPE='invoices'
+					break
+					;;
+				*) echo "invalid option $REPLY, Ctrl-c to abort";;
+			esac
+		done
+		echo -e "\nLighter authorization pairing (contains a macaroon)."
+		echo -e "Use this to authorize your client (e.g. Globular) to operate this Lighter instance:\n"
+		mac=$(echo -n "macaroon:"; cat ${MACAROONS_DIR}/${MAC_TYPE}.macaroon)
+		if [ ${PAIR_MODE} == "qr" ]; then
+			qr "${mac}"
+		else
+			echo "${mac}"
+		fi
+	else
+		echo -e "\nWARNING: macaroons are disabled"
+	fi
+}
+
 lint_code() {
 	export dock_tag="$1"
 	docker run --rm \

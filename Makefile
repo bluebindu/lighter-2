@@ -74,6 +74,9 @@ stop:
 clean:
 	@ $(SCRIPT) clean
 
+pairing:
+	@ $(SCRIPT) pairing $(CONFIG_FILE)
+
 version:
 	@ echo $(VERSION)
 
@@ -93,6 +96,7 @@ help:
 	@ echo " - clean:        removes Lighter virtualenv"
 	@ echo " - test:         tests Lighter code"
 	@ echo " - lint:         lints Lighter code"
+	@ echo " - pairing:      starts pairing operation"
 	@ echo " - version:      gets Lighter version"
 	@ echo " - help:         shows this message"
 	@ echo "\nDefault: help"
@@ -144,4 +148,4 @@ build_lnd:
 	@ $(SCRIPT) build_lnd
 
 
-.PHONY: all clightning eclair lnd docker secure run cli logs stop clean test lint help
+.PHONY: all clightning eclair lnd docker secure run cli logs stop clean pairing version test lint help

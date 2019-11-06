@@ -60,7 +60,7 @@ secured.
 2. _`fundchannel` and `pay` plugins are required_
 
 
-# Requirements
+## Requirements
 
 First of all, Lighter will need to connect to an already existing and
 supported LN node, which determines the main configuration parameter,
@@ -128,7 +128,7 @@ as gathered real-world usage data grows.
 4. _tested with python3.7_
 
 
-# Building
+## Building
 
 All build operations are automated in a [Makefile](/Makefile).
 Run `make help` to see available targets.
@@ -164,7 +164,7 @@ $ make docker
     dependencies)_
 
 
-# Configuring
+## Configuring
 
 Lighter needs to be configured before the execution of any other operation
 (`build` excluded).
@@ -172,7 +172,7 @@ See [Configuring](/doc/configuring.md) for instructions on how to configure
 Lighter.
 
 
-# Securing
+## Securing
 
 In order to run Lighter, you need to configure the necessary secrets and set a
 password to manage and protect them.
@@ -190,7 +190,7 @@ made available to Lighter only at runtime, after it has been unlocked.
 Read [Security](/doc/security.md) for more details.
 
 
-# Running
+## Running
 
 To start Lighter's gRPC server, according to the configured scenario, run:
 
@@ -211,7 +211,7 @@ $ make stop
 ```
 
 
-# Using
+## Using
 
 Lighter can be operated through its gRPC client interface.
 A CLI with bash and zsh completion support is also available for maintenance
@@ -231,11 +231,11 @@ The former unlocks Lighter.
 The latter only starts after it is unlocked and provides all the supported LN
 node operations <sup>1</sup>.
 
-A set of documentation for the gRPC APIs, along with example code in
+A set of **documentation for the gRPC APIs**, along with example code in
 Python, Go, Node.js and Bash can be found at our
-[lighter-doc api page](https://lighter-doc.inbitcoin.it).
+[lighter-doc API page](https://lighter-doc.inbitcoin.it).
 
-To use Lighter's CLI and have a full list of available commands, run:
+To use Lighter's **CLI** and have a full list of available commands, run:
 ```bash
 $ make cli
 $ cliter unlocklighter
@@ -243,6 +243,19 @@ $ cliter --help
 ```
 Note: `make cli` spawns a new shell, configured for `cliter`,
 run `exit` to leave environment.
+
+To **pair** Lighter with a client, run:
+```bash
+$ make pairing
+```
+This will create two URIs to allow easy retrieval of
+connection data (`lighterconnect://<host>:<port>[?cert=<PEM certificate>]`)
+and macaroon (`macaroon:<chosen macaroon>`).
+As output format, it will let you choose between QR codes and text.
+
+### Clients with pairing support
+
+- [Globular](https://gitlab.com/inbitcoin/globular), Android wallet
 
 #### Notes
 
@@ -257,7 +270,7 @@ run `exit` to leave environment.
    [gRPC](https://grpc.io/docs/)_
 
 
-# Contributing
+## Contributing
 
 All contributions to Lighter are welcome.<br>
 We will strive to keep Lighter updated but help is appreciated,
