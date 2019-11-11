@@ -222,6 +222,10 @@ message CheckInvoiceResponse {
     Whether the invoice has been paid
     */
     bool settled = 1;
+    /**
+    Invoice state (paid, pending or expired)
+    */
+    InvoiceState state = 2;
 }
 
 message CloseChannelRequest {

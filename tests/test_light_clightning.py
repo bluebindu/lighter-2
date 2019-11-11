@@ -163,7 +163,7 @@ class LightClightningTests(TestCase):
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning._add_channel', autospec=True)
-    @patch('lighter.light_clightning._get_state', autospec=True)
+    @patch('lighter.light_clightning._get_channel_state', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
     def test_ListChannels(self, mocked_command, mocked_state, mocked_add,
                           mocked_handle):
@@ -355,32 +355,43 @@ class LightClightningTests(TestCase):
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
+    @patch('lighter.light_clightning._get_invoice_state', autospec=True)
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.Err')
     @patch('lighter.light_clightning.command', autospec=True)
     @patch('lighter.light_clightning.check_req_params', autospec=True)
-    def test_CheckInvoice(self, mocked_check_par, mocked_command, mocked_err, mocked_handle):
+    def test_CheckInvoice(self, mocked_check_par, mocked_command, mocked_err,
+                          mocked_handle, mocked_inv_st):
         # Correct case: paid invoice
         request = pb.CheckInvoiceRequest(
             payment_hash=
             '302cd6bc8dd20437172f48d8693c7099fd4cb6d08e3f8519b406b21880677b28')
         mocked_command.return_value = fix.LISTINVOICES
+        mocked_inv_st.return_value = pb.PAID
         res = MOD.CheckInvoice(request, CTX)
         mocked_command.assert_called_once_with(CTX, 'listinvoices')
         assert not mocked_handle.called
         assert not mocked_err().invoice_not_found.called
         self.assertEqual(res.settled, True)
+        self.assertEqual(res.state, pb.PAID)
         # Correct case: unpaid invoice
         reset_mocks(vars())
-        request = pb.CheckInvoiceRequest(
-            payment_hash=
-            '2229b24c728326e2adb2c6166d3ba432fba8867678c6d2bca08b04ca09227a97')
-        mocked_command.return_value = fix.LISTINVOICES
+        mocked_inv_st.return_value = pb.PENDING
         res = MOD.CheckInvoice(request, CTX)
         mocked_command.assert_called_once_with(CTX, 'listinvoices')
         assert not mocked_handle.called
         assert not mocked_err().invoice_not_found.called
         self.assertEqual(res.settled, False)
+        self.assertEqual(res.state, pb.PENDING)
+        # Correct case: expired invoice
+        reset_mocks(vars())
+        mocked_inv_st.return_value = pb.EXPIRED
+        res = MOD.CheckInvoice(request, CTX)
+        mocked_command.assert_called_once_with(CTX, 'listinvoices')
+        assert not mocked_handle.called
+        assert not mocked_err().invoice_not_found.called
+        self.assertEqual(res.settled, False)
+        self.assertEqual(res.state, pb.EXPIRED)
         # Missing parameter case
         reset_mocks(vars())
         request = pb.CheckInvoiceRequest()
@@ -404,17 +415,6 @@ class LightClightningTests(TestCase):
             CTX, fix.LISTINVOICES, always_abort=False)
         mocked_err().invoice_not_found.assert_called_once_with(CTX)
         self.assertEqual(res, 'not set')
-        # Invoice found with no status case
-        reset_mocks(vars())
-        request = pb.CheckInvoiceRequest(
-            payment_hash=
-            '6c6466e514c26db149d8801b910e2201390cfa7112bf4f42ce01897b5ff83058')
-        mocked_command.return_value = fix.LISTINVOICES
-        res = MOD.CheckInvoice(request, CTX)
-        mocked_command.assert_called_once_with(CTX, 'listinvoices')
-        assert not mocked_err().invoice_not_found.called
-        assert not mocked_handle.called
-        self.assertEqual(res, pb.CheckInvoiceResponse())
         # Error case
         reset_mocks(vars())
         request = pb.CheckInvoiceRequest(payment_hash='random')
@@ -426,8 +426,6 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
         assert not mocked_err().invoice_not_found.called
-        # Sette
-        assert 7
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)
@@ -873,25 +871,46 @@ class LightClightningTests(TestCase):
         res = MOD._create_label()
         self.assertEqual(res, '1533152937911157')
 
-    def test_get_state(self):
-        res = MOD._get_state(fix.CHANNEL_CLOSED)
+    def test_get_channel_state(self):
+        res = MOD._get_channel_state(fix.CHANNEL_CLOSED)
         self.assertEqual(res, -1)
-        res = MOD._get_state(fix.CHANNEL_RESOLVED)
+        res = MOD._get_channel_state(fix.CHANNEL_RESOLVED)
         self.assertEqual(res, -1)
-        res = MOD._get_state(fix.CHANNEL_NORMAL)
+        res = MOD._get_channel_state(fix.CHANNEL_NORMAL)
         self.assertEqual(res, pb.OPEN)
-        res = MOD._get_state(fix.CHANNEL_UNILATERAL)
+        res = MOD._get_channel_state(fix.CHANNEL_UNILATERAL)
         self.assertEqual(res, pb.PENDING_FORCE_CLOSE)
-        res = MOD._get_state(fix.CHANNEL_SHUTTING_DOWN)
+        res = MOD._get_channel_state(fix.CHANNEL_SHUTTING_DOWN)
         self.assertEqual(res, pb.PENDING_MUTUAL_CLOSE)
-        res = MOD._get_state(fix.CHANNEL_AWAITING_UNILATERAL)
+        res = MOD._get_channel_state(fix.CHANNEL_AWAITING_UNILATERAL)
         self.assertEqual(res, pb.PENDING_FORCE_CLOSE)
-        res = MOD._get_state(fix.CHANNEL_MUTUAL)
+        res = MOD._get_channel_state(fix.CHANNEL_MUTUAL)
         self.assertEqual(res, pb.PENDING_MUTUAL_CLOSE)
-        res = MOD._get_state(fix.CHANNEL_AWAITING_LOCKIN)
+        res = MOD._get_channel_state(fix.CHANNEL_AWAITING_LOCKIN)
         self.assertEqual(res, pb.PENDING_OPEN)
-        res = MOD._get_state(fix.CHANNEL_UNKNOWN)
+        res = MOD._get_channel_state(fix.CHANNEL_UNKNOWN)
         self.assertEqual(res, pb.UNKNOWN)
+
+    def test_get_invoice_state(self):
+        # Correct case: paid invoice
+        invoice = fix.LISTINVOICES['invoices'][1]
+        res = MOD._get_invoice_state(invoice)
+        self.assertEqual(res, pb.PAID)
+        # Correct case: unpaid invoice
+        reset_mocks(vars())
+        invoice = fix.LISTINVOICES['invoices'][3]
+        res = MOD._get_invoice_state(invoice)
+        self.assertEqual(res, pb.PENDING)
+        # Correct case: expired invoice
+        reset_mocks(vars())
+        invoice = fix.LISTINVOICES['invoices'][2]
+        res = MOD._get_invoice_state(invoice)
+        self.assertEqual(res, pb.EXPIRED)
+        # Invoice with no status case
+        reset_mocks(vars())
+        invoice = fix.LISTINVOICES['invoices'][0]
+        res = MOD._get_invoice_state(invoice)
+        self.assertEqual(res, pb.PENDING)
 
     @patch('lighter.light_clightning.Err')
     def test_handle_error(self, mocked_err):

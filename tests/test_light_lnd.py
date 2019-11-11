@@ -543,27 +543,33 @@ class LightLndTests(TestCase):
             res = MOD.CreateInvoice(request, CTX)
         assert not mocked_connect.called
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.Err')
+    @patch('lighter.light_lnd._get_invoice_state', autospec=True)
     @patch('lighter.light_lnd.get_node_timeout', autospec=True)
     @patch('lighter.light_lnd._connect', autospec=True)
     @patch('lighter.light_lnd.check_req_params', autospec=True)
     def test_CheckInvoice(self, mocked_check_par, mocked_connect,
-                          mocked_get_time, mocked_err, mocked_handle):
+                          mocked_get_time, mocked_inv_st):
         stub = mocked_connect.return_value.__enter__.return_value
         time = 10
         mocked_get_time.return_value = 10
-        # Filled case
+        # Correct case: paid invoice
+        mocked_inv_st.return_value = pb.PAID
         request = pb.CheckInvoiceRequest(payment_hash='a_payment_hash')
-        lnd_res = ln.Invoice(state=1)
+        lnd_res = ln.Invoice(state=ln.Invoice.SETTLED)
         stub.LookupInvoice.return_value = lnd_res
         res = MOD.CheckInvoice(request, CTX)
-        assert not mocked_err().missing_parameter.called
         lnd_req = ln.PaymentHash(r_hash_str='a_payment_hash')
         stub.LookupInvoice.assert_called_once_with(
             lnd_req, timeout=time)
-        assert not mocked_handle.called
         self.assertEqual(res.settled, True)
+        # Correct case: unpaid invoice
+        mocked_inv_st.return_value = pb.PENDING
+        res = MOD.CheckInvoice(request, CTX)
+        self.assertEqual(res.settled, False)
+        # Correct case: expired invoice
+        mocked_inv_st.return_value = pb.EXPIRED
+        res = MOD.CheckInvoice(request, CTX)
+        self.assertEqual(res.settled, False)
         # Missing parameter case
         reset_mocks(vars())
         request = pb.CheckInvoiceRequest()
@@ -1041,11 +1047,11 @@ class LightLndTests(TestCase):
         self.assertEqual(res, False)
 
     @patch('lighter.light_lnd._add_invoice', autospec=True)
+    @patch('lighter.light_lnd._get_invoice_state', autospec=True)
     @patch('lighter.light_lnd._check_timestamp', autospec=True)
-    @patch('lighter.light_lnd.datetime', autospec=True)
-    def test_parse_invoices(self, mocked_datetime, mocked_check, mocked_add):
-        mocked_datetime.now().timestamp.return_value = fix.NOW
+    def test_parse_invoices(self, mocked_check, mocked_inv_st, mocked_add):
         # Correct case: every state is requested
+        mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED]
         response = pb.ListInvoicesResponse()
         invoices = fix.INVOICES
         mocked_check.side_effect = [False] * len(invoices)
@@ -1056,6 +1062,7 @@ class LightLndTests(TestCase):
         self.assertEqual(mocked_add.call_count, len(invoices))
         # Correct case: no state is requested, should return an empty response
         reset_mocks(vars())
+        mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED]
         response = pb.ListInvoicesResponse()
         request = pb.ListInvoicesRequest(paid=True, pending=True, expired=True)
         mocked_check.side_effect = [False] * len(invoices)
@@ -1063,6 +1070,7 @@ class LightLndTests(TestCase):
         self.assertEqual(res, True)
         # _check_timestamp true
         reset_mocks(vars())
+        mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED]
         mocked_check.side_effect = [True] * len(invoices)
         res = MOD._parse_invoices(CTX, response, invoices, request)
         self.assertEqual(mocked_check.call_count, len(invoices))
@@ -1139,6 +1147,33 @@ class LightLndTests(TestCase):
         lnd_route.hop_hints.add(node_id='id', fee_base_msat=77)
         MOD._add_route_hint(response, lnd_route)
         self.assertEqual(response.route_hints[0].hop_hints[0].pubkey, 'id')
+
+    @patch('lighter.light_lnd.datetime', autospec=True)
+    def test_get_invoice_state(self, mocked_datetime):
+        mocked_datetime.now().timestamp.return_value = fix.NOW
+        # Correct case: paid invoice
+        lnd_invoice = ln.Invoice(state=ln.Invoice.SETTLED)
+        res = MOD._get_invoice_state(lnd_invoice)
+        self.assertEqual(res, pb.PAID)
+        # Correct case: unpaid invoice
+        lnd_invoice = ln.Invoice(
+            state=ln.Invoice.OPEN, creation_date=fix.NOW, expiry=77)
+        res = MOD._get_invoice_state(lnd_invoice)
+        self.assertEqual(res, pb.PENDING)
+        # Correct case: expired invoice
+        lnd_invoice = ln.Invoice(
+            state=ln.Invoice.OPEN, creation_date=fix.NOW-78, expiry=77)
+        res = MOD._get_invoice_state(lnd_invoice)
+        self.assertEqual(res, pb.EXPIRED)
+        # Correct case: cancelled invoice
+        lnd_invoice = ln.Invoice(state=ln.Invoice.CANCELED)
+        res = MOD._get_invoice_state(lnd_invoice)
+        self.assertEqual(res, pb.EXPIRED)
+        # Invoice with no status case
+        reset_mocks(vars())
+        lnd_invoice = ln.Invoice(state=7)
+        res = MOD._get_invoice_state(lnd_invoice)
+        self.assertEqual(res, pb.PENDING)
 
     @patch('lighter.light_lnd.Err')
     def test_handle_error(self, mocked_err):

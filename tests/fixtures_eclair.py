@@ -504,10 +504,75 @@ GETINFO_UNKNOWN = {
 }
 
 
-GETRECEIVEDINFO = {
-  "paymentHash": "4d69a3cd69cb659e544722d6de4ecfffe9be27b239924e4112698b01347e5b8b",
-  "amountMsat": 300000,
-  "receivedAt": 1557756284358
+GETRECEIVEDINFO_PAID = {
+  "paymentRequest": {
+    "prefix": "lnbcrt",
+    "timestamp": 1573485187,
+    "nodeId": "021f5921f5585cd9207fc984917c9e737ba345d503b799a510681cfd09288cec3d",
+    "serialized": "lnbcrt60p1pwuj75rpp5lgw0xcnxxtdhatnyd4xwpc3sadz2nd7qlzq7e79drgtj0hg6qugsdqqxqrrsstp36az7vvskmw6m5zeclgut58nh2e7nytqvepwwgz6q2dh357pq9axavnpt7u64yjr86hw42qdr8laawcxyagjdfa5pf2s4yc3z267qpwqd50g",
+    "description": "",
+    "paymentHash": "fa1cf3626632db7eae646d4ce0e230eb44a9b7c0f881ecf8ad1a1727dd1a0711",
+    "expiry": 3600,
+    "amount": 6
+  },
+  "paymentPreimage": "8badd1f076c1a7b5a2d7411f8386cd92fa29e46c4041e97f724a1463c9ee197a",
+  "createdAt": 1573485187000,
+  "status": {
+    "type": "received",
+    "amount": 6,
+    "receivedAt": 1573485250454
+  }
+}
+
+
+GETRECEIVEDINFO_PENDING = {
+  "paymentRequest": {
+    "prefix": "lnbcrt",
+    "timestamp": 1573555330,
+    "nodeId": "021f5921f5585cd9207fc984917c9e737ba345d503b799a510681cfd09288cec3d",
+    "serialized": "lnbcrt1pwu4ryzpp52gezwcclmupmmffjuenv048x472av234aq4pd0sey7capssf8j6sdqqxqrrssfqpejehdxxvqda8ehr7g4ak0tygwz82hz5fshezpvhzz29ulzdyjq25nkvk2frvxdz32gllzdfa4plvdu0a4r04gc4245mnlsu49a6qpssenzj",
+    "description": "",
+    "paymentHash": "523227631fdf03bda532e666c7d4e6af95d62a35e82a16be1927b1d0c2093cb5",
+    "expiry": 3600
+  },
+  "paymentPreimage": "a58ce10ec42ab644688c72fcca07e220062c131105366672670f30a809bc02cc",
+  "createdAt": 1573555330000,
+  "status": {
+    "type": "pending"
+  }
+}
+
+
+GETRECEIVEDINFO_EXPIRED = {
+  "paymentRequest": {
+    "prefix": "lnbcrt",
+    "timestamp": 1573555375,
+    "nodeId": "021f5921f5585cd9207fc984917c9e737ba345d503b799a510681cfd09288cec3d",
+    "serialized": "lnbcrt1pwu4r90pp5lwpeey7f0y4rdsl5ncqtj9xj63k9ynr5xerakuz4zfw9d9r4q2nsdqqxqp5xq6hlek9zcje2aaccpxdmgyk4vtkgg2k7jpd5wv6w5t0psy5wfcq4vap4qcmv7ukkctr5502jesenxc8242h70wfnhznpjf6qrhk0hqpzgqne2",
+    "description": "",
+    "paymentHash": "fb839c93c9792a36c3f49e00b914d2d46c524c743647db7055125c56947502a7",
+    "expiry": 20
+  },
+  "paymentPreimage": "9621f040b9bbc0672e102320bbf8c4de073b04eff7eb05cb7d74e92490618d4b",
+  "createdAt": 1573555375000,
+  "status": {
+    "type": "expired"
+  }
+}
+
+
+GETRECEIVEDINFO_UNKNOWN = {
+ "paymentRequest": {
+    "prefix": "lnbcrt",
+    "timestamp": 1573637005,
+    "nodeId": "021f5921f5585cd9207fc984917c9e737ba345d503b799a510681cfd09288cec3d",
+    "serialized": "lnbcrt1pwuhjudpp5psgeyltl3tq0fuv83upz8e7xpc2r0x5fl797ccnf8ksws3zxrejsdqqxqrrsse0gh9235j8u049uncfssutl0knj0q9nydp777gvupw367ppcktf5z4xk5khkex79stp8cu7dy5e40k3fuftxyfjm5h8e46hkl8n39hcp3sdnl3",
+    "description": "",
+    "paymentHash": "0c11927d7f8ac0f4f1878f0223e7c60e14379a89ff8bec62693da0e844461e65",
+    "expiry": 3600
+  },
+  "paymentPreimage": "6ed98d66f9d3c750950c3ddb20acc78a129d49840006b01a5a88a209cc97e984",
+  "createdAt": 1573637005000
 }
 
 

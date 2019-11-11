@@ -348,12 +348,6 @@ LISTINVOICES = {
         "bolt11": "lntb95u1pdn8972pp50qdfxxv7ta4j6ysmdhccxfpk4l2zwa6j7mtr4rvrnl9t3fsk4umqdq4f4sku6fqv9kzqsmfv4kx7cqp20g9zn3ql77gsy7hrztmxk5c46ds9fxpgg044u6rgnhfls8hp5r6qr58lvysxhqh6fc0nwq4fl98xdaqqqf2wj9k",
         "payment_hash": "781a93199e5f6b2d121b6df1832436afd4277752f6d63a8d839fcab8a616af36",
         "msatoshi": 9500000,
-        "status": "paid",
-        "pay_index": 1,
-        "msatoshi_received": 9500000,
-        "paid_timestamp": 1530107870,
-        "paid_at": 1530107870,
-        "expiry_time": 1530111450,
         "expires_at": 1530111450
         },
         {
@@ -362,11 +356,10 @@ LISTINVOICES = {
         "payment_hash": "302cd6bc8dd20437172f48d8693c7099fd4cb6d08e3f8519b406b21880677b28",
         "msatoshi": 22900000,
         "status": "paid",
-        "pay_index": 2,
+        "pay_index": 1,
         "msatoshi_received": 22900000,
         "paid_timestamp": 1530110044,
         "paid_at": 1530110044,
-        "expiry_time": 1530113597,
         "expires_at": 1530113597
         },
         {
@@ -375,7 +368,6 @@ LISTINVOICES = {
         "payment_hash": "2229b24c728326e2adb2c6166d3ba432fba8867678c6d2bca08b04ca09227a97",
         "msatoshi": 7700000,
         "status": "expired",
-        "expiry_time": 1532637210,
         "expires_at": 1532637210
         },
         {
@@ -383,7 +375,9 @@ LISTINVOICES = {
         "bolt11": "lntb70p1pdkpz47pp5d3jxdeg5cfkmzjwcsqdezr3zqyuse7n3z2l57skwqxyhkhlcxpvqdqzvscqp2qnpqts0tr2zgnndsw2mnrllsd8509cfham5cajhz7z6xvfvugsdq6nu8t2yk8qauauy08u6s3jp50llu52xyd5kz44ra2wsxjccu8fqpxv8qwn",
         "payment_hash": "6c6466e514c26db149d8801b910e2201390cfa7112bf4f42ce01897b5ff83058",
         "msatoshi": 7,
-        "expiry_time": 1533057230,
+        "amount_msat": "7msat",
+        "status": "unpaid",
+        "description": "d",
         "expires_at": 1533057230
         }
     ]

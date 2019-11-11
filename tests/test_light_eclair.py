@@ -224,18 +224,22 @@ class LightEclairTests(TestCase):
         assert not mocked_command.called
         assert not mocked_handle.called
 
-    @patch('lighter.light_eclair.command', autospec=True)
     @patch('lighter.light_eclair.Err')
+    @patch('lighter.light_eclair._get_invoice_state', autospec=True)
+    @patch('lighter.light_eclair.command', autospec=True)
     @patch('lighter.light_eclair.check_req_params', autospec=True)
-    def test_CheckInvoice(self, mocked_check_par, mocked_err, mocked_command):
+    def test_CheckInvoice(self, mocked_check_par, mocked_command,
+                          mocked_inv_st, mocked_err):
         cmd = 'getreceivedinfo'
         # Correct case
+        mocked_inv_st.return_value = pb.PAID
         request = pb.CheckInvoiceRequest(payment_hash='random')
-        mocked_command.return_value = fix.GETRECEIVEDINFO
+        mocked_command.return_value = fix.GETRECEIVEDINFO_PAID
         res = MOD.CheckInvoice(request, CTX)
         mocked_command.assert_called_once_with(
             CTX, cmd, '--paymentHash="random"', env=settings.ECL_ENV)
         assert not mocked_err().invalid.called
+        self.assertEqual(res.state, pb.PAID)
         self.assertEqual(res.settled, True)
         # Missing parameter case
         reset_mocks(vars())
@@ -638,7 +642,7 @@ class LightEclairTests(TestCase):
         self.assertEqual(res, False)
 
     @patch('lighter.light_eclair.convert', autospec=True)
-    @patch('lighter.light_eclair._get_state', autospec=True)
+    @patch('lighter.light_eclair._get_channel_state', autospec=True)
     def test_add_channel(self, mocked_state, mocked_conv):
         # Add channel case
         response = pb.ListChannelsResponse()
@@ -717,21 +721,42 @@ class LightEclairTests(TestCase):
             res, fix.CHANNEL_UNILATERAL['data']['localCommitPublished']\
                 ['commitTx']['txid'])
 
-    def test_get_state(self):
-        res = MOD._get_state(fix.CHANNEL_WAITING_FUNDING)
+    def test_get_channel_state(self):
+        res = MOD._get_channel_state(fix.CHANNEL_WAITING_FUNDING)
         self.assertEqual(res, pb.PENDING_OPEN)
-        res = MOD._get_state(fix.CHANNEL_NORMAL)
+        res = MOD._get_channel_state(fix.CHANNEL_NORMAL)
         self.assertEqual(res, pb.OPEN)
-        res = MOD._get_state(fix.CHANNEL_OFFLINE)
+        res = MOD._get_channel_state(fix.CHANNEL_OFFLINE)
         self.assertEqual(res, pb.OPEN)
-        res = MOD._get_state(fix.CHANNEL_UNKNOWN)
+        res = MOD._get_channel_state(fix.CHANNEL_UNKNOWN)
         self.assertEqual(res, pb.UNKNOWN)
-        res = MOD._get_state(fix.CHANNEL_MUTUAL)
+        res = MOD._get_channel_state(fix.CHANNEL_MUTUAL)
         self.assertEqual(res, pb.PENDING_MUTUAL_CLOSE)
-        res = MOD._get_state(fix.CHANNEL_UNILATERAL)
+        res = MOD._get_channel_state(fix.CHANNEL_UNILATERAL)
         self.assertEqual(res, pb.PENDING_FORCE_CLOSE)
-        res = MOD._get_state(fix.CHANNEL_CLOSED)
+        res = MOD._get_channel_state(fix.CHANNEL_CLOSED)
         self.assertEqual(res, -1)
+
+    def test_get_invoice_state(self):
+        # Correct case: paid invoice
+        invoice = fix.GETRECEIVEDINFO_PAID
+        res = MOD._get_invoice_state(invoice)
+        self.assertEqual(res, pb.PAID)
+        # Correct case: unpaid invoice
+        reset_mocks(vars())
+        invoice = fix.GETRECEIVEDINFO_PENDING
+        res = MOD._get_invoice_state(invoice)
+        self.assertEqual(res, pb.PENDING)
+        # Correct case: expired invoice
+        reset_mocks(vars())
+        invoice = fix.GETRECEIVEDINFO_EXPIRED
+        res = MOD._get_invoice_state(invoice)
+        self.assertEqual(res, pb.EXPIRED)
+        # Invoice with no status case
+        reset_mocks(vars())
+        invoice = fix.GETRECEIVEDINFO_UNKNOWN
+        res = MOD._get_invoice_state(invoice)
+        self.assertEqual(res, pb.PENDING)
 
     @patch('lighter.light_eclair.Err')
     def test_handle_error(self, mocked_err):

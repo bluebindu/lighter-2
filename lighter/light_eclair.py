@@ -213,12 +213,15 @@ def CheckInvoice(request, context):
     check_req_params(context, request, 'payment_hash')
     ecl_req.append('--paymentHash="{}"'.format(request.payment_hash))
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)
-    settled = False
-    if _def(ecl_res, 'receivedAt'):
-        settled = True
+    response = pb.CheckInvoiceResponse()
+    if _def(ecl_res, 'status'):
+        response.state = _get_invoice_state(ecl_res)
     elif 'Not found' not in ecl_res:
         Err().invalid(context, 'payment_hash')
-    return pb.CheckInvoiceResponse(settled=settled)
+    # pylint: disable=no-member
+    if response.state == pb.PAID:
+        response.settled = True
+    return response
 
 
 def PayInvoice(request, context):
@@ -387,7 +390,7 @@ def _add_channel(context, response, ecl_chan, active_only):
     # pylint: disable=too-many-branches,too-many-locals,too-many-statements
     state = None
     if _def(ecl_chan, 'state'):
-        state = _get_state(ecl_chan)
+        state = _get_channel_state(ecl_chan)
         if state < 0:
             return
     connected = True
@@ -494,7 +497,7 @@ def _close_channel(ecl_req, close_timeout, client_expiry_time):
     return ecl_res
 
 
-def _get_state(ecl_chan):
+def _get_channel_state(ecl_chan):
     """
     Maps implementation's channel state to lighter's channel state definition
     """
@@ -516,6 +519,22 @@ def _get_state(ecl_chan):
                  data['remoteCommitPublished']):
             return pb.PENDING_FORCE_CLOSE
     return pb.UNKNOWN
+
+
+def _get_invoice_state(ecl_invoice):
+    """
+    Maps implementation's invoice state to lighter's invoice state definition
+    """
+    if _def(ecl_invoice, 'status'):
+        ecl_status = ecl_invoice['status']
+        if _def(ecl_status, 'type'):
+            if ecl_status['type'] == 'received':
+                return pb.PAID
+            if ecl_status['type'] == 'pending':
+                return pb.PENDING
+            if ecl_status['type'] == 'expired':
+                return pb.EXPIRED
+    return pb.PENDING
 
 
 def _handle_error(context, ecl_res, always_abort=True):

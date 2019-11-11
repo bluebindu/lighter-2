@@ -199,7 +199,7 @@ def ListChannels(request, context):
                 for cl_chan in cl_peer['channels']:
                     state = None
                     if 'state' in cl_chan and 'status' in cl_chan:
-                        state = _get_state(cl_chan)
+                        state = _get_channel_state(cl_chan)
                         if state < 0:
                             continue
                     _add_channel(context, response, cl_peer, cl_chan,
@@ -288,7 +288,6 @@ def CheckInvoice(request, context):
     """ Checks if a LN invoice has been paid """
     cl_req = ['listinvoices']
     check_req_params(context, request, 'payment_hash')
-    settled = False
     invoice = None
     cl_res = command(context, *cl_req)
     if 'invoices' in cl_res:
@@ -300,10 +299,10 @@ def CheckInvoice(request, context):
         _handle_error(context, cl_res, always_abort=False)
         Err().invoice_not_found(context)
     response = pb.CheckInvoiceResponse()
-    if 'status' in invoice:
-        if invoice['status'] == "paid":
-            settled = True
-        response.settled = settled
+    # pylint: disable=no-member
+    response.state = _get_invoice_state(invoice)
+    if response.state == pb.PAID:
+        response.settled = True
     return response
 
 
@@ -570,7 +569,7 @@ def _create_label():
     return '{}'.format(int(microseconds))
 
 
-def _get_state(cl_chan):  # pylint: disable=too-many-return-statements
+def _get_channel_state(cl_chan):  # pylint: disable=too-many-return-statements
     """
     Maps implementation's channel state to lighter's channel state definition
     """
@@ -599,6 +598,20 @@ def _get_state(cl_chan):  # pylint: disable=too-many-return-statements
     if cl_state in ('ONCHAIN', 'AWAITING_UNILATERAL', 'FUNDING_SPEND_SEEN'):
         return pb.PENDING_FORCE_CLOSE
     return pb.UNKNOWN
+
+
+def _get_invoice_state(cl_invoice):
+    """
+    Maps implementation's invoice state to lighter's invoice state definition
+    """
+    if 'status' in cl_invoice:
+        if cl_invoice['status'] == 'paid':
+            return pb.PAID
+        if cl_invoice['status'] == 'unpaid':
+            return pb.PENDING
+        if cl_invoice['status'] == 'expired':
+            return pb.EXPIRED
+    return pb.PENDING
 
 
 def _handle_error(context, cl_res, always_abort=True):

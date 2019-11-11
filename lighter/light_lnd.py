@@ -481,8 +481,9 @@ def CheckInvoice(request, context):
     with _connect(context) as stub:
         lnd_res = stub.LookupInvoice(
             lnd_req, timeout=get_node_timeout(context))
-        response.settled = False
-        if lnd_res.state == 1:
+        # pylint: disable=no-member
+        response.state = _get_invoice_state(lnd_res)
+        if response.state == pb.PAID:
             response.settled = True
     return response
 
@@ -737,18 +738,16 @@ def _parse_invoices(context, response, invoices, request):
     Decides, according to the request, if invoice has to be added and which
     with state (paid, pending, expired)
     """
-    now = datetime.now().timestamp()
     for lnd_invoice in invoices:
         if _check_timestamp(request, lnd_invoice):
             continue
-        if request.paid and lnd_invoice.state == 1:
-            _add_invoice(context, response, lnd_invoice, 0)
-        if request.pending and not lnd_invoice.state == 1 and \
-                (lnd_invoice.creation_date + lnd_invoice.expiry) > now:
-            _add_invoice(context, response, lnd_invoice, 1)
-        if request.expired and not lnd_invoice.state == 1 and \
-                (lnd_invoice.creation_date + lnd_invoice.expiry) < now:
-            _add_invoice(context, response, lnd_invoice, 2)
+        invoice_state = _get_invoice_state(lnd_invoice)
+        if request.paid and invoice_state == pb.PAID:
+            _add_invoice(context, response, lnd_invoice, invoice_state)
+        if request.pending and invoice_state == pb.PENDING:
+            _add_invoice(context, response, lnd_invoice, invoice_state)
+        if request.expired and invoice_state == pb.EXPIRED:
+            _add_invoice(context, response, lnd_invoice, invoice_state)
         if len(response.invoices) == request.max_items:
             return True
     return False
@@ -810,6 +809,24 @@ def _add_route_hint(response, lnd_route):
             fee_base_msat=lnd_hop.fee_base_msat,
             fee_proportional_millionths=lnd_hop.fee_proportional_millionths,
             cltv_expiry_delta=lnd_hop.cltv_expiry_delta)
+
+
+def _get_invoice_state(lnd_invoice):
+    """
+    Maps implementation's invoice state to lighter's invoice state definition
+    """
+    now = datetime.now().timestamp()
+    # pylint: disable=no-member
+    if lnd_invoice.state == ln.Invoice.SETTLED:
+        return pb.PAID
+    if lnd_invoice.state == ln.Invoice.OPEN or \
+            lnd_invoice.state == ln.Invoice.ACCEPTED:
+        if (lnd_invoice.creation_date + lnd_invoice.expiry) < now:
+            return pb.EXPIRED
+        return pb.PENDING
+    if lnd_invoice.state == ln.Invoice.CANCELED:
+        return pb.EXPIRED
+    return pb.PENDING
 
 
 def _handle_error(context, error):
