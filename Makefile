@@ -57,10 +57,10 @@ docker:
 	@ $(SCRIPT) docker_build $(DOCKER_REPO) $(CONFIG_FILE) $(VERSION) $(TAGS_ARCH)
 
 secure:
-	@ $(SCRIPT) secure $(CONFIG_FILE) $(VERSION)
+	@ $(SCRIPT) secure $(DOCKER_NS) $(CONFIG_FILE) $(VERSION)
 
 run:
-	@ $(SCRIPT) run $(CONFIG_FILE) $(VERSION)
+	@ $(SCRIPT) run $(DOCKER_NS) $(CONFIG_FILE) $(VERSION)
 
 cli:
 	@ $(SCRIPT) cli $(CONFIG_FILE) $(VERSION)

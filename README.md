@@ -174,19 +174,18 @@ Lighter.
 
 # Securing
 
-In order to run Lighter, you need to set a password to protect all secrets.
+In order to run Lighter, you need to configure the necessary secrets and set a
+password to manage and protect them.
 To do so, run:
 ```bash
 $ make secure
 ```
 
-This creates Lighter's database and macaroon files in their currently
-configured path, eventually asking for implementation secrets.
-If an existing database is found, Lighter will ask to keep the current one
-(to update implementation secrets) or to override it.
-
-All the secrets will be stored in encrypted form (in the database) and only
-made available to Lighter at runtime, after it has been unlocked.
+This can be run interactively or not.
+It will create or update Lighter's database and macaroon files in their
+configured path.
+All secrets will be stored in encrypted form (in the database) and
+made available to Lighter only at runtime, after it has been unlocked.
 
 Read [Security](/doc/security.md) for more details.
 

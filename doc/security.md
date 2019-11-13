@@ -1,28 +1,62 @@
 # Security
 
 We strive to keep Lighter as secure as possible.
-In order to accomplish this, we added an UnlockerServicer and
-[macaroons](https://ai.google/research/pubs/pub41892)
+In order to accomplish this, we added a locking system and
+[macaroons](/doc/security.md#lighters-macaroons)
 as authorization method.
 
-To handle security, `make secure` is available.
-This will ask for Lighter's password.
-On a first run (or when overriding the database) this will be the new password
-that will be used to encrypt the secrets and will be required to unlock Lighter
-when starting.
-On successive runs, if the database has not be overridden (first
-`make secure` question), the provided password will be used to verify its
-correctness, manage implementation secrets and generate macaroons rootkey.
+To handle security, running `make secure` is essential.
+This script will allow you to set Lighter's password and insert
+all the secrets that will be needed to communicate with your LN node.
+Secrets will be encrypted using Lighter's password and
+stored in a sqlite database.
+They will be decrypted and made available only upon unlocking.
 
-The database will contain a token to verify password correctness and, depending
-on the current configuration, the root key to verify macaroons and
-implementation secrets.
-Each secret is encrypted using the _secretbox_ symmetric key algorithm and
-a different 32-byte key derived from a unique password using _scrypt_.
+The database will contain a token to verify password correctness,
+implementation secrets and the root key to verify macaroons.
+Each secret will be encrypted using the _secretbox_ symmetric key algorithm and
+a different 32-byte key derived from Lighter's password using _scrypt_.
+Please pay attention, if you delete the database or recreate macaroon files,
+you will invalidate all previously generated macaroons.
 
-The UnlockerServicer will start before the LightningServicer and ask for a
-password that will be checked and then used to decrypt the secrets stored in
-Lighter's database.
+The `Unlocker` service (see [lighter.proto](/lighter/lighter.proto)) will
+start before the runtime services (`Lightning` and `Locker`)
+and ask for Lighter's password in order to decrypt the secrets stored in the
+database.
+When locked, API access is denied, except for `UnlockLighter` (which requires
+knowledge of Lighter's password).
+When unlocked, a `LockLighter` API is avaiable to request locking
+(Lighter password required).
+
+## Setup
+
+You can choose an **interactive** mode by running:
+```bash
+make secure
+```
+This will prompt you all the required secrets for the
+[configured implementation](/doc/configuring.md#lighter-settings).
+On a first run (or when overriding the database) it will ask you to set
+Lighter's password, create Lighter's database and macaroon files
+and ask for [implementation secrets](#implementation-secrets) (if any).
+On successive runs, the provided password will be used to verify its
+correctness, manage implementation secrets and recreate macaroon files.
+
+Otherwise, you can use a **non-interactive** version by passing
+secrets to `make` via environment variables. As a full-configuration example:
+```bash
+make lighter_password=somethingSecure create_macaroons=1 \
+    lnd_macaroon=/path/to/lndMacaroon lnd_password=lndPassword \
+    eclair_password=eclairPassword \
+    secure
+```
+This will create or update the database without asking for user prompt.
+`lighter_password` is necessary to run in non-interactive mode.
+`create_macaroons=1` (re)creates macaroon files (defaults to `0`).
+Pay attention to the risk of exposed secrets in cleartext files
+(e.g. `~/.bash_history`) or environment variables.
+We can't make it secure for every possible environment and it's your
+responsibility to protect secrets while calling this command.
 
 ## Password Strength
 
@@ -119,29 +153,29 @@ will be enabled after providing lnd's password.
 ## Lighter's macaroons
 
 We use `pymacaroons` and `macaroonbakery` python packages to create and handle
-macaroons.
+[macaroons](https://ai.google/research/pubs/pub41892).
 A randomly generated 32-bytes key is used as root key to sign macaroons.
 This key is stored encrypted in the database.
 
-At the moment, we provide 3 different macaroons:
+At the moment, we provide 3 different types of macaroons, enabling the following APIs:
 
-|                  | admin | readonly | invoices |
-| ---------------- | ----- | -------- | -------- |
-| ChannelBalance   |   ☇   |     ☇    |          |
-| CheckInvoice     |   ☇   |     ☇    |     ☇    |
-| CloseChannel     |   ☇   |          |          |
-| CreateInvoice    |   ☇   |          |     ☇    |
-| DecodeInvoice    |   ☇   |     ☇    |     ☇    |
-| GetInfo          |   ☇   |     ☇    |     ☇    |
-| ListChannels     |   ☇   |     ☇    |     ☇    |
-| ListInvoices     |   ☇   |     ☇    |     ☇    |
-| ListPayments     |   ☇   |     ☇    |          |
-| ListPeers        |   ☇   |     ☇    |     ☇    |
-| ListTransactions |   ☇   |     ☇    |          |
-| LockLighter      |   ☇   |          |          |
-| NewAddress       |   ☇   |          |          |
-| OpenChannel      |   ☇   |          |          |
-| PayInvoice       |   ☇   |          |          |
-| PayOnChain       |   ☇   |          |          |
-| UnlockNode       |   ☇   |          |          |
-| WalletBalance    |   ☇   |     ☇    |          |
+|                    | **admin** | **readonly** | **invoices** |
+| ------------------ | --------- | ------------ | ------------ |
+| `ChannelBalance`   |     ☇     |       ☇      |              |
+| `CheckInvoice`     |     ☇     |       ☇      |       ☇      |
+| `CloseChannel`     |     ☇     |              |              |
+| `CreateInvoice`    |     ☇     |              |       ☇      |
+| `DecodeInvoice`    |     ☇     |       ☇      |       ☇      |
+| `GetInfo`          |     ☇     |       ☇      |       ☇      |
+| `ListChannels`     |     ☇     |       ☇      |       ☇      |
+| `ListInvoices`     |     ☇     |       ☇      |       ☇      |
+| `ListPayments`     |     ☇     |       ☇      |              |
+| `ListPeers`        |     ☇     |       ☇      |       ☇      |
+| `ListTransactions` |     ☇     |       ☇      |              |
+| `LockLighter`      |     ☇     |              |              |
+| `NewAddress`       |     ☇     |              |              |
+| `OpenChannel`      |     ☇     |              |              |
+| `PayInvoice`       |     ☇     |              |              |
+| `PayOnChain`       |     ☇     |              |              |
+| `UnlockNode`       |     ☇     |              |              |
+| `WalletBalance`    |     ☇     |       ☇      |              |

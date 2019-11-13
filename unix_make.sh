@@ -70,8 +70,12 @@ params=$*
 
 
 _die() {
-	echo "$@"
+	_echoerr "$@"
 	exit 2
+}
+
+_echoerr() {
+	echo "$@" 1>&2;
 }
 
 _check_result() {
@@ -243,7 +247,7 @@ _docker_build() {
 }
 
 run() {
-	export config_file="$1" VERSION="$2"
+	export DOCKER_NS="$1" config_file="$2" VERSION="$3"
 	_parse_config
 	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
@@ -283,12 +287,20 @@ _check_compose() {
 }
 
 secure() {
-	export config_file="$1" VERSION="$2"
-	_parse_config
-	_check_db
+	export DOCKER_NS="$1" config_file="$2" VERSION="$3"
+	if [ -z "$lighter_password" ]; then
+		_secure_interactive
+	else
+		_secure_non_interactive
+	fi
+}
+
+_secure_interactive() {
 	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
-	[ "$IMPLEMENTATION" = "lnd" ] && _init_lnd
+	_parse_config
+	_check_db
+	[ "$IMPLEMENTATION" = "lnd" ] && _get_lnd_mac
 	if [ "$DOCKER" = "0" ]; then
 		# Local secure
 		python3 -c 'from migrate import migrate; migrate()'
@@ -305,6 +317,35 @@ secure() {
 	fi
 }
 
+_secure_non_interactive() {
+	[ -r "$ENV" ] || _init_venv > /dev/null
+	. "$ENV/bin/activate"
+	_parse_config > /dev/null
+	[ ! -r "$DB_DIR/$DB_NAME" ] && export NO_DB=1
+	if [ ! -z "$lnd_macaroon" ]; then
+		macaroon_path="$lnd_macaroon"
+		_check_lnd_mac > /dev/null
+	fi
+	if [ "$DOCKER" = "0" ]; then
+		# Local secure
+		python3 -c 'from migrate import migrate; migrate()' > /dev/null 2>&1
+		python3 -c 'from secure import secure; secure()' > /dev/null
+	else
+		# Docker secure
+		python3 $D_DIR/generate_compose.py > /dev/null
+		_check_compose > /dev/null
+		docker-compose -f $COMPOSE run --rm \
+			-e NO_DB="$NO_DB" \
+			-e lighter_password="$lighter_password" \
+			-e create_macaroons="$create_macaroons" \
+			-e eclair_password="$eclair_password" \
+			-e lnd_macaroon="/srv/lnd/macaroons/lnd.macaroon" \
+			-e lnd_password="$lnd_password" \
+			--entrypoint /usr/local/bin/start-secure.sh \
+			$NAME > /dev/null
+	fi
+}
+
 _check_db() {
 	db="$DB_DIR/$DB_NAME"
 	[ ! -r "$db" ] && export NO_DB=1 && return
@@ -316,16 +357,20 @@ _check_db() {
 	fi
 }
 
-_init_lnd() {
+_get_lnd_mac() {
 	printf "If your lnd instance requires a macaroon for authorization, provide its path\nhere (filename included, overrides current one if any) or just press enter to\nprovide none (skip)\n"
 	read -r macaroon_path
 	if [ -n "$macaroon_path" ]; then
-		[ ! -f "$macaroon_path" ] && \
-			_die "Could not find macaroon in specified path"
-		[ ! -r "$macaroon_path" ] && \
-			_die "Could not read macaroon in specified path (hint: check file permissions)"
-		export LND_MAC_PATH="$macaroon_path"
+		_check_lnd_mac
 	fi
+}
+
+_check_lnd_mac() {
+	[ ! -f "$macaroon_path" ] && \
+		_die "Could not find macaroon in specified path"
+	[ ! -r "$macaroon_path" ] && \
+		_die "Could not read macaroon in specified path (hint: check file permissions)"
+	export LND_MAC_PATH="$macaroon_path"
 }
 
 set_lnd_mac() {

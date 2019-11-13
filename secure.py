@@ -23,7 +23,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from getpass import getpass
-from logging import getLogger
+from logging import CRITICAL, getLogger
 from select import select
 from time import time, sleep
 from os import environ, path, remove, urandom
@@ -65,11 +65,10 @@ IDLE_COUNTER = 1
 IDLE_LAST_DELAY = 15
 
 
-def _exit(message):
-    """ Exits printing a message """
-    if message:
-        print(message)
-    sys.exit(0)
+def _die(message):
+    """ Prints message to stderr and exits with error code 1 """
+    sys.stderr.write(message + '\n')
+    sys.exit(1)
 
 
 def _handle_keyboardinterrupt(func):
@@ -89,7 +88,7 @@ def _handle_keyboardinterrupt(func):
             SEARCHING_ENTROPY = False
             if not DONE and NEW_DB:
                 _remove_files()
-            _exit('\nKeyboard interrupt detected. Exiting...')
+            _die('\nKeyboard interrupt detected. Exiting...')
 
     return wrapper
 
@@ -202,14 +201,14 @@ def _save_token(session, password, scrypt_params):
 
 
 def _save_secret(session, password, scrypt_params, sec_type, secret,
-                 activate_secret):
+                 activate_secret, implementation=sett.IMPLEMENTATION):
     """ Encrypts implementation secret and saves it into DB """
     encrypted_secret = None
     if secret:
         derived_key = Crypter.gen_derived_key(password, scrypt_params)
         encrypted_secret = Crypter.crypt(secret, derived_key)
     save_secret_to_db(
-        session, sett.IMPLEMENTATION, sec_type, activate_secret,
+        session, implementation, sec_type, activate_secret,
         encrypted_secret, scrypt_params.serialize())
 
 
@@ -224,7 +223,7 @@ def _recover_secrets(session, password):
         lnd_pass = get_secret(
             FakeContext(), session, password, 'lnd', 'password')
     except RuntimeError as err:
-        _exit(err)
+        _die(err)
     return ecl_pass, lnd_mac, lnd_pass
 
 
@@ -304,7 +303,7 @@ def _read(source, num_bytes):
                           "os.urandom? [Y/n] ")
         if str2bool(use_urand, force_true=True):
             return
-        _exit("No way to retrieve the amount of available entropy")
+        _die("No way to retrieve the amount of available entropy")
 
 
 def _gen_random_data(num_bytes):
@@ -328,7 +327,7 @@ def _gen_random_data(num_bytes):
                               "[Y/n] ")
             if str2bool(use_urand, force_true=True):
                 return urandom(num_bytes)
-            _exit("No Random Numbers Generator available")
+            _die("No Random Numbers Generator available")
         except TimeoutErrFut:
             print("This call might take long depending on the "
                   "available entropy.\nIf this happens you can:\n"
@@ -369,20 +368,23 @@ def _gen_password(seed):
     return ''.join(alpha[i % len(alpha)] for i in seed)
 
 
-def _get_req_salt_len(new):
+def _get_req_salt_len(new, interactive=True):
     """ Determines maximum bytes of salt that will be needed """
     secrets = 1  # for lighter's macaroons
     if sett.IMPLEMENTATION == 'eclair':
         secrets += 1  # for eclair password
     elif sett.IMPLEMENTATION == 'lnd':
         secrets += 2  # for lnd password and macaroon
+    for_password = 0
     if new:
         secrets += 1  # for access token
-    return sett.SALT_LEN * secrets
+        if interactive:
+            for_password = sett.PASSWORD_LEN  # for auto-generated password
+    return sett.SALT_LEN * secrets + for_password
 
 
-def configure_db(session, new):
-    """ Configures a new or existing database """
+def db_config_interactive(session, new):
+    """ Configures a new or existing database interactively """
     ecl_pass = lnd_mac = lnd_pass = None
     if new:
         print('Lighter is about to ask for a new password! As humans are '
@@ -404,17 +406,17 @@ def configure_db(session, new):
         password_check = getpass('Save the password and then enter it '
                                  'for verification: ')
         if password != password_check:
-            _exit("Passwords do not match")
+            _die("Passwords do not match")
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
         _save_token(session, password, scrypt_params)
     else:
         if not is_db_ok(session):
-            _exit('Detected an incomplete configuration. Delete database.')
+            _die('Detected an incomplete configuration. Delete database.')
         password = getpass("Insert Lighter's password: ")
         try:
             check_password(FakeContext(), session, password)
         except RuntimeError:
-            _exit('')
+            _die('Wrong password')
         ecl_pass, lnd_mac, lnd_pass = _recover_secrets(session, password)
         seed = _gen_random_data(_get_req_salt_len(new))
     create_mac = input('Do you want to create macaroons (warning: generated '
@@ -423,8 +425,6 @@ def configure_db(session, new):
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
         _create_lightning_macaroons(session, password, scrypt_params)
     secrets = []
-    activate_secret = 1
-    sec_type = ''
     if sett.IMPLEMENTATION == 'eclair':
         secrets = [_set_eclair_password(ecl_pass)]
     if sett.IMPLEMENTATION == 'lnd':
@@ -437,10 +437,50 @@ def configure_db(session, new):
                 secret[1])
 
 
+def db_config_non_interactive(session, new, password):
+    """ Configures a new or existing database in batch-mode """
+    ecl_pass = lnd_mac = lnd_pass = None
+    if new:
+        salts_len = _get_req_salt_len(new, interactive=False)
+        seed = _gen_random_data(salts_len)
+        scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
+        _save_token(session, password, scrypt_params)
+    else:
+        if not is_db_ok(session):
+            _die('Detected an incomplete configuration. Delete database.')
+        try:
+            check_password(FakeContext(), session, password)
+        except RuntimeError:
+            _die('Wrong password')
+        ecl_pass, lnd_mac, lnd_pass = _recover_secrets(session, password)
+        seed = _gen_random_data(_get_req_salt_len(new, interactive=False))
+    create_mac = environ.get('create_macaroons', 0)
+    if create_mac:
+        scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
+        _create_lightning_macaroons(session, password, scrypt_params)
+    secrets = []
+    ecl_pass = environ.get('eclair_password')
+    lnd_mac = environ.get('lnd_macaroon')
+    lnd_pass = environ.get('lnd_password')
+    if ecl_pass:
+        secrets.append([ecl_pass.encode(), 1, 'password', 'eclair'])
+    if lnd_mac:
+        secrets.append([_get_lnd_macaroon(lnd_mac), 1, 'macaroon', 'lnd'])
+    if lnd_pass:
+        secrets.append([lnd_pass.encode(), 1, 'password', 'lnd'])
+    if secrets:  # user gave us secrets to encrypt and save
+        for secret in secrets:
+            scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
+            _save_secret(
+                session, password, scrypt_params, secret[2], secret[0],
+                secret[1], implementation=secret[3])
+
+
 @_handle_keyboardinterrupt
 def secure():
     """ Handles Lighter and implementation secrets """
     update_logger()
+    getLogger('lighter.errors').setLevel(CRITICAL)
     get_start_options()
     no_db = environ.get('NO_DB')
     rm_db = environ.get('RM_DB')
@@ -449,8 +489,12 @@ def secure():
     global NEW_DB
     NEW_DB = no_db or rm_db
     init_db(new_db=NEW_DB)
+    lighter_password = environ.get('lighter_password')
     with session_scope(FakeContext()) as session:
-        configure_db(session, NEW_DB)
+        if lighter_password:
+            db_config_non_interactive(session, NEW_DB, lighter_password)
+        else:
+            db_config_interactive(session, NEW_DB)
     global DONE
     DONE = True
-    _exit('All done!')
+    print('All done!')
