@@ -56,7 +56,7 @@ ERRORS = {
     },
     'invalid': {
         'code': 'INVALID_ARGUMENT',
-        'msg': 'Invalid parameter "%PARAM%"'
+        'msg': "Invalid parameter '%PARAM%'"
     },
     'invoice_expired': {
         'code': 'OUT_OF_RANGE',
@@ -68,7 +68,7 @@ ERRORS = {
     },
     'missing_parameter': {
         'code': 'INVALID_ARGUMENT',
-        'msg': 'Parameter "%PARAM%" is necessary'
+        'msg': "Parameter '%PARAM%' is necessary"
     },
     'node_error': {
         'code': 'UNAVAILABLE',
@@ -80,7 +80,7 @@ ERRORS = {
     },
     'out_of_range': {
         'code': 'OUT_OF_RANGE',
-        'msg': 'Parameter "%PARAM%" out of range'
+        'msg': "Parameter '%PARAM%' out of range"
     },
     'payinvoice_failed': {
         'code': 'CANCELLED',
@@ -96,17 +96,17 @@ ERRORS = {
     },
     'unimplemented_method': {
         'code': 'UNIMPLEMENTED',
-        'msg': ('The gRPC method "%PARAM%" is not supported for this '
+        'msg': ("The gRPC method '%PARAM%' is not supported for this "
                 'implementation')
     },
     'unimplemented_parameter': {
         'code': 'UNIMPLEMENTED',
-        'msg': ('The gRPC parameter "%PARAM%" is not supported for this '
+        'msg': ("The gRPC parameter '%PARAM%' is not supported for this "
                 'implementation')
     },
     'unsettable': {
         'code': 'INVALID_ARGUMENT',
-        'msg': 'Parameter "%PARAM%" unsettable'
+        'msg': "Parameter '%PARAM%' unsettable"
     },
     'value_error': {
         'code': 'INVALID_ARGUMENT',
