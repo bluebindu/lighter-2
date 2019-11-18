@@ -120,6 +120,9 @@ def _get_eclair_password():
     while True:
         data = getpass('Insert eclair password (cannot be empty): ')
         if data:
+            more_data = getpass('Insert eclair password again: ')
+            if data != more_data:
+                _die('Passwords do not match')
             return data.encode()
 
 
@@ -134,7 +137,12 @@ def _get_lnd_password():
     """ Gets lnd's password from stdin """
     data = getpass('Insert lnd password or press enter to skip '
                    '(node unlocking will not be available): ')
-    return data.encode()
+    if data:
+        more_data = getpass('Insert lnd password again: ')
+        if data != more_data:
+            _die('Passwords do not match')
+        return data.encode()
+    return None
 
 
 def _set_eclair_password(secret):
