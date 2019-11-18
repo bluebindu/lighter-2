@@ -25,7 +25,7 @@ and ask for Lighter's password in order to decrypt the secrets stored in the
 database.
 When locked, API access is denied, except for `UnlockLighter` (which requires
 knowledge of Lighter's password).
-When unlocked, a `LockLighter` API is avaiable to request locking
+When unlocked, a `LockLighter` API is available to request locking
 (Lighter password required).
 
 ## Setup
@@ -46,8 +46,8 @@ Otherwise, you can use a **non-interactive** version by passing
 secrets to `make` via environment variables. As a full-configuration example:
 ```bash
 make lighter_password=somethingSecure create_macaroons=1 \
-    lnd_macaroon=/path/to/lndMacaroon lnd_password=lndPassword \
     eclair_password=eclairPassword \
+    lnd_macaroon=/path/to/lndMacaroon lnd_password=lndPassword \
     secure
 ```
 This will create or update the database without asking for user prompt.
