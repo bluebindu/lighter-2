@@ -201,9 +201,11 @@ def _save_token(session, password, scrypt_params):
 
 
 def _save_secret(session, password, scrypt_params, sec_type, secret,
-                 activate_secret, implementation=sett.IMPLEMENTATION):
+                 activate_secret, implementation=None):
     """ Encrypts implementation secret and saves it into DB """
     encrypted_secret = None
+    if not implementation:
+        implementation = sett.IMPLEMENTATION
     if secret:
         derived_key = Crypter.gen_derived_key(password, scrypt_params)
         encrypted_secret = Crypter.crypt(secret, derived_key)
