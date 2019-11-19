@@ -416,6 +416,7 @@ def db_config_interactive(session, new):
         password_check = getpass('Save the password and then enter it '
                                  'for verification: ')
         if password != password_check:
+            _remove_files()
             _die("Passwords do not match")
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
         _save_token(session, password, scrypt_params)
