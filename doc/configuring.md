@@ -21,7 +21,7 @@ Paths are relative to the project directory, unless otherwise stated.
 | `DB_DIR`                      | Location to hold the database (default `./lighter-data/db`)                |
 | `MACAROONS_DIR`               | Location to hold macaroons (default `./lighter-data/macaroons`)            |
 | `DISABLE_MACAROONS` <sup>3</sup> | Set to `1` to disable macaroons authentication (default `0`)            |
-| `DOCKER`                      | Set to `1` to run Lighter in docker when calling `make run`, set to 0 to run locally (default `1`) |
+| `DOCKER`                      | Set to `1` to run Lighter in docker when calling `make run`, set to 0 to run locally (default `0`) |
 | `DOCKER_NS`                   | Namespace for docker image (default `inbitcoin`)                           |
 | `DOCKER_NET`                  | External docker network Lighter's container should be connected to         |
 

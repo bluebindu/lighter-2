@@ -502,7 +502,7 @@ docker_bash_env() {
 }
 
 set_defaults() {
-	[ -z "$DOCKER" ] && export DOCKER="1"
+	[ -z "$DOCKER" ] && export DOCKER="0"
 	declare -a vars=(PORT SERVER_KEY SERVER_CRT LOGS_DIR DB_DIR DB_NAME CERTS_DIR
 					 MACAROONS_DIR CL_CLI CL_RPC ECL_HOST ECL_PORT LND_HOST
 					 LND_PORT LND_CERT CLI_HOST)
