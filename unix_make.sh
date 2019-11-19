@@ -287,7 +287,8 @@ _check_compose() {
 }
 
 secure() {
-	export DOCKER_NS="$1" config_file="$2" VERSION="$3"
+	export DOCKER_NS="$1" config_file="$2" VERSION="$3" && \
+		shift 3 && common_pips="$*"
 	if [ -z "$lighter_password" ]; then
 		_secure_interactive
 	else
@@ -303,6 +304,8 @@ _secure_interactive() {
 	[ "$IMPLEMENTATION" = "lnd" ] && _get_lnd_mac
 	if [ "$DOCKER" = "0" ]; then
 		# Local secure
+		$PROG _install_pips $common_pips
+		build_common
 		python3 -c 'from migrate import migrate; migrate()'
 		python3 -c 'from secure import secure; secure()'
 	else
@@ -328,6 +331,8 @@ _secure_non_interactive() {
 	fi
 	if [ "$DOCKER" = "0" ]; then
 		# Local secure
+		$PROG _install_pips $common_pips > /dev/null
+		build_common > /dev/null
 		python3 -c 'from migrate import migrate; migrate()' > /dev/null 2>&1
 		python3 -c 'from secure import secure; secure()' > /dev/null
 	else
