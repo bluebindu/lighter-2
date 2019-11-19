@@ -191,6 +191,8 @@ def CreateInvoice(request, context):
                     enforce=Enf.LN_PAYREQ)))
     if request.expiry_time:
         ecl_req.append('--expireIn="{}"'.format(request.expiry_time))
+    else:
+        ecl_req.append('--expireIn="{}"'.format(settings.EXPIRY_TIME))
     if request.fallback_addr:
         ecl_req.append('--fallbackAddress="{}"'.format(request.fallback_addr))
     ecl_res = command(context, *ecl_req, env=settings.ECL_ENV)

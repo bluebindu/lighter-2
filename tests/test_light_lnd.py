@@ -529,7 +529,7 @@ class LightLndTests(TestCase):
         res = MOD.CreateInvoice(request, CTX)
         assert not mocked_conv.called
         stub.AddInvoice.assert_called_once_with(
-            ln.Invoice(), timeout=time)
+            ln.Invoice(expiry=settings.EXPIRY_TIME), timeout=time)
         assert not stub.LookupInvoice.called
         assert not mocked_handle.called
         self.assertEqual(res, pb.CreateInvoiceResponse())

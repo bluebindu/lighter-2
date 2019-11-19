@@ -256,7 +256,7 @@ message CreateInvoiceRequest {
     */
     string description = 2;
     /**
-    Invoice expiration time, in seconds
+    Invoice expiration time, in seconds (default: 420)
     */
     uint64 expiry_time = 3;
     /**

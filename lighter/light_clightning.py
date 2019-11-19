@@ -270,6 +270,8 @@ def CreateInvoice(request, context):
     cl_req.append('label="{}"'.format(label))
     if request.expiry_time:
         cl_req.append('expiry="{}"'.format(request.expiry_time))
+    else:
+        cl_req.append('expiry="{}"'.format(settings.EXPIRY_TIME))
     if request.fallback_addr:
         cl_req.append('fallbacks=["{}"]'.format(request.fallback_addr))
     cl_res = command(context, *cl_req)

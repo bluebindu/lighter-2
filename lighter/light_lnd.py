@@ -441,9 +441,13 @@ def ListTransactions(request, context):  # pylint: disable=unused-argument
 def CreateInvoice(request, context):
     """ Creates a LN invoice (bolt 11 standard) """
     response = pb.CreateInvoiceResponse()
+    if request.expiry_time:
+        expiry = request.expiry_time
+    else:
+        expiry = settings.EXPIRY_TIME
     lnd_req = ln.Invoice(
         memo=request.description,
-        expiry=request.expiry_time,
+        expiry=expiry,
         fallback_addr=request.fallback_addr)
     if request.min_final_cltv_expiry:
         if Enf.check_value(

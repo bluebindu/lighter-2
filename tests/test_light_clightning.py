@@ -302,7 +302,7 @@ class LightClightningTests(TestCase):
         mocked_label.assert_called_once_with()
         mocked_command.assert_called_once_with(
             CTX, 'invoice', 'msatoshi="any"', 'description="funny"',
-            'label="label"')
+            'label="label"', 'expiry="{}"'.format(settings.EXPIRY_TIME))
         mocked_handle.assert_called_once_with(
             CTX, fix.INVOICE, always_abort=False)
         self.assertEqual(res.payment_hash, fix.INVOICE['payment_hash'])
@@ -319,7 +319,7 @@ class LightClightningTests(TestCase):
         mocked_label.assert_called_once_with()
         mocked_command.assert_called_once_with(
             CTX, 'invoice', 'msatoshi="700000"', 'description=""',
-            'label="label"')
+            'label="label"', 'expiry="{}"'.format(settings.EXPIRY_TIME))
         mocked_handle.assert_called_once_with(
             CTX, fix.INVOICE, always_abort=False)
         self.assertEqual(res.payment_hash, fix.INVOICE['payment_hash'])
@@ -350,7 +350,7 @@ class LightClightningTests(TestCase):
         mocked_label.assert_called_once_with()
         mocked_command.assert_called_once_with(
             CTX, 'invoice', 'msatoshi="700000"', 'description="funny"',
-            'label="label"')
+            'label="label"', 'expiry="{}"'.format(settings.EXPIRY_TIME))
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')

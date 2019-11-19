@@ -328,7 +328,7 @@ def closechannel(channel_id, force):
 @option('--amount_bits', nargs=1, type=float, help='Invoice amount, in bits')
 @option('--description', nargs=1, help='Description of the invoice')
 @option('--expiry_time', nargs=1, type=int, help='Invoice expiration time, '
-        'in seconds')
+        'in seconds (default: 420)')
 @option('--min_final_cltv_expiry', nargs=1, type=int, help='CTLV delay '
         '(absolute) to use for the final hop in the route')
 @option('--fallback_addr', nargs=1, help='Fallback address (on-chain) to use '
