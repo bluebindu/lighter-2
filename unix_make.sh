@@ -282,7 +282,7 @@ _run_local() {
 
 _check_compose() {
 	if ! which docker-compose > /dev/null; then
-		$PROG _install_pips docker-compose
+		$PROG _install_pips docker-compose==1.25.0
 	fi
 }
 
