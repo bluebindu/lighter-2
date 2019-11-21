@@ -22,12 +22,13 @@ from subprocess import PIPE, TimeoutExpired
 
 from nacl.exceptions import CryptoError
 from unittest import TestCase
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import call, Mock, mock_open, patch
 from requests.exceptions import ConnectionError as ReqConnectionErr, Timeout
 
 from lighter import lighter_pb2 as pb
 from lighter import settings
 from lighter.db import ImplementationSecret
+from lighter.light_lnd import LND_PAYREQ
 from lighter.utils import Enforcer as Enf
 from tests import fixtures_utils as fix
 
@@ -376,75 +377,111 @@ class UtilsTests(TestCase):
         mocked_call.assert_called_once_with(rpc_ecl, CTX, data, url, timeout)
         settings.ECL_PASS = ''
 
+    @patch('lighter.utils.Err')
+    def test_conversion(self, mocked_err):
+        mocked_err().value_error.side_effect = Exception()
+        # Correct case: bits to msats
+        res = MOD.convert(CTX, Enf.MSATS, 777, enforce=Enf.LN_TX)
+        self.assertEqual(res, 77700000)
+        # Correct case: msats to bits
+        res = MOD.convert(CTX, Enf.MSATS, 77700000)
+        self.assertEqual(res, 777)
+        # Correct case: bits to btc
+        res = MOD.convert(
+            CTX, Enf.BTC, 777000, enforce=Enf.OC_TX,
+            max_precision=Enf.SATS)
+        self.assertEqual(res, 0.777000)
+        # Correct case: btc to bits
+        res = MOD.convert(CTX, Enf.BTC, 0.777, max_precision=Enf.BITS)
+        self.assertEqual(res, 777000)
+        # Error case: bits to sats, losing precision
+        with self.assertRaises(Exception):
+            res = MOD.convert(CTX, Enf.SATS, 0.009, enforce=LND_PAYREQ,
+                              max_precision=Enf.SATS)
+
     @patch('lighter.utils.Enforcer.check_value')
     @patch('lighter.utils._convert_value', autospec=True)
     def test_convert(self, mocked_conv_val, mocked_check_val):
         # Correct case: bits to msats
-        mocked_conv_val.return_value = 777000000
-        res = MOD.convert('context', Enf.MSATS, 777, enforce=Enf.LN_TX)
-        mocked_conv_val.assert_called_once_with('context', Enf.BITS, Enf.MSATS,
-                                                777, Enf.MSATS)
-        mocked_check_val('context', 777000000, Enf.LN_TX)
-        self.assertEqual(res, 777000000)
+        mocked_conv_val.return_value = 77700000
+        res = MOD.convert(CTX, Enf.MSATS, 777, enforce=Enf.LN_TX)
+        calls = [
+            call(CTX, Enf.BITS, Enf.MSATS, 777, Enf.MSATS),
+            call(CTX, Enf.BITS, Enf.MSATS, 777, Enf.MSATS)]
+        mocked_conv_val.assert_has_calls(calls)
+        self.assertEqual(res, 77700000)
         # Correct case: msats to bits
         reset_mocks(vars())
         mocked_conv_val.return_value = 777
-        res = MOD.convert('context', Enf.MSATS, 777000000)
-        mocked_conv_val.assert_called_once_with('context', Enf.MSATS, Enf.BITS,
+        res = MOD.convert(CTX, Enf.MSATS, 777000000)
+        mocked_conv_val.assert_called_once_with(CTX, Enf.MSATS, Enf.BITS,
                                                 777000000, Enf.MSATS)
         assert not mocked_check_val.called
         self.assertEqual(res, 777)
+        # Correct case: bits to btc
+        reset_mocks(vars())
+        mocked_conv_val.side_effect = [77700000, 0.777]
+        res = MOD.convert(CTX, Enf.BTC, 777000, enforce=Enf.OC_TX)
+        calls = [
+            call(CTX, Enf.BITS, Enf.OC_TX['unit'], 777000, Enf.SATS),
+            call(CTX, Enf.BITS, Enf.BTC, 777000, Enf.SATS)]
+        mocked_conv_val.assert_has_calls(calls)
+        self.assertEqual(res, 0.777000)
 
     @patch('lighter.utils.Err')
     def test_convert_value(self, mocked_err):
+        mocked_err().value_error.side_effect = Exception()
         # Correct case: Decimal output
-        res = MOD._convert_value('context', Enf.BITS, Enf.SATS, 777, Enf.MSATS)
+        res = MOD._convert_value(CTX, Enf.BITS, Enf.SATS, 777, Enf.MSATS)
         self.assertEqual(res, 77700)
         assert not mocked_err().value_error.called
         # Correct case: int output
         reset_mocks(vars())
         res = MOD._convert_value(
-            'context', Enf.BITS, Enf.SATS, 777, max_precision=Enf.SATS)
+            CTX, Enf.BITS, Enf.SATS, 777, max_precision=Enf.SATS)
         self.assertEqual(type(res), int)
         # Error case: string input
         reset_mocks(vars())
-        mocked_err().value_error.side_effect = InvalidOperation()
-        with self.assertRaises(InvalidOperation):
-            res = MOD._convert_value('context', Enf.BITS, Enf.SATS, 'err',
+        with self.assertRaises(Exception):
+            res = MOD._convert_value(CTX, Enf.BITS, Enf.SATS, 'err',
                                      Enf.MSATS)
-        mocked_err().value_error.assert_called_once_with('context')
+        mocked_err().value_error.assert_called_once_with(CTX)
         # Error case: too big number input
         reset_mocks(vars())
-        mocked_err().value_error.side_effect = InvalidOperation()
-        with self.assertRaises(InvalidOperation):
-            res = MOD._convert_value('context', Enf.BITS, Enf.SATS,
+        with self.assertRaises(Exception):
+            res = MOD._convert_value(CTX, Enf.BITS, Enf.SATS,
                                      777777777777777777777777777, Enf.SATS)
-        mocked_err().value_error.assert_called_once_with('context')
+        mocked_err().value_error.assert_called_once_with(CTX)
+        # Error case: number gets truncated
+        reset_mocks(vars())
+        with self.assertRaises(Exception):
+            res = MOD._convert_value(CTX, Enf.BITS, Enf.SATS, 0.009, Enf.SATS)
+        mocked_err().value_error.assert_called_once_with(CTX)
 
     @patch('lighter.utils.Err')
     def test_check_value(self, mocked_err):
         mocked_err().value_too_low.side_effect = Exception()
         mocked_err().value_too_high.side_effect = Exception()
         # Correct case, default type
-        Enf.check_value('context', 7)
+        Enf.check_value(CTX, 7)
         # Correct case, specific type
-        Enf.check_value('context', 7, enforce=Enf.LN_TX)
+        Enf.check_value(CTX, 7, enforce=Enf.LN_TX)
         # Error value_too_low case
         reset_mocks(vars())
         with self.assertRaises(Exception):
-            Enf.check_value('context', 0.001, enforce=Enf.LN_TX)
-        mocked_err().value_too_low.assert_called_once_with('context')
+            Enf.check_value(CTX, 0.001, enforce=Enf.LN_TX)
+        mocked_err().value_too_low.assert_called_once_with(CTX)
         assert not mocked_err().value_too_high.called
         # Error value_too_high case
         reset_mocks(vars())
         with self.assertRaises(Exception):
-            Enf.check_value('context', 2**32 + 1, enforce=Enf.LN_TX)
+            Enf.check_value(CTX, 2**32 + 1, enforce=Enf.LN_TX)
         assert not mocked_err().value_too_low.called
-        mocked_err().value_too_high.assert_called_once_with('context')
+        mocked_err().value_too_high.assert_called_once_with(CTX)
         # Check disabled case
         reset_mocks(vars())
         settings.ENFORCE = False
-        Enf.check_value('context', 7)
+        Enf.check_value(CTX, 7)
         assert not mocked_err().value_too_low.called
         assert not mocked_err().value_too_high.called
 

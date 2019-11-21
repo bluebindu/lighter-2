@@ -317,27 +317,28 @@ class Enforcer():  # pylint: disable=too-few-public-methods
     # pylint: enable=dangerous-default-value
 
 
-# pylint: disable=dangerous-default-value
-def convert(context, unit, amount, enforce=None,
-            max_precision=Enforcer.MSATS):
+def convert(context, unit, amount, enforce=None, max_precision=None):
     """
     Converts amount from or to unit, according to enforce presence
     """
     if enforce:
         # input: converting from lighter to ln node (converts and enforces)
+        if not max_precision:
+            max_precision = enforce['unit']
         source = Enforcer.BITS
         target = enforce['unit']
     else:
         # output: converting from ln node to lighter (converts only)
+        if not max_precision:
+            max_precision = Enforcer.MSATS
         source = unit
         target = Enforcer.BITS
     result = _convert_value(context, source, target, amount, max_precision)
     if enforce:
         Enforcer.check_value(context, result, enforce)
+        result = _convert_value(context, source, unit, amount, max_precision)
     return result
 
-
-# pylint: enable=dangerous-default-value
 
 def _convert_value(context, source, target, amount, max_precision):
     """
@@ -350,7 +351,10 @@ def _convert_value(context, source, target, amount, max_precision):
         converted = Decimal(amount) * Decimal(ratio)
         result = converted.quantize(Decimal(str(decimals)))
         if max_precision['decimal'] - target['decimal'] == 0:
-            return int(result)
+            int_result = int(result)
+            if int_result != result:
+                raise InvalidOperation
+            return int_result
         return float(result)
     except InvalidOperation:
         Err().value_error(context)
