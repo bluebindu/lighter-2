@@ -1,0 +1,19 @@
+# systemd unit for lighter
+
+[Unit]
+Description=Lighter Daemon
+# if you're using your implementation with systemd, uncomment these lines
+# changing %IMPLEMENTATION% with your configured implementation name
+# Wants=%IMPLEMENTATION%.service
+# After=%IMPLEMENTATION%.service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+# change with Lighter install path
+ExecStart=make -C /path/to/lighter run
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

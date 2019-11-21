@@ -5,3 +5,4 @@ Lighter contributors, in chronological order of contribution:
 * [Antonio Parrella](https://gitlab.com/zidagar) - zidagar@inbitcoin.it
 * [Marco Amadori](https://gitlab.com/mammadori) - amadori@inbitcoin.it
 * [Stefano Pellegrini](https://gitlab.com/St333p) - ste.pelle.95@gmail.com
+* [Simone Da Re](https://gitlab.com/siimone) - sdrsdr.dare@gmail.com
