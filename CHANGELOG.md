@@ -6,6 +6,36 @@ The format is based on
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.2.0 - 2019-11-22
+
+### Added
+- default value for `expiry_time` in `CreateInvoice`
+- paring procedure (`make pairing`)
+- systemd example service
+- `sqlalchemy` ORM for better DB handling and `alembic` as DB migration tool
+- support for latest implementation versions
+(c-lightning v0.7.3, eclair v0.3.2, lnd v0.8.0-beta)
+- proto: added `state` field to `CheckInvoice` message
+- proto: added `UnlockNode` API
+- proto: added `unlock_node` field to `UnlockLighter` message
+- secure: added non-interactive mode
+
+### Changed
+- default value of config var `DOCKER`
+- improved security documentation
+- updated pips and docker base image
+- errors: changed double quotes into single around `%PARAM%`
+- secure: ask for implemenetation password 2 times
+
+### Deprecated
+- docker assisted usage
+
+### Fixed
+- cliter: fixed bad escaping of double quotation mark
+- Makefile: fixed pips install calling secure target
+- secure: fixed password mismatch on new db case
+
+
 ## 1.1.1 - 2019-10-02
 
 ### Added
