@@ -1,11 +1,12 @@
-FROM %%BASEIMAGE_ARCH%%/debian:buster-slim
+FROM debian:buster-slim
 
 RUN apt-get update && \
     apt-get -y install --no-install-recommends \
     curl gosu jq libscrypt0 make python3-pip unzip virtualenv && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-%%ENVS%%
+ARG VERSION
+ENV APP_DIR="/srv/app" ENV="/srv/env" VERSION=$VERSION
 ENV L_DIR="lighter" USER="lighter"
 ENV LANG="C.UTF-8" PYTHONUNBUFFERED=1 PYTHONIOENCODING="UTF-8"
 
@@ -20,18 +21,22 @@ COPY Makefile unix_make.sh ./
 RUN mkdir -p lighter-data/certs lighter-data/logs && \
     touch lighter-data/config && make check
 
-RUN %%BEFORE_SETUP%% make setup %%AFTER_SETUP%%
+RUN host_tag_arch=$(./unix_make.sh get_host_tag_arch) \
+    && if [ "$host_tag_arch" = "arm32v7" ]; then \
+            apt-get update \
+            && apt-get -y install g++ libffi-dev python3-dev \
+            && apt-get clean \
+            && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; \
+        fi \
+    && make setup
 
 COPY lighter/lighter.proto $L_DIR
 
 # Install Lighter for all implementations
 RUN make build
 
-COPY docker/start-lighter.sh docker/start-cli.sh \
-     docker/start-secure.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/start-lighter.sh \
-             /usr/local/bin/start-cli.sh \
-             /usr/local/bin/start-secure.sh
+COPY docker/start-lighter.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/start-lighter.sh
 
 RUN mkdir -p $APP_DIR/lighter-data/db $APP_DIR/lighter-data/macaroons
 

@@ -70,8 +70,7 @@ Before it's run, Lighter needs to be configured according to the chosen
 implementation.
 
 In order to run Lighter some software dependencies have to be met.
-Some requirements are determined by choosing to either run Lighter locally
-or in docker, others by the configured implementation.
+Some requirements are determined by the configured implementation.
 
 Lighter will check at runtime for the availability of the required
 dependencies, based on its configuration.
@@ -79,25 +78,15 @@ dependencies, based on its configuration.
 
 ### System dependencies
 
-- **common**
-    - bash
-    - make
-    - virtualenv
-    - which
-    - [optional] libscrypt 1.8+ (faster start)
 
-- **locally**
-    - Linux <sup>1</sup>
-      or macOS <sup>2</sup>
-      (_Windows may work, but is not supported_)
-    - Python 3.5+
-
-- **in docker**
-    - Linux <sup>1</sup>,
-      macOS <sup>2</sup>
-      or Windows <sup>3</sup>
-    - Python 3 <sup>4</sup>
-    - docker
+- Linux <sup>1</sup> or macOS <sup>2</sup>
+(_Windows may work, but is not supported_)
+- Python 3.5+ <sup>3</sup>
+- bash
+- make
+- virtualenv
+- which
+- [optional] libscrypt 1.8+ (faster start)
 
 ### Implementation dependencies
 
@@ -119,8 +108,7 @@ as gathered real-world usage data grows.
 
 1. _tested on Debian 10 Buster_
 2. _tested on macOS 10.13 High Sierra_
-3. _not tested_
-4. _tested with python3.7_
+3. _tested with python3.7_
 
 
 ## Building
@@ -191,18 +179,6 @@ To start Lighter's gRPC server, according to the configured scenario, run:
 
 ```bash
 $ make run
-```
-
-#### Additional docker-only commands
-
-Follow logs with:
-```bash
-$ make logs
-```
-
-Stop the running container with:
-```bash
-$ make stop
 ```
 
 

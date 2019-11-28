@@ -38,16 +38,8 @@
 # Note: do not disable macaroons in production
 # DISABLE_MACAROONS="0"
 
-# If set to 0, make run executes Lighter locally
-# If set to 1, make run executes Lighter in docker
-# Possible values: 0, 1
-# DOCKER="0"
-
 # Specifies the namespace for the docker image
 # DOCKER_NS="inbitcoin"
-
-# External docker network for Lighter to connect to
-# DOCKER_NET=""
 
 ###############################################################################
 

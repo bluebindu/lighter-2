@@ -40,7 +40,6 @@ LINT_DIR='reports'
 
 # Docker variables
 export APP_DIR='/srv/app' ENV_DIR='/srv/env'
-COMPOSE=compose.yml
 D_DIR='docker'
 
 # Highlighting colors
@@ -172,7 +171,7 @@ build_lnd() {
 	_check_result $? "Building lnd's proto..."
 }
 
-_get_host_tag_arch() {
+get_host_tag_arch() {
 	case $(uname) in
 		Linux  ) _get_linux_arch ;;
 		Darwin ) _get_darwin_arch ;;
@@ -181,6 +180,8 @@ _get_host_tag_arch() {
 	if [ -z "$host_tag_arch" ]; then
 		echo "Your architecture may be unsupported"
 		export host_tag_arch="amd64"
+	else
+		echo "Architecture detected: $host_tag_arch"
 	fi
 }
 
@@ -198,34 +199,12 @@ _get_darwin_arch() {
 	esac
 }
 
-create_dockerfiles() {
-	export version="$1"
-	shift && export tags_archs="$*"
-	[ -r "$ENV" ] || _init_venv
-	. "$ENV/bin/activate"
-	cd "$D_DIR" || _die "Directory '$D_DIR' is missing"
-	python3 generate_dockerfiles.py
-	cd - > /dev/null || _die "Error, check project structure"
-}
-
 docker_build() {
 	export dock_repo="$1" config_file="$2" version="$3"
 	shift 3 && export tags_archs="$*"
-	_get_host_tag_arch
-	_create_dockerfile
-	_docker_build
-}
-
-_create_dockerfile() {
-	cd "$D_DIR" || _die "Directory '$D_DIR' is missing"
-	[ -r "$ENV" ] || _init_venv
-	. "$ENV/bin/activate"
-	python3 generate_dockerfiles.py "$host_tag_arch"
-	cd - > /dev/null || _die "Error, check project structure"
-}
-
-_docker_build() {
-	dockerfile="$D_DIR/Dockerfile.$host_tag_arch" && tag="${dock_repo}:${version}"
+	get_host_tag_arch > /dev/null
+	dockerfile="$D_DIR/Dockerfile"
+	tag="${dock_repo}:${version}"
 	set -a ; . "$config_file" 2> /dev/null || true; set +a
 	echo "Building docker image for $host_tag_arch..."
 	[ "$DEVELOPMENT" = 1 ] && opts="--build-arg DEVELOPMENT=1"
@@ -234,27 +213,10 @@ _docker_build() {
 }
 
 run() {
-	export DOCKER_NS="$1" config_file="$2" VERSION="$3"
+	export config_file="$1" VERSION="$2"
 	_parse_config
 	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
-	if [ "$DOCKER" = "0" ]; then
-		# Local running
-		_run_local
-	else
-		# Docker running
-		_run_docker
-	fi
-}
-
-_run_docker() {
-	export MYUID=$(id -u)
-	python3 $D_DIR/generate_compose.py
-	_check_compose
-	docker-compose -f $COMPOSE up -d $NAME
-}
-
-_run_local() {
 	declare -a dirs=(CERTS_DIR DB_DIR LOGS_DIR MACAROONS_DIR)
 	for dir in "${dirs[@]}"; do
 		mkdir -p "${!dir}" 2> /dev/null
@@ -266,7 +228,6 @@ _run_local() {
 	fi
 }
 
-
 _check_compose() {
 	if ! which docker-compose > /dev/null; then
 		$PROG _install_pips docker-compose==1.25.0
@@ -274,8 +235,7 @@ _check_compose() {
 }
 
 secure() {
-	export DOCKER_NS="$1" config_file="$2" VERSION="$3" && \
-		shift 3 && common_pips="$*"
+	export config_file="$1" VERSION="$2" && shift 2 && common_pips="$*"
 	if [ -z "$lighter_password" ]; then
 		_secure_interactive
 	else
@@ -289,22 +249,10 @@ _secure_interactive() {
 	_parse_config
 	_check_db
 	[ "$IMPLEMENTATION" = "lnd" ] && _get_lnd_mac
-	if [ "$DOCKER" = "0" ]; then
-		# Local secure
-		$PROG _install_pips $common_pips
-		build_common
-		python3 -c 'from migrate import migrate; migrate()'
-		python3 -c 'from secure import secure; secure()'
-	else
-		# Docker secure
-		python3 $D_DIR/generate_compose.py
-		_check_compose
-		docker-compose -f $COMPOSE run --rm \
-			-e NO_DB="$NO_DB" \
-			-e RM_DB="$RM_DB" \
-			--entrypoint /usr/local/bin/start-secure.sh \
-			$NAME
-	fi
+	$PROG _install_pips $common_pips
+	build_common
+	python3 -c 'from migrate import migrate; migrate()'
+	python3 -c 'from secure import secure; secure()'
 }
 
 _secure_non_interactive() {
@@ -316,26 +264,10 @@ _secure_non_interactive() {
 		macaroon_path="$lnd_macaroon"
 		_check_lnd_mac > /dev/null
 	fi
-	if [ "$DOCKER" = "0" ]; then
-		# Local secure
-		$PROG _install_pips $common_pips > /dev/null
-		build_common > /dev/null
-		python3 -c 'from migrate import migrate; migrate()' > /dev/null 2>&1
-		python3 -c 'from secure import secure; secure()' > /dev/null
-	else
-		# Docker secure
-		python3 $D_DIR/generate_compose.py > /dev/null
-		_check_compose > /dev/null
-		docker-compose -f $COMPOSE run --rm \
-			-e NO_DB="$NO_DB" \
-			-e lighter_password="$lighter_password" \
-			-e create_macaroons="$create_macaroons" \
-			-e eclair_password="$eclair_password" \
-			-e lnd_macaroon="/srv/lnd/macaroons/lnd.macaroon" \
-			-e lnd_password="$lnd_password" \
-			--entrypoint /usr/local/bin/start-secure.sh \
-			$NAME > /dev/null
-	fi
+	$PROG _install_pips $common_pips > /dev/null
+	build_common > /dev/null
+	python3 -c 'from migrate import migrate; migrate()' > /dev/null 2>&1
+	python3 -c 'from secure import secure; secure()' > /dev/null
 }
 
 _check_db() {
@@ -367,8 +299,8 @@ _check_lnd_mac() {
 
 set_lnd_mac() {
 	file="$1"
-	temp_file="/srv/lnd/macaroons/lnd.macaroon"
-	mkdir -p "/srv/lnd/macaroons"
+	temp_file="/srv/lnd/.lnd/lnd.macaroon"
+	mkdir -p "/srv/lnd/.lnd"
 	if [ -r "$file" ]; then
 		cp "$file" "$temp_file"
 		chown "$USER" "$temp_file"
@@ -382,23 +314,6 @@ cli() {
 	_parse_config
 	[ -r "$ENV" ] || _init_venv
 	. "$ENV/bin/activate"
-	if [ "$DOCKER" = "0" ]; then
-		# Local running
-		_cli_local
-	else
-		# Docker running
-		_cli_docker
-	fi
-}
-
-_cli_docker() {
-	_check_compose
-	docker-compose -f $COMPOSE run --rm \
-		--entrypoint /usr/local/bin/start-cli.sh \
-		$NAME
-}
-
-_cli_local() {
 	! which $CLI_NAME > /dev/null && pip install -q --editable .
 	if [[ "$SHELL" == *"/zsh" ]]; then
 		_CLITER_COMPLETE=source_zsh $CLI_NAME > $COMPLETION_SCRIPT
@@ -415,19 +330,6 @@ _cli_local() {
 	fi
 }
 
-stop() {
-	. "$ENV/bin/activate"
-	_check_compose
-	docker-compose -f $COMPOSE stop $NAME
-	docker-compose -f $COMPOSE rm -fv $NAME
-}
-
-logs() {
-	. "$ENV/bin/activate"
-	_check_compose
-	docker-compose -f $COMPOSE logs -f $NAME
-}
-
 clean() {
 	_clean_venv
 	_clean_autogenerated
@@ -438,12 +340,6 @@ _clean_venv() {
 }
 
 _clean_autogenerated() {
-	# Docker files
-	find $D_DIR/ -name 'Dockerfile.*' \
-		! -name 'Dockerfile.cross' \
-		! -name 'Dockerfile.ci' \
-		-type f -delete -printf "removed '%p'\n"
-	rm -fv "$COMPOSE"
 	# Python files
 	find . -name __pycache__ -type d -exec rm -rf "{}" \; \
 		-prune -printf "removed directory '%p'\n"
@@ -488,11 +384,10 @@ docker_bash_env() {
 	CLI_HOST="$NAME"
 	CL_RPC_DIR="$CL_DIR/.lightning"
 	CL_CLI_DIR="$CL_DIR/cli"
-	LND_CERT_DIR="$LND_DIR/certs"
+	LND_CERT_DIR="$LND_DIR/.lnd"
 }
 
 set_defaults() {
-	[ -z "$DOCKER" ] && export DOCKER="0"
 	declare -a vars=(PORT SERVER_KEY SERVER_CRT LOGS_DIR DB_DIR DB_NAME CERTS_DIR
 					 MACAROONS_DIR CL_CLI CL_RPC ECL_HOST ECL_PORT LND_HOST
 					 LND_PORT LND_CERT CLI_HOST)

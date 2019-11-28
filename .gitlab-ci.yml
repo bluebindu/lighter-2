@@ -26,7 +26,6 @@ test:
   - develop
   - /^merge\/.*$/
   script:
-    - ./unix_make.sh create_dockerfiles $VERSION amd64
-    - docker build -f docker/Dockerfile.amd64 -t $DOCK_NS/$NAME:$VERSION .
+    - docker build -f docker/Dockerfile -t $DOCK_NS/$NAME:$VERSION .
     - docker build -f docker/Dockerfile.ci -t $DOCK_NS/$NAME-ci:$VERSION .
     - docker run --rm --entrypoint $PYTEST $DOCK_NS/$NAME-ci -v --cov=$NAME --cov-report=term-missing

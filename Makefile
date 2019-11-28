@@ -57,19 +57,13 @@ docker:
 	@ $(SCRIPT) docker_build $(DOCKER_REPO) $(CONFIG_FILE) $(VERSION) $(TAGS_ARCH)
 
 secure:
-	@ $(SCRIPT) secure $(DOCKER_NS) $(CONFIG_FILE) $(VERSION) $(COM_PIPS)
+	@ $(SCRIPT) secure $(CONFIG_FILE) $(VERSION) $(COM_PIPS)
 
 run:
-	@ $(SCRIPT) run $(DOCKER_NS) $(CONFIG_FILE) $(VERSION)
+	@ $(SCRIPT) run $(CONFIG_FILE) $(VERSION)
 
 cli:
 	@ $(SCRIPT) cli $(CONFIG_FILE) $(VERSION)
-
-logs:
-	@ $(SCRIPT) logs
-
-stop:
-	@ $(SCRIPT) stop
 
 clean:
 	@ $(SCRIPT) clean
@@ -89,10 +83,8 @@ help:
 	@ echo " - lnd:          gets Lighter ready for lnd"
 	@ echo " - docker:       builds Lighter docker image"
 	@ echo " - secure:       handles Lighter and implementation secrets"
-	@ echo " - run:          runs Lighter (in docker or locally)"
-	@ echo " - cli:          runs an environment to call cliter (in docker or locally)"
-	@ echo " - logs:         shows Lighter logs (in docker)"
-	@ echo " - stop:         stops Lighter (in docker), removing all anonymous volumes attached to it"
+	@ echo " - run:          runs Lighter"
+	@ echo " - cli:          runs an environment to call cliter"
 	@ echo " - clean:        removes Lighter virtualenv"
 	@ echo " - test:         tests Lighter code"
 	@ echo " - lint:         lints Lighter code"
@@ -145,4 +137,4 @@ build_lnd:
 	@ $(SCRIPT) build_lnd
 
 
-.PHONY: all clightning eclair lnd docker secure run cli logs stop clean pairing version test lint help
+.PHONY: all clightning eclair lnd docker secure run cli clean pairing version test lint help

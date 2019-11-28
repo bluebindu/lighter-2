@@ -4,9 +4,6 @@
 /lighter/rpc.proto
 *_pb2*.py
 /lighter/google
-/compose.yml
-/docker/Dockerfile.*
-!/docker/Dockerfile.cross
 !/docker/Dockerfile.ci
 /complete-cliter.sh
 /.bashrc
