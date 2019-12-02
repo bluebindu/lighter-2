@@ -303,36 +303,6 @@ class FakeContext():  # pylint: disable=too-few-public-methods
         return None
 
 
-def command(context, *args_cmd, **kwargs):
-    """ Given a command, calls a cli interface """
-    if not sett.CMD_BASE:
-        raise RuntimeError
-    cmd = sett.CMD_BASE + list(args_cmd)
-    envi = kwargs.get('env', None)
-    wait_time = kwargs.get('timeout', get_node_timeout(context))
-    # universal_newlines ensures bytes are returned
-    proc = Popen(
-        cmd, env=envi, stdout=PIPE, stderr=PIPE, universal_newlines=False)
-    out = err = b''
-    try:
-        out, err = proc.communicate(timeout=wait_time)
-    except TimeoutExpired:
-        proc.kill()
-        Err().node_error(context, 'Timeout')
-    out = out.decode('utf-8')
-    err = err.decode('utf-8')
-    res = None
-    try:
-        res = loads(out)
-    except JSONDecodeError:
-        res = loads(dumps(out))
-    if res is None or res == "":
-        if err:
-            Err().report_error(context, err.strip())
-        LOGGER.debug('Empty result from command')
-    return res
-
-
 class RPCSession():  # pylint: disable=too-few-public-methods
     """ Creates and mantains an RPC session open """
 

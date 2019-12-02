@@ -39,8 +39,6 @@ Paths specified in the configuration file are relative to this directory.
 
 | Variable                      | Description                                                                |
 | ----------------------------- | -------------------------------------------------------------------------- |
-| `cl_cli_dir`                  | Location <sup>4</sup> containing `cl_cli`                                  |
-| `cl_cli`                      | CLI binary name (default `lightning-cli`)                                  |
 | `cl_rpc_dir` <sup>5</sup>     | Location <sup>4</sup> containing `cl_rpc`                                  |
 | `cl_rpc` <sup>6</sup>         | JSON-RPC socket name (default `lightning-rpc`)                             |
 
@@ -78,7 +76,7 @@ Paths specified in the configuration file are relative to this directory.
    what you're doing_
 4. _location must be a directory;
 path can be absolute or relative (to Lighter's data directory)_
-5. _option:_ `lightning-dir` _(usually ~/.lightning)_
+5. _usually ~/.lightning/\<network\>_
 6. _option:_ `rpc-file` _the JSON-RPC socket needs to be owned by the same user
    Lighter is running as_
 7. _host can be an IP or a FQDN_

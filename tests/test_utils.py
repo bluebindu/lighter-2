@@ -374,67 +374,6 @@ class UtilsTests(TestCase):
         res = MOD.FakeContext().time_remaining()
         self.assertEqual(res, None)
 
-    @patch(MOD.__name__ + '.LOGGER', autospec=True)
-    @patch(MOD.__name__ + '.Err')
-    @patch(MOD.__name__ + '.Popen', autospec=True)
-    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
-    def test_command(self, mocked_get_time, mocked_popen, mocked_err,
-                     mocked_logger):
-        time = 10
-        mocked_get_time.return_value = time
-        # Correct case
-        mocked_popen.return_value.communicate.return_value = (b'mocked!', b'')
-        settings.CMD_BASE = ['lightning-cli']
-        cmd = ['getinfo']
-        CMD = settings.CMD_BASE + list(cmd)
-        res = MOD.command(CTX, *cmd)
-        mocked_popen.assert_called_with(
-            CMD, env=None, stdout=PIPE, stderr=PIPE, universal_newlines=False)
-        mocked_popen.return_value.communicate.assert_called_with(timeout=time)
-        self.assertEqual(res.strip(), 'mocked!')
-        self.assertNotEqual(res.strip(), 'not mocked!')
-        # Error from command case
-        reset_mocks(vars())
-        mocked_err.side_effect = RuntimeError()
-        mocked_popen.return_value.communicate.return_value = (b'', b'error')
-        settings.CMD_BASE = ['lightning-cli']
-        cmd = ['getinfo']
-        CMD = settings.CMD_BASE + list(cmd)
-        with self.assertRaises(RuntimeError):
-            res = MOD.command(CTX, *cmd)
-        mocked_popen.assert_called_with(
-            CMD, env=None, stdout=PIPE, stderr=PIPE, universal_newlines=False)
-        mocked_popen.return_value.communicate.assert_called_with(timeout=time)
-        # Empty result from command
-        reset_mocks(vars())
-        mocked_popen.return_value.communicate.return_value = (b'', b'')
-        res = MOD.command(CTX, *cmd)
-        mocked_logger.debug.assert_called_once_with(
-            'Empty result from command')
-        # Timeout case
-        reset_mocks(vars())
-        mocked_err.side_effect = None
-        mocked_err().node_error.side_effect = Exception()
-        settings.CMD_BASE = ['lightning-cli']
-        cmd = ['getinfo']
-        CMD = settings.CMD_BASE + list(cmd)
-
-        def slow_func(*args, **kwargs):
-            raise TimeoutExpired(cmd, 100)
-
-        mocked_popen.return_value.communicate = slow_func
-        with self.assertRaises(Exception):
-            res = MOD.command(CTX, *cmd)
-        mocked_popen.assert_called_with(
-            CMD, env=None, stdout=PIPE, stderr=PIPE, universal_newlines=False)
-        mocked_popen.return_value.kill.assert_called_with()
-        mocked_err().node_error.assert_called_once_with(CTX, 'Timeout')
-        # Command empty case
-        reset_mocks(vars())
-        settings.CMD_BASE = []
-        with self.assertRaises(RuntimeError):
-            MOD.command(CTX, 'command')
-
     @patch(MOD.__name__ + '.sleep', autospec=True)
     @patch(MOD.__name__ + '.LOGGER', autospec=True)
     @patch(MOD.__name__ + '.Err')

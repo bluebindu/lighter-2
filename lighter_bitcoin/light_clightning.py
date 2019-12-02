@@ -19,14 +19,16 @@ from ast import literal_eval
 from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
 from datetime import datetime
-from logging import getLogger
+from logging import CRITICAL, getLogger
 from os import path
+
+from pyln.client import LightningRpc, RpcError as ClightningRpcError
 
 from . import lighter_pb2 as pb
 from . import settings
-from .utils import check_req_params, command, convert, Enforcer as Enf, \
-    FakeContext, get_channel_balances, get_path, get_thread_timeout, \
-    get_node_timeout, handle_thread, has_amount_encoded, set_defaults
+from .utils import check_req_params, convert, Enforcer as Enf, FakeContext, \
+    get_channel_balances, get_path, get_thread_timeout, handle_thread, \
+    has_amount_encoded, set_defaults
 from .errors import Err
 
 LOGGER = getLogger(__name__)
@@ -51,6 +53,9 @@ ERRORS = {
     },
     'does not match description': {
         'fun': 'incorrect_description'
+    },
+    'Error broadcasting transaction': {
+        'fun': 'payonchain_failed'
     },
     'Exchanging init messages: Operation now in progress': {
         'fun': 'connect_failed'
@@ -93,25 +98,23 @@ ERRORS = {
     },
     'They sent error': {
         'fun': 'openchannel_failed'
-    }
+    },
+    'Unknown peer': {
+        'fun': 'connect_failed'
+    },
 }
 
 
 def get_settings(config, sec):
     """ Gets c-lightning settings """
-    cl_values = ['CL_CLI', 'CL_RPC']
+    cl_values = ['CL_RPC']
     set_defaults(config, cl_values)
-    cl_cli_dir = get_path(config.get(sec, 'CL_CLI_DIR'))
-    cl_cli = config.get(sec, 'CL_CLI')
-    cl_cli_path = path.join(cl_cli_dir, cl_cli)
     cl_rpc_dir = get_path(config.get(sec, 'CL_RPC_DIR'))
     cl_rpc = config.get(sec, 'CL_RPC')
     cl_rpc_path = path.join(cl_rpc_dir, cl_rpc)
-    cl_options = [
-        '--lightning-dir={}'.format(cl_rpc_dir),
-        '--rpc-file={}'.format(cl_rpc), '-k'
-    ]
-    settings.CMD_BASE = [cl_cli_path] + cl_options
+    if not path.exists(cl_rpc_path):
+        raise RuntimeError('Missing {} file'.format(cl_rpc))
+    settings.RPC_URL = cl_rpc_path
 
 
 def update_settings(_dummy):
@@ -120,8 +123,10 @@ def update_settings(_dummy):
 
 def GetInfo(request, context):  # pylint: disable=unused-argument
     """ Returns info about the running LN node """
-    cl_req = ['getinfo']
-    cl_res = command(context, *cl_req)
+    rpc_cl = ClightningRPC()
+    cl_res, is_err = rpc_cl.getinfo(context)
+    if is_err:
+        _handle_error(context, cl_res)
     response = pb.GetInfoResponse()
     if 'id' in cl_res:
         response.identity_pubkey = cl_res['id']
@@ -142,33 +147,35 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
         response.network = cl_res['network']
         if cl_res['network'] == 'bitcoin':
             response.network = 'mainnet'
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 
 def NewAddress(request, context):
     """ Creates a new bitcoin address under control of the running LN node """
-    cl_req = ['newaddr']
+    rpc_cl = ClightningRPC()
+    cl_req = {}
     response = pb.NewAddressResponse()
     # If request has no addresstype, default for c-lightning is p2sh-segwit
     if request.type == 0:
-        cl_req.append('addresstype=p2sh-segwit')
+        cl_req['addresstype'] = 'p2sh-segwit'
     elif request.type == 1:
-        cl_req.append('addresstype=bech32')
-    cl_res = command(context, *cl_req)
+        cl_req['addresstype'] = 'bech32'
+    cl_res, is_err = rpc_cl.newaddr(context, cl_req)
+    if is_err:
+        _handle_error(context, cl_res)
     if 'p2sh-segwit' in cl_res:
         response.address = cl_res['p2sh-segwit']
     if 'bech32' in cl_res:
         response.address = cl_res['bech32']
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 
 def WalletBalance(request, context):  # pylint: disable=unused-argument
     """ Returns the on-chain balance in bits of the running LN node """
-    cl_req = ['listfunds']
-    cl_res = command(context, *cl_req)
-    _handle_error(context, cl_res, always_abort=False)
+    rpc_cl = ClightningRPC()
+    cl_res, is_err = rpc_cl.listfunds(context)
+    if is_err:
+        _handle_error(context, cl_res)
     tot_funds = 0.0
     conf_funds = 0.0
     if 'outputs' in cl_res:
@@ -193,8 +200,10 @@ def ChannelBalance(request, context):  # pylint: disable=unused-argument
 
 def ListChannels(request, context):
     """ Returns a list of channels of the running LN node """
-    cl_req = ['listpeers']
-    cl_res = command(context, *cl_req)
+    rpc_cl = ClightningRPC()
+    cl_res, is_err = rpc_cl.listpeers(context)
+    if is_err:
+        _handle_error(context, cl_res)
     response = pb.ListChannelsResponse()
     if 'peers' in cl_res:  # pylint: disable=too-many-nested-blocks
         for cl_peer in cl_res['peers']:
@@ -207,27 +216,28 @@ def ListChannels(request, context):
                             continue
                     _add_channel(context, response, cl_peer, cl_chan,
                                  state, request.active_only)
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 
 def ListPayments(request, context):  # pylint: disable=unused-argument
     """ Returns a list of lightning invoices paid by the running LN node """
-    cl_req = ['listsendpays']
-    cl_res = command(context, *cl_req)
+    rpc_cl = ClightningRPC()
+    cl_res, is_err = rpc_cl.listsendpays(context)
+    if is_err:
+        _handle_error(context, cl_res)
     response = pb.ListPaymentsResponse()
     if 'payments' in cl_res:
         for cl_payment in cl_res['payments']:
             _add_payment(context, response, cl_payment)
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 
 def ListPeers(request, context):  # pylint: disable=unused-argument
     """ Returns a list of peers connected to the running LN node """
-    cl_req = ['listpeers']
-    cl_res = command(context, *cl_req)
-    _handle_error(context, cl_res, always_abort=False)
+    rpc_cl = ClightningRPC()
+    cl_res, is_err = rpc_cl.listpeers(context)
+    if is_err:
+        _handle_error(context, cl_res)
     response = pb.ListPeersResponse()
     if 'peers' in cl_res:
         for peer in cl_res['peers']:
@@ -237,8 +247,8 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
             grpc_peer = response.peers.add()  # pylint: disable=no-member
             if 'id' in peer:
                 grpc_peer.pubkey = peer['id']
-                cl_req = ['listnodes', 'id={}'.format(peer['id'])]
-                cl_res = command(context, *cl_req)
+                cl_req = {'id': peer['id']}
+                cl_res, is_err = rpc_cl.listnodes(context, cl_req)
                 if 'nodes' in cl_res and cl_res['nodes']:
                     node = cl_res['nodes'][0]
                     if 'alias' in node:
@@ -255,29 +265,30 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
 
 def CreateInvoice(request, context):
     """ Creates a LN invoice (bolt 11 standard) """
-    cl_req = ['invoice']
+    rpc_cl = ClightningRPC()
+    cl_req = {}
     if request.min_final_cltv_expiry:
         Err().unimplemented_parameter(context, 'min_final_cltv_expiry')
     if request.amount_bits:
-        cl_req.append('msatoshi="{}"'.format(
-            convert(
-                context, Enf.MSATS, request.amount_bits,
-                enforce=Enf.LN_PAYREQ)))
+        cl_req['msatoshi'] = convert(
+            context, Enf.MSATS, request.amount_bits, enforce=Enf.LN_PAYREQ)
     else:
-        cl_req.append('msatoshi="any"')
+        cl_req['msatoshi'] = 'any'
     description = ''
     if request.description:
         description = request.description
-    cl_req.append('description="{}"'.format(description))
+    cl_req['description'] = description
     label = _create_label()
-    cl_req.append('label="{}"'.format(label))
+    cl_req['label'] = label
     if request.expiry_time:
-        cl_req.append('expiry="{}"'.format(request.expiry_time))
+        cl_req['expiry'] = request.expiry_time
     else:
-        cl_req.append('expiry="{}"'.format(settings.EXPIRY_TIME))
+        cl_req['expiry'] = settings.EXPIRY_TIME
     if request.fallback_addr:
-        cl_req.append('fallbacks=["{}"]'.format(request.fallback_addr))
-    cl_res = command(context, *cl_req)
+        cl_req['fallbacks'] = [request.fallback_addr]
+    cl_res, is_err = rpc_cl.invoice(context, cl_req)
+    if is_err:
+        _handle_error(context, cl_res)
     response = pb.CreateInvoiceResponse()
     if 'payment_hash' in cl_res:
         response.payment_hash = cl_res['payment_hash']
@@ -285,23 +296,23 @@ def CreateInvoice(request, context):
         response.payment_request = cl_res['bolt11']
     if 'expires_at' in cl_res:
         response.expires_at = cl_res['expires_at']
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 
 def CheckInvoice(request, context):
     """ Checks if a LN invoice has been paid """
-    cl_req = ['listinvoices']
+    rpc_cl = ClightningRPC()
     check_req_params(context, request, 'payment_hash')
     invoice = None
-    cl_res = command(context, *cl_req)
+    cl_res, is_err = rpc_cl.listinvoices(context)
+    if is_err:
+        _handle_error(context, cl_res)
     if 'invoices' in cl_res:
         for inv in cl_res['invoices']:
             if 'payment_hash' in inv \
                     and inv['payment_hash'] == request.payment_hash:
                 invoice = inv
     if not invoice:
-        _handle_error(context, cl_res, always_abort=False)
         Err().invoice_not_found(context)
     response = pb.CheckInvoiceResponse()
     # pylint: disable=no-member
@@ -318,18 +329,17 @@ def PayInvoice(request, context):
     If a description hash is included in the invoice, its preimage must be
     included in the request
     """
-    cl_req = ['pay']
+    cl_req = {}
     check_req_params(context, request, 'payment_request')
-    cl_req.append('bolt11="{}"'.format(request.payment_request))
+    rpc_cl = ClightningRPC()
+    cl_req['bolt11'] = request.payment_request
     amount_encoded = has_amount_encoded(request.payment_request)
     # pylint: disable=no-member
     if amount_encoded and request.amount_bits:
         Err().unsettable(context, 'amount_bits')
     elif request.amount_bits and not amount_encoded:
-        cl_req.append('msatoshi="{}"'.format(
-            convert(
-                context, Enf.MSATS, request.amount_bits,
-                enforce=Enf.LN_TX)))
+        cl_req['msatoshi'] = convert(
+            context, Enf.MSATS, request.amount_bits, enforce=Enf.LN_TX)
     elif not amount_encoded:
         check_req_params(context, request, 'amount_bits')
     # pylint: enable=no-member
@@ -339,37 +349,37 @@ def PayInvoice(request, context):
         if Enf.check_value(
                 context, request.cltv_expiry_delta,
                 enforce=Enf.CLTV_EXPIRY_DELTA):
-            cl_req.append('maxdelay="{}"'.format(request.cltv_expiry_delta))
+            cl_req['maxdelay'] = request.cltv_expiry_delta
         else:
             Err().out_of_range(context, 'cltv_expiry_delta')
-    cl_res = command(context, *cl_req)
+    cl_res, is_err = rpc_cl.pay(context, cl_req)
+    if is_err:
+        _handle_error(context, cl_res)
     response = pb.PayInvoiceResponse()
     if 'payment_preimage' in cl_res:
         response.payment_preimage = cl_res['payment_preimage']
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 
 def PayOnChain(request, context):
     """ Tries to pay a bitcoin address """
-    cl_req = ['withdraw']
+    rpc_cl = ClightningRPC()
     check_req_params(context, request, 'address', 'amount_bits')
-    cl_req.append('destination="{}"'.format(request.address))
-    cl_req.append('satoshi="{}"'.format(
-        convert(context, Enf.SATS, request.amount_bits, enforce=Enf.OC_TX,
-                max_precision=Enf.SATS)))
+    cl_req = {'destination': request.address,
+              'satoshi': convert(context, Enf.SATS, request.amount_bits,
+                                 enforce=Enf.OC_TX, max_precision=Enf.SATS)}
     if request.fee_sat_byte:
         if Enf.check_value(
                 context, request.fee_sat_byte, enforce=Enf.OC_FEE):
-            cl_req.append(
-                'feerate="{}perkb"'.format(request.fee_sat_byte * 1000))
+            cl_req['feerate'] = '{}perkb'.format(request.fee_sat_byte * 1000)
         else:
             Err().out_of_range(context, 'fee_sat_byte')
-    cl_res = command(context, *cl_req)
+    cl_res, is_err = rpc_cl.withdraw(context, cl_req)
+    if is_err:
+        _handle_error(context, cl_res)
     response = pb.PayOnChainResponse()
     if 'txid' in cl_res:
         response.txid = cl_res['txid']
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 
@@ -378,13 +388,15 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
     Tries to return information of a LN invoice from its payment request
     (bolt 11 standard)
     """
-    cl_req = ['decodepay']
+    rpc_cl = ClightningRPC()
     response = pb.DecodeInvoiceResponse()
     check_req_params(context, request, 'payment_request')
-    cl_req.append('bolt11="{}"'.format(request.payment_request))
+    cl_req = {'bolt11': request.payment_request}
     if request.description:
-        cl_req.append('description="{}"'.format(request.description))
-    cl_res = command(context, *cl_req)
+        cl_req['description'] = request.description
+    cl_res, is_err = rpc_cl.decodepay(context, cl_req)
+    if is_err:
+        _handle_error(context, cl_res)
     response = pb.DecodeInvoiceResponse()
     if 'msatoshi' in cl_res:
         response.amount_bits = convert(context, Enf.MSATS, cl_res['msatoshi'])
@@ -407,13 +419,12 @@ def DecodeInvoice(request, context):  # pylint: disable=too-many-branches
     if 'routes' in cl_res:
         for cl_route in cl_res['routes']:
             _add_route_hint(response, cl_route)
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 
 def OpenChannel(request, context):
     """ Tries to connect and open a channel with a peer """
-    cl_req = ['connect']
+    rpc_cl = ClightningRPC()
     response = pb.OpenChannelResponse()
     check_req_params(context, request, 'node_uri', 'funding_bits')
     if request.push_bits:
@@ -422,37 +433,33 @@ def OpenChannel(request, context):
         pubkey, _host = request.node_uri.split("@")
     except ValueError:
         Err().invalid(context, 'node_uri')
-    cl_req.append('id="{}"'.format(request.node_uri))
-    cl_res = command(context, *cl_req)
-    if 'id' not in cl_res:
+    cl_req = {'peer_id': request.node_uri}
+    cl_res, is_err = rpc_cl.connect(context, cl_req)
+    if is_err:
         Err().connect_failed(context)
-    cl_req = ['fundchannel']
-    cl_req.append('id="{}"'.format(pubkey))
-    cl_req.append('amount="{}"'.format(
-        convert(context, Enf.SATS, request.funding_bits,
-                enforce=Enf.FUNDING_SATOSHIS, max_precision=Enf.SATS)))
+    amt = convert(context, Enf.SATS, request.funding_bits,
+                  enforce=Enf.FUNDING_SATOSHIS, max_precision=Enf.SATS)
+    cl_req = {'node_id': pubkey, 'amount': amt}
     if request.private:
-        cl_req.append('announce=false')
-    cl_res = command(context, *cl_req)
+        cl_req['announce'] = 'false'
+    cl_res, is_err = rpc_cl.fundchannel(context, cl_req)
+    if is_err:
+        _handle_error(context, cl_res)
     if 'txid' in cl_res:
         response.funding_txid = cl_res['txid']
-    _handle_error(context, cl_res, always_abort=False)
     return response
 
 
 def CloseChannel(request, context):
     """ Tries to close a LN chanel """
-    cl_req = ['close']
     check_req_params(context, request, 'channel_id')
-    cl_req.append('id="{}"'.format(request.channel_id))
+    cl_req = {'peer_id': request.channel_id}
     response = pb.CloseChannelResponse()
-    close_timeout = get_node_timeout(
-        context, min_time=settings.CLOSE_TIMEOUT_NODE)
     if request.force:
         # setting a 1 second timeout to force an immediate unilateral close
-        cl_req.append('unilateraltimeout=1')
+        cl_req['unilateraltimeout'] = 1
     executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(_close_channel, cl_req, close_timeout)
+    future = executor.submit(_close_channel, cl_req)
     try:
         cl_res = future.result(timeout=get_thread_timeout(context))
         if cl_res:
@@ -548,15 +555,14 @@ def _add_route_hint(response, cl_route):
 
 
 @handle_thread
-def _close_channel(cl_req, close_timeout):
+def _close_channel(cl_req):
     """ Returns close channel response or raises exception to caller """
+    rpc_cl = ClightningRPC()
     cl_res = error = None
     try:
-        # adding a little delay to allow implementation to answer before
-        # command times out
-        cl_res = command(FakeContext(), *cl_req, timeout=close_timeout + 0.1)
-        if 'message' in cl_res and 'code' in cl_res:
-            error = cl_res['message']
+        cl_res, is_err = rpc_cl.close(FakeContext(), cl_req)
+        if is_err:
+            error = cl_res
         else:
             LOGGER.debug('[ASYNC] CloseChannel terminated with response: %s',
                          cl_res)
@@ -619,9 +625,31 @@ def _get_invoice_state(cl_invoice):
     return pb.PENDING
 
 
-def _handle_error(context, cl_res, always_abort=True):
+def _handle_error(context, cl_res):
     """ Checks for errors in a c-lightning cli response """
-    if 'code' in cl_res and 'message' in cl_res:
-        Err().report_error(context, cl_res['message'])
-    if always_abort:
-        Err().unexpected_error(context, cl_res)
+    Err().report_error(context, cl_res)
+
+
+class ClightningRPC():  # pylint: disable=too-few-public-methods
+    """ Creates and mantains an RPC session with c-lightning """
+
+    def __init__(self):
+        pyln_logger = getLogger('pyln.client.lightning')
+        pyln_logger.setLevel(CRITICAL)
+        self._session = LightningRpc(settings.RPC_URL, logger=pyln_logger)
+
+    def __getattr__(self, name):
+
+        def call_adapter(context, params=None):
+            LOGGER.debug("method: %s, params: %s", name, params)
+            try:
+                if params:
+                    return getattr(self._session, name)(**params), False
+                return getattr(self._session, name)(), False
+            except ClightningRpcError as err:
+                LOGGER.debug("error: %s", err.error['message'])
+                return err.error['message'], True
+            except OSError as err:
+                Err().node_error(context, str(err))
+
+        return call_adapter

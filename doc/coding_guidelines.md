@@ -33,13 +33,13 @@ As an example, for an hypothetic implementation called
 - `lighter/light_fasterthanlighter.py`
 - `tests/test_light_fasterthanlighter.py`
 
-Then you can implement just some of the rpc methods included in
-`lighter.proto`.
-For the one you will not implement, a default error will be shown,
-signaling that the method is not supported.
+Implementing all of the rpc methods included in `lighter.proto` is not
+mandatory.
+For the unimplemented ones, a default error will be shown, signaling that the
+method is not supported.
 
 Variable names for LN node requests and responses are built from a
-shortened implementation name (2/3 chars) + `_req` / `_res`.
+shortened implementation name (2/3 chars) and the suffix `_req` or `_res`.
 Example names from currently supported implementations are:
 -  `cl_req` / `cl_res`
 -  `ecl_req` / `ecl_res`
@@ -48,28 +48,6 @@ Example names from currently supported implementations are:
 
 Use instead the full names `request` and `response` when
 communicating with the client interface.
-
-The following is an example of a basic gRPC method construction.
-It uses the `utils.command()` function to call the LN node's CLI.
-
-```python
-def RpcMethodName(request, context):
-    ftl_req = ['newaddress']
-    if request.type is 0:
-        ftl_req.append('p2wkh')
-    elif request.type is 1:
-        ftl_req.append('np2wkh')
-    ftl_res = command(context, *ftl_req)
-    if 'addr' in ftl_res:
-        response.address = ftl_res['addr']
-    _handle_error(context, ftl_res, always_abort=False)
-    return response
-```
-
-Please note that not all implementations use the `command()` utility.
-LND uses gRPC natively so Lighter takes advantage of that. Should a
-new supported implementation use gRPC as well, the channel handling
-code could be moved to the `utils` module.
 
 
 ## Errors handling

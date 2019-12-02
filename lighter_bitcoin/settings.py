@@ -92,9 +92,6 @@ ENFORCE = True
 TEST_HASH = '43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000'
 MAIN_HASH = '6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000'
 
-# CLI-based implementations settings
-CMD_BASE = []
-
 # RPC-based implementations settings
 RPC_URL = ''
 RPC_TRIES = 5
@@ -102,7 +99,6 @@ RPC_SLEEP = .5
 RPC_CONN_TIMEOUT = 3.1
 
 # c-lightning specific settings
-CL_CLI = 'lightning-cli'
 CL_RPC = 'lightning-rpc'
 
 # eclair specific settings

@@ -43,6 +43,8 @@ L_PROTO = 'lighter.proto'
 CLI_NAME = 'cliter'
 SHELLS = ['bash', 'zsh']
 
+CL_VER = '0.8.0'
+
 LND_REF = 'v0.8.2-beta'
 LND_PROTO = 'rpc.proto'
 GAPIS = 'googleapis'
@@ -271,6 +273,7 @@ setup(
         'grpcio~=1.25.0',
         'macaroonbakery~=1.2.3',
         'pylibscrypt~=1.8.0',
+        'pyln-client==' + CL_VER,
         'pymacaroons~=0.13.0',
         'pynacl~=1.3.0',
         'qrcode~=6.1',

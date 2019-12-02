@@ -90,6 +90,10 @@ ERRORS = {
         'code': 'CANCELLED',
         'msg': 'Invoice payment is pending'
     },
+    'payonchain_failed': {
+        'code': 'CANCELLED',
+        'msg': 'On-chain payment has failed'
+    },
     'route_not_found': {
         'code': 'NOT_FOUND',
         'msg': 'Can\'t find route to node'

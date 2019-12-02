@@ -64,13 +64,8 @@
 
 [clightning]
 
-# Specifies the location containing the CLI binary
-#cl_cli_dir =
-
-# Specifies the c-lightning CLI binary, relative to CL_CLI_DIR
-#cl_cli = lightning-cli
-
-# Specifies the location containing the RPC file
+# Specifies the location containing the RPC file,
+# network subdirectory included (e.g. ~/.lightning/testnet/)
 #cl_rpc_dir =
 
 # Specifies the c-lightning JSON-RPC socket file, relative to CL_RPC_DIR
