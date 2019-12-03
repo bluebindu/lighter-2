@@ -28,6 +28,10 @@ from subprocess import PIPE, Popen, TimeoutExpired
 from threading import active_count, current_thread
 from time import sleep, strftime, time
 
+from requests import Session as ReqSession
+from requests.auth import HTTPBasicAuth
+from requests.exceptions import ConnectionError as ReqConnectionErr, Timeout
+
 from . import lighter_pb2 as pb
 
 from . import __version__, settings as sett
@@ -206,6 +210,73 @@ def command(context, *args_cmd, **kwargs):
             Err().report_error(context, err.strip())
         LOGGER.debug('Empty result from command')
     return res
+
+
+class RPCSession():  # pylint: disable=too-few-public-methods
+    """ Creates and mantains an RPC session open """
+
+    def __init__(self, auth=None):
+        self._session = ReqSession()
+        self._auth = auth
+
+    def call(self, context, data=None, url=None, timeout=None):
+        """ Makes an RPC call using the opened session """
+        if url is None:
+            url = sett.RPC_URL
+        if timeout is None:
+            timeout = get_node_timeout(context)
+        tries = sett.RPC_TRIES
+        while True:
+            try:
+                response = self._session.post(
+                    url, data=data, auth=self._auth,
+                    timeout=(sett.RPC_CONN_TIMEOUT, timeout))
+            except ReqConnectionErr:
+                tries -= 1
+                if tries == 0:
+                    Err().node_error(
+                        context, 'RPC call failed: max retries reached')
+                LOGGER.info(
+                    'Connection failed, sleeping for %d secs (%d tries left)',
+                    sett.RPC_SLEEP, tries)
+                sleep(sett.RPC_SLEEP)
+            except Timeout:
+                Err().node_error(context, 'RPC call timed out')
+            else:
+                break
+        if response.status_code not in (200, 500):
+            err_msg = 'RPC call failed: {} {}'.format(
+                response.status_code, response.reason)
+            Err().node_error(context, err_msg)
+        is_error = response.status_code == 500
+        json_response = response.json()
+        LOGGER.debug('response: %s', json_response)
+        if 'error' in json_response and json_response['error'] is not None:
+            err = json_response['error']
+            if 'message' in err:
+                err = json_response['error']['message']
+            return err, is_error
+        if 'result' in json_response:
+            return json_response['result'], is_error
+        return json_response, is_error
+
+
+class EclairRPC(RPCSession):
+    """ Creates and mantains an RPC session with eclair """
+
+    def __init__(self):
+        super().__init__(auth=HTTPBasicAuth('', sett.ECL_PASS))
+
+    def __getattr__(self, name):
+
+        def call_adapter(context, data=None, timeout=None):
+            url = '{}/{}'.format(sett.RPC_URL, name)
+            if data is None:
+                data = {}
+            LOGGER.debug("request: %s", data)
+            return super(EclairRPC, self).call(context, data, url, timeout)
+
+        return call_adapter
 
 
 class Enforcer():  # pylint: disable=too-few-public-methods

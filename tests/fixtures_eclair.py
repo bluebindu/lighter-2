@@ -470,6 +470,15 @@ CREATEINVOICE = {
 }
 
 
+ERR = "eclair error"
+
+
+ERROR_CHANNEL = "created channel"
+
+
+FORCECLOSE = 'ok'
+
+
 GETINFO_TESTNET = {
   "nodeId": "0399454946097e6d6a8bfb9f4483ed752a8dcfac71925b91b7120126b898efc502",
   "alias": "pie",
@@ -611,11 +620,6 @@ GETSENTINFO_SUCCESS = [
     "status": "SUCCEEDED"
   }
 ]
-
-ERROR = "error"
-
-
-ERROR_CHANNEL = "created channel"
 
 
 OPEN = 'created channel e872f515dc5d8a3d61ccbd2127f33141eaa115807271dcc5c5c727f3eca914d3'

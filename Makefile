@@ -49,7 +49,7 @@ all: check setup build
 
 clightning: common
 
-eclair: common check_eclair setup_eclair
+eclair: common check_eclair
 
 lnd: common check_lnd setup_lnd build_lnd
 
@@ -127,14 +127,11 @@ check_eclair:
 check_lnd:
 	@ $(SCRIPT) check_deps $(LND_DEPS)
 
-setup: setup_common setup_eclair setup_lnd
+setup: setup_common setup_lnd
 
 setup_common:
 	@ $(SCRIPT) setup_common $(COM_PIPS)
 	@ $(SCRIPT) setup_common $(DEV_PIPS)
-
-setup_eclair:
-	@ $(SCRIPT) setup_eclair
 
 setup_lnd:
 	@ $(SCRIPT) setup_lnd $(LND_PIPS)

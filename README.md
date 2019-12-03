@@ -101,11 +101,6 @@ dependencies, based on its configuration.
 
 ### Implementation dependencies
 
-- **eclair**
-    - chmod
-    - curl
-    - jq
-
 - **lnd**
     - curl
     - unzip

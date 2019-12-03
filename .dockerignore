@@ -1,7 +1,6 @@
 # Compiled and downloaded files
 *.pyc
 *__pycache__
-/lighter/eclair-cli
 /lighter/rpc.proto
 *_pb2*.py
 /lighter/google

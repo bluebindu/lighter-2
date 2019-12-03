@@ -117,7 +117,7 @@ class LockerServicer(pb_grpc.LockerServicer):
         restart_thread.start()
         sett.MAC_ROOT_KEY = None
         sett.RUNTIME_BAKER = None
-        sett.ECL_ENV = None
+        sett.ECL_PASS = None
         sett.LND_MAC = None
         return pb.LockLighterResponse()
 

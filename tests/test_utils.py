@@ -23,6 +23,7 @@ from subprocess import PIPE, TimeoutExpired
 from nacl.exceptions import CryptoError
 from unittest import TestCase
 from unittest.mock import Mock, mock_open, patch
+from requests.exceptions import ConnectionError as ReqConnectionErr, Timeout
 
 from lighter import lighter_pb2 as pb
 from lighter import settings
@@ -220,7 +221,7 @@ class UtilsTests(TestCase):
         mocked_get_time.return_value = time
         # Correct case
         mocked_popen.return_value.communicate.return_value = (b'mocked!', b'')
-        settings.CMD_BASE = ['eclair-cli']
+        settings.CMD_BASE = ['lightning-cli']
         cmd = ['getinfo']
         CMD = settings.CMD_BASE + list(cmd)
         res = MOD.command(CTX, *cmd)
@@ -233,7 +234,7 @@ class UtilsTests(TestCase):
         reset_mocks(vars())
         mocked_err.side_effect = RuntimeError()
         mocked_popen.return_value.communicate.return_value = (b'', b'error')
-        settings.CMD_BASE = ['eclair-cli']
+        settings.CMD_BASE = ['lightning-cli']
         cmd = ['getinfo']
         CMD = settings.CMD_BASE + list(cmd)
         with self.assertRaises(RuntimeError):
@@ -251,7 +252,7 @@ class UtilsTests(TestCase):
         reset_mocks(vars())
         mocked_err.side_effect = None
         mocked_err().node_error.side_effect = Exception()
-        settings.CMD_BASE = ['eclair-cli']
+        settings.CMD_BASE = ['lightning-cli']
         cmd = ['getinfo']
         CMD = settings.CMD_BASE + list(cmd)
 
@@ -270,6 +271,110 @@ class UtilsTests(TestCase):
         settings.CMD_BASE = []
         with self.assertRaises(RuntimeError):
             MOD.command(CTX, 'command')
+
+    @patch('lighter.utils.sleep', autospec=True)
+    @patch('lighter.utils.LOGGER', autospec=True)
+    @patch('lighter.utils.Err')
+    @patch('lighter.utils.get_node_timeout', autospec=True)
+    @patch('lighter.utils.ReqSession', autospec=True)
+    def test_RPCSession(self, mocked_ses, mocked_time, mocked_err, mocked_log,
+                        mocked_sleep):
+        url = 'http://host:port/method'
+        timeout = 7
+        ctx = Mock()
+        auth = Mock()
+        mocked_err().node_error.side_effect = Exception()
+        rpc_ses = MOD.RPCSession(auth=auth)
+        mocked_post = rpc_ses._session.post
+        # With url, timeout, auth and data case
+        mocked_post.return_value.status_code = 200
+        json_response = {'result': 'lighter'}
+        mocked_post.return_value.json.return_value = json_response
+        data = {}
+        res, is_err = rpc_ses.call(ctx, data, url, timeout)
+        mocked_post.assert_called_once_with(
+            url, data=data, auth=auth,
+            timeout=(settings.RPC_CONN_TIMEOUT, timeout))
+        self.assertEqual(res, 'lighter')
+        self.assertEqual(is_err, False)
+        # Without url, timeout, auth and data case
+        reset_mocks(vars())
+        rpc_ses = MOD.RPCSession()
+        mocked_post = rpc_ses._session.post
+        rpc_ses.call(ctx)
+        mocked_post.assert_called_once_with(
+            settings.RPC_URL, data=None, auth=None,
+            timeout=(settings.RPC_CONN_TIMEOUT, mocked_time.return_value))
+        # Connection error case
+        reset_mocks(vars())
+        mocked_post.side_effect = ReqConnectionErr()
+        with self.assertRaises(Exception):
+            rpc_ses.call(ctx)
+        self.assertEqual(mocked_sleep.call_count, settings.RPC_TRIES - 1)
+        self.assertEqual(mocked_log.info.call_count, settings.RPC_TRIES - 1)
+        mocked_sleep.assert_called_with(settings.RPC_SLEEP)
+        mocked_err().node_error.assert_called_once_with(
+            ctx, 'RPC call failed: max retries reached')
+        # Timeout error case
+        reset_mocks(vars())
+        mocked_post.side_effect = Timeout()
+        with self.assertRaises(Exception):
+            rpc_ses.call(ctx)
+        mocked_err().node_error.assert_called_once_with(
+            ctx, 'RPC call timed out')
+        mocked_post.side_effect = None
+        # Error 500 case
+        reset_mocks(vars())
+        mocked_post.return_value.status_code = 500
+        json_response = {'error': {'code': 1, 'message': 'invalid'}}
+        mocked_post.return_value.json.return_value = json_response
+        res, is_err = rpc_ses.call(ctx)
+        self.assertEqual(res, 'invalid')
+        self.assertEqual(is_err, True)
+        # Error response not respecting jsonrpc protocol
+        reset_mocks(vars())
+        json_response = {'error': 'invalid'}
+        mocked_post.return_value.json.return_value = json_response
+        res, is_err = rpc_ses.call(ctx)
+        self.assertEqual(res, 'invalid')
+        self.assertEqual(is_err, True)
+        # String response not respecting jsonrpc protocol
+        reset_mocks(vars())
+        mocked_post.return_value.status_code = 200
+        json_response = 'invalid'
+        mocked_post.return_value.json.return_value = json_response
+        res, is_err = rpc_ses.call(ctx)
+        self.assertEqual(res, 'invalid')
+        self.assertEqual(is_err, False)
+        # Status code not 200 nor 500 error case
+        reset_mocks(vars())
+        mocked_post.return_value.status_code = 666
+        with self.assertRaises(Exception):
+            rpc_ses.call(ctx)
+        err_msg = 'RPC call failed: {} {}'.format(
+            mocked_post.return_value.status_code,
+            mocked_post.return_value.reason)
+        mocked_err().node_error.assert_called_once_with(ctx, err_msg)
+
+    @patch('lighter.utils.RPCSession.call', autospec=True)
+    @patch('lighter.utils.HTTPBasicAuth', autospec=True)
+    def test_EclairRPC(self, mocked_auth, mocked_call):
+        settings.ECL_PASS = 'pass'
+        # Without data and timeout case
+        url = settings.RPC_URL + '/getinfo'
+        rpc_ecl = MOD.EclairRPC()
+        self.assertEqual(rpc_ecl._auth, mocked_auth.return_value)
+        res = rpc_ecl.getinfo(CTX)
+        self.assertEqual(res, mocked_call.return_value)
+        mocked_call.assert_called_once_with(rpc_ecl, CTX, {}, url, None)
+        # With data and timeout case
+        reset_mocks(vars())
+        url = settings.RPC_URL + '/getreceivedinfo'
+        data = {'paymentHash': 'payment_hash'}
+        timeout = 7
+        res = rpc_ecl.getreceivedinfo(CTX, data, timeout)
+        mocked_call.assert_called_once_with(rpc_ecl, CTX, data, url, timeout)
+        settings.ECL_PASS = ''
 
     @patch('lighter.utils.Enforcer.check_value')
     @patch('lighter.utils._convert_value', autospec=True)
