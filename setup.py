@@ -109,7 +109,6 @@ if __name__ == '__main__':
         ],
         setup_requires=[
             'grpcio-tools~=1.25.0',
-            'wheel~=0.33.6'
         ],
         entry_points={
             'console_scripts': [

@@ -43,7 +43,7 @@ RUN chown -R $USER /srv/env /srv/app
 ARG DEVELOPMENT
 ENV DEVELOPMENT=$DEVELOPMENT
 USER $USER
-RUN pip3 install --user setuptools \
+RUN pip3 install --user --upgrade setuptools wheel \
     && if [ "$DEVELOPMENT" = '1' ]; then \
         echo "Development mode ON" && pip3 install --user --editable .; \
     else pip3 install --user .; fi \
