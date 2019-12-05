@@ -101,6 +101,12 @@ ECL_HOST = 'localhost'
 ECL_PORT = 8080
 ECL_PASS = ''
 
+# electrum specific settings
+ELE_HOST = 'localhost'
+ELE_PORT = 7777
+ELE_USER = 'user'
+ELE_RELEASED_ADDRESSES = []
+
 # lnd specific settings
 LND_HOST = 'localhost'
 LND_PORT = 10009
@@ -119,6 +125,7 @@ CLOSE_TIMEOUT_NODE = 15
 MAX_INVOICES = 200
 INVOICES_TIMES = 3
 EXPIRY_TIME = 420
+DUST_LIMIT_SAT = 546
 
 # Logging settings
 LOGS_DIR = path.join(L_DATA, 'logs')
