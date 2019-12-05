@@ -47,11 +47,10 @@ Paths are relative to the project directory, unless otherwise stated.
 3. _running Lighter on mainnet with macaroons disabled has severe security
    implications and is highly discouraged, don't do this unless you know
    what you're doing_
-4. _location can be a local directory or the name of an existing docker volume;
+4. _location must be a directory;
    path can be absolute or relative, if relative it has to start with_ `./`
 5. _option:_ `lightning-dir` _(usually ~/.lightning)_
 6. _option:_ `rpc-file` _the JSON-RPC socket needs to be owned by the same user
    Lighter is running as_
-7. _host can be IP, FQDN or docker container reference (id, name,
-   compose service)_
+7. _host can be an IP or a FQDN_
 8. _option:_ `eclair.api.port` _(usually 8080)_
