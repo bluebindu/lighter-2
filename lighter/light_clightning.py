@@ -185,6 +185,7 @@ def ChannelBalance(request, context):  # pylint: disable=unused-argument
     """ Returns the off-chain balance in bits available across all channels """
     # pylint: disable=no-member
     channels = ListChannels(pb.ListChannelsRequest(), context).channels
+    # pylint: enable=no-member
     return get_channel_balances(context, channels)
 
 
