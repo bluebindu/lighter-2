@@ -17,6 +17,7 @@
 from codecs import encode
 from decimal import InvalidOperation
 from importlib import import_module
+from json import dumps
 from os import urandom
 from subprocess import PIPE, TimeoutExpired
 
@@ -148,6 +149,12 @@ class UtilsTests(TestCase):
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options(warning=True)
+        # Electrum case
+        reset_mocks(vars())
+        values = {'IMPLEMENTATION': 'electrum'}
+        with patch.dict('os.environ', values):
+            MOD.get_start_options()
+        self.assertEqual(settings.IMPL_SEC_TYPE, 'password')
 
     @patch('lighter.utils.get_secret_from_db', autospec=True)
     def test_detect_impl_secret(self, mocked_db_sec):
@@ -377,6 +384,31 @@ class UtilsTests(TestCase):
         mocked_call.assert_called_once_with(rpc_ecl, CTX, data, url, timeout)
         settings.ECL_PASS = ''
 
+    @patch('lighter.utils.RPCSession.call', autospec=True)
+    def test_ElectrumRPC(self, mocked_call):
+        settings.ECL_PASS = 'pass'
+        # Without params and timeout case
+        rpc_ele = MOD.ElectrumRPC()
+        self.assertEqual(rpc_ele._headers,
+                         {'content-type': 'application/json'})
+        res = rpc_ele.getinfo(CTX)
+        self.assertEqual(res, mocked_call.return_value)
+        payload = dumps(
+            {"id": rpc_ele._id_count, "method": 'getinfo',
+             "params": {}, "jsonrpc": '2.0'})
+        mocked_call.assert_called_once_with(
+            rpc_ele, CTX, payload, timeout=None)
+        # With params and timeout case
+        reset_mocks(vars())
+        params = {'unused': True}
+        timeout = 7
+        res = rpc_ele.listaddresses(CTX,params, timeout)
+        payload = dumps(
+            {"id": rpc_ele._id_count, "method": 'listaddresses',
+             "params": params, "jsonrpc": '2.0'})
+        mocked_call.assert_called_once_with(
+            rpc_ele, CTX, payload, timeout=timeout)
+
     @patch('lighter.utils.Err')
     def test_conversion(self, mocked_err):
         mocked_err().value_error.side_effect = Exception()
@@ -595,6 +627,19 @@ class UtilsTests(TestCase):
         self.assertEqual(res, True)
         res = MOD._has_numbers('lighter')
         self.assertEqual(res, False)
+
+    def test_get_address_type(self):
+        # Bech32 address case
+        addr = 'bcrt1q9s8pfy8ktptz2'
+        res = MOD.get_address_type(addr)
+        self.assertEqual(res, pb.P2WKH)
+        addr = 'tb1qw508d6qejxtdg4y'
+        res = MOD.get_address_type(addr)
+        self.assertEqual(res, pb.P2WKH)
+        # Legacy address case
+        addr = 'm2gfudf487cn5acf284'
+        res = MOD.get_address_type(addr)
+        self.assertEqual(res, pb.NP2WKH)
 
     def test_get_channel_balances(self):
         # Full channel list case

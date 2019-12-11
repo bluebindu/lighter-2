@@ -50,6 +50,8 @@ clightning: common
 
 eclair: common
 
+electrum: common
+
 lnd: common check_lnd setup_lnd build_lnd
 
 docker:
@@ -79,6 +81,7 @@ help:
 	@ echo " - all:          gets Lighter ready for all implementations"
 	@ echo " - clightning:   gets Lighter ready for clightning"
 	@ echo " - eclair:       gets Lighter ready for eclair"
+	@ echo " - electrum:     gets Lighter ready for electrum"
 	@ echo " - lnd:          gets Lighter ready for lnd"
 	@ echo " - docker:       builds Lighter docker image"
 	@ echo " - secure:       handles Lighter and implementation secrets"
@@ -90,6 +93,7 @@ help:
 	@ echo " - pairing:      starts pairing operation"
 	@ echo " - version:      gets Lighter version"
 	@ echo " - help:         shows this message"
+	@ echo ""
 	@ echo "\nDefault: help"
 	@ echo "\nNote: Uncommented targets are not meant to be called manually"
 
@@ -133,4 +137,4 @@ build_lnd:
 	@ $(SCRIPT) build_lnd
 
 
-.PHONY: all clightning eclair lnd docker secure run cli clean pairing version test lint help
+.PHONY: all clightning eclair electrum lnd docker secure run cli clean pairing version test lint help
