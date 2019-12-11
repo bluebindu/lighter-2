@@ -366,7 +366,7 @@ _parse_config() {
 	IMPLEMENTATION="$(echo "$IMPLEMENTATION" | tr '[:upper:]' '[:lower:]')"
 	export IMPLEMENTATION
 	case $IMPLEMENTATION in
-		clightning|eclair|lnd ) echo "You chose to use $IMPLEMENTATION" ;;
+		clightning|eclair|electrum|lnd ) echo "You chose to use $IMPLEMENTATION" ;;
 		* ) _die "Unsupported implementation" ;;
 	esac
 	set_defaults
@@ -492,6 +492,7 @@ lint_code() {
 		-v "$(pwd)/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro" \
 		-v "$(pwd)/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro" \
 		-v "$(pwd)/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro" \
+		-v "$(pwd)/$L_DIR/light_electrum.py:$APP_DIR/$L_DIR/light_electrum.py:ro" \
 		-v "$(pwd)/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro" \
 		-v "$(pwd)/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro" \
 		-v "$(pwd)/$L_DIR/macaroons.py:$APP_DIR/$L_DIR/macaroons.py:ro" \
@@ -512,6 +513,7 @@ test_code() {
 		-v "$(pwd)/$L_DIR/errors.py:$APP_DIR/$L_DIR/errors.py:ro" \
 		-v "$(pwd)/$L_DIR/light_clightning.py:$APP_DIR/$L_DIR/light_clightning.py:ro" \
 		-v "$(pwd)/$L_DIR/light_eclair.py:$APP_DIR/$L_DIR/light_eclair.py:ro" \
+		-v "$(pwd)/$L_DIR/light_electrum.py:$APP_DIR/$L_DIR/light_electrum.py:ro" \
 		-v "$(pwd)/$L_DIR/light_lnd.py:$APP_DIR/$L_DIR/light_lnd.py:ro" \
 		-v "$(pwd)/$L_DIR/lighter.py:$APP_DIR/$L_DIR/lighter.py:ro" \
 		-v "$(pwd)/$L_DIR/macaroons.py:$APP_DIR/$L_DIR/macaroons.py:ro" \
@@ -523,6 +525,7 @@ test_code() {
 		"$dock_tag" \
 		-v --cov=$L_DIR --cov-report=term-missing
 }
+
 
 # Calls the set called function with the set params passed as a single word
 if [ -z "$params" ]; then

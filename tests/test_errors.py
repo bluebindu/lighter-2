@@ -40,7 +40,7 @@ class ErrorsTests(TestCase):
             res = func(context, 'param')
             sc = getattr(StatusCode, ERRORS[key]['code'])
             if 'msg' in ERRORS[key]:
-                msg = sub('%PARAM%', 'param', ERRORS[key]['msg'])
+                msg = sub('%PARAM%', 'param', ERRORS[key]['msg'], 1)
             else:
                 msg = 'param'
             context.abort.assert_called_once_with(sc, msg)
