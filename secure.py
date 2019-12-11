@@ -126,17 +126,6 @@ def _get_eclair_password():
             return data.encode()
 
 
-def _get_electrum_password():
-    """ Gets electrum's password from stdin """
-    while True:
-        data = getpass('Insert electrum password (cannot be empty): ')
-        if data:
-            more_data = getpass('Insert electrum password again: ')
-            if data != more_data:
-                _die('Passwords do not match')
-            return data.encode()
-
-
 def _get_lnd_macaroon(macaroon_path):
     """ Gets lnd's macaroon from file """
     print('Reading lnd macaroon from the provided path...')
@@ -168,21 +157,6 @@ def _set_eclair_password(secret):
                        "do you want to update it? [y/N] ")
         if str2bool(rm_sec):
             data = _get_eclair_password()
-    return data, activate_secret, 'password'
-
-
-def _set_electrum_password(secret):
-    """ Handles storage of electrum's password """
-    data = None
-    activate_secret = 1
-    if not secret:
-        data = _get_electrum_password()
-    else:
-        data = secret
-        rm_sec = input("A password for electrum is already stored, "
-                       "do you want to update it? [y/N] ")
-        if str2bool(rm_sec):
-            data = _get_electrum_password()
     return data, activate_secret, 'password'
 
 
@@ -254,15 +228,13 @@ def _recover_secrets(session, password):
     try:
         ecl_pass = get_secret(
             FakeContext(), session, password, 'eclair', 'password')
-        ele_pass = get_secret(
-            FakeContext(), session, password, 'electrum', 'password')
         lnd_mac = get_secret(
             FakeContext(), session, password, 'lnd', 'macaroon')
         lnd_pass = get_secret(
             FakeContext(), session, password, 'lnd', 'password')
     except RuntimeError as err:
         _die(err)
-    return ecl_pass, ele_pass, lnd_mac, lnd_pass
+    return ecl_pass, lnd_mac, lnd_pass
 
 
 def _create_lightning_macaroons(session, password, scrypt_params):
@@ -423,7 +395,7 @@ def _get_req_salt_len(new, interactive=True):
 
 def db_config_interactive(session, new):
     """ Configures a new or existing database interactively """
-    ecl_pass = ele_pass = lnd_mac = lnd_pass = None
+    ecl_pass = lnd_mac = lnd_pass = None
     if new:
         print('Lighter is about to ask for a new password! As humans are '
               'really bad at\ngenerating entropy, we suggest using a password '
@@ -456,8 +428,7 @@ def db_config_interactive(session, new):
             check_password(FakeContext(), session, password)
         except RuntimeError:
             _die('Wrong password')
-        ecl_pass, ele_pass, lnd_mac, lnd_pass = _recover_secrets(
-            session, password)
+        ecl_pass, lnd_mac, lnd_pass = _recover_secrets(session, password)
         seed = _gen_random_data(_get_req_salt_len(new))
     create_mac = input('Do you want to create macaroons (warning: generated '
                        'files should not be kept in\nthis host)? [y/N] ')
@@ -467,8 +438,6 @@ def db_config_interactive(session, new):
     secrets = []
     if sett.IMPLEMENTATION == 'eclair':
         secrets = [_set_eclair_password(ecl_pass)]
-    if sett.IMPLEMENTATION == 'electrum':
-        secrets = [_set_electrum_password(ele_pass)]
     if sett.IMPLEMENTATION == 'lnd':
         secrets = [_set_lnd_macaroon(lnd_mac), _set_lnd_password(lnd_pass)]
     if secrets:  # user gave us secrets to encrypt and save
@@ -481,7 +450,7 @@ def db_config_interactive(session, new):
 
 def db_config_non_interactive(session, new, password):
     """ Configures a new or existing database in batch-mode """
-    ecl_pass = ele_pass = lnd_mac = lnd_pass = None
+    ecl_pass = lnd_mac = lnd_pass = None
     if new:
         salts_len = _get_req_salt_len(new, interactive=False)
         seed = _gen_random_data(salts_len)
@@ -494,8 +463,7 @@ def db_config_non_interactive(session, new, password):
             check_password(FakeContext(), session, password)
         except RuntimeError:
             _die('Wrong password')
-        ecl_pass, ele_pass, lnd_mac, lnd_pass = \
-            _recover_secrets(session, password)
+        ecl_pass, lnd_mac, lnd_pass = _recover_secrets(session, password)
         seed = _gen_random_data(_get_req_salt_len(new, interactive=False))
     create_mac = environ.get('create_macaroons', 0)
     if create_mac:
@@ -503,13 +471,10 @@ def db_config_non_interactive(session, new, password):
         _create_lightning_macaroons(session, password, scrypt_params)
     secrets = []
     ecl_pass = environ.get('eclair_password')
-    ele_pass = environ.get('electrum_password')
     lnd_mac = environ.get('lnd_macaroon')
     lnd_pass = environ.get('lnd_password')
     if ecl_pass:
         secrets.append([ecl_pass.encode(), 1, 'password', 'eclair'])
-    if ele_pass:
-        secrets.append([ele_pass.encode(), 1, 'password', 'electrum'])
     if lnd_mac:
         secrets.append([_get_lnd_macaroon(lnd_mac), 1, 'macaroon', 'lnd'])
     if lnd_pass:

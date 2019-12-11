@@ -5,7 +5,7 @@
 ### Lighter settings ##########################################################
 
 # Set which implementation to use
-# Possible values: clightning, eclair, electrum, lnd (case-insensitive)
+# Possible values: clightning, eclair, lnd (case-insensitive)
 # IMPLEMENTATION=""
 
 # If set to 1, Lighter listens in cleartext (implies DISABLE_MACAROONS="1")
@@ -70,18 +70,6 @@
 
 # Specifies eclair port
 # ECL_PORT="8080"
-
-
-### electrum ###
-
-# Specifies electrum host
-# ELE_HOST="localhost"
-
-# Specifies electrum port
-# ELE_PORT=7777
-
-# Specifies electrum user
-# ELE_USER=user
 
 
 ### lnd ###

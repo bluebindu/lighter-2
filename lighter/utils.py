@@ -122,8 +122,6 @@ def get_start_options(warning=False):
     sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
     if sett.IMPLEMENTATION == 'eclair':
         sett.IMPL_SEC_TYPE = 'password'
-    if sett.IMPLEMENTATION == 'electrum':
-        sett.IMPL_SEC_TYPE = 'password'
     if sett.IMPLEMENTATION == 'lnd':
         sett.IMPL_SEC_TYPE = 'macaroon'
 
@@ -136,8 +134,8 @@ def detect_impl_secret(session):
     error = False
     impl_secret = get_secret_from_db(
         session, sett.IMPLEMENTATION, sett.IMPL_SEC_TYPE)
-    if sett.IMPLEMENTATION == 'eclair' or sett.IMPLEMENTATION == 'electrum':
-        detected = True  # secret always necessary when using eclair/electrum
+    if sett.IMPLEMENTATION == 'eclair':
+        detected = True  # secret always necessary when using eclair
         if not impl_secret or not impl_secret.secret:
             error = True
     if sett.IMPLEMENTATION == 'lnd':
@@ -217,16 +215,12 @@ def command(context, *args_cmd, **kwargs):
 class RPCSession():  # pylint: disable=too-few-public-methods
     """ Creates and mantains an RPC session open """
 
-    def __init__(self, auth=None, headers=None, jsonrpc_ver='2.0'):
+    def __init__(self, auth=None):
         self._session = ReqSession()
         self._auth = auth
-        self._headers = headers
-        self._jsonrpc_ver = jsonrpc_ver
-        self._id_count = 0
 
     def call(self, context, data=None, url=None, timeout=None):
         """ Makes an RPC call using the opened session """
-        self._id_count += 1
         if url is None:
             url = sett.RPC_URL
         if timeout is None:
@@ -285,27 +279,6 @@ class EclairRPC(RPCSession):
         return call_adapter
 
 
-class ElectrumRPC(RPCSession):
-    """ Creates and mantains an RPC session with electrum """
-
-    def __init__(self):
-        super().__init__(headers={'content-type': 'application/json'})
-
-    def __getattr__(self, name):
-
-        def call_adapter(context, params=None, timeout=None):
-            if not params:
-                params = {}
-            payload = dumps(
-                {"id": self._id_count, "method": name,
-                 "params": params, "jsonrpc": self._jsonrpc_ver})
-            LOGGER.debug("request: %s", payload)
-            return super(ElectrumRPC, self).call(context, payload,
-                                                 timeout=timeout)
-
-        return call_adapter
-
-
 class Enforcer():  # pylint: disable=too-few-public-methods
     """
     Enforces BOLTs rules and value limits.
@@ -319,10 +292,7 @@ class Enforcer():  # pylint: disable=too-few-public-methods
 
     DEFAULT = {'min_value': 0, 'unit': MSATS}
 
-    # BOLT2 suggests (but does not enforce) a reserve of 1% of the channel
-    # funding total, and the reserve cannot be lower than the dust limit.
-    FUNDING_SATOSHIS = {'min_value': 100 * sett.DUST_LIMIT_SAT,
-                        'max_value': 2**24, 'unit': SATS}
+    FUNDING_SATOSHIS = {'max_value': 2**24, 'unit': SATS}
     PUSH_MSAT = {'max_value': 2**24 * 1000, 'unit': MSATS}
     LN_PAYREQ = {'min_value': 0, 'max_value': 2**32, 'unit': MSATS}
     LN_TX = {'min_value': 1, 'max_value': 2**32, 'unit': MSATS}
@@ -507,13 +477,6 @@ def has_amount_encoded(payment_request):
 def _has_numbers(input_string):
     """ Checks if string contains any number """
     return any(char.isdigit() for char in input_string)
-
-
-def get_address_type(address):
-    """ Returns the type of an address """
-    if address[0] in ['b', 't']:
-        return pb.P2WKH
-    return pb.NP2WKH
 
 
 def get_channel_balances(context, channels):

@@ -11,7 +11,7 @@ Paths are relative to the project directory, unless otherwise stated.
 
 | Variable                      | Description                                                                |
 | ----------------------------- | -------------------------------------------------------------------------- |
-| `IMPLEMENTATION` <sup>1</sup> | Implementation to use (possible values: `clightning`, `eclair`, `electrum`, `lnd`; no default) |
+| `IMPLEMENTATION` <sup>1</sup> | Implementation to use (possible values: `clightning`, `eclair`, `lnd`; no default) |
 | `INSECURE_CONNECTION`         | Set to `1` to make Lighter listen in cleartext (default `0`). Implies disabling macaroons. |
 | `PORT`                        | Lighter's listening port (default `1708`)                                  |
 | `SERVER_KEY` <sup>2</sup>     | Private key path (default `./lighter-data/certs/server.key`)               |
@@ -33,9 +33,6 @@ Paths are relative to the project directory, unless otherwise stated.
 | `CL_RPC` <sup>6</sup>        | c-lightning JSON-RPC socket (relative; default `lightning-rpc`) |
 | `ECL_HOST`                   | eclair host <sup>7</sup> (default `localhost`)                  |
 | `ECL_PORT` <sup>8</sup>      | eclair port (default `8080`)                                    |
-| `ELE_HOST`                   | electrum host <sup>7</sup> (default `localhost`)                |
-| `ELE_PORT`                   | electrum port (default `7777`)                                  |
-| `ELE_USER`                   | electrum user (default `user`)                                  |
 | `LND_HOST`                   | lnd host <sup>7</sup> (default `localhost`)                     |
 | `LND_PORT`                   | lnd port (default `10009`)                                      |
 | `LND_CERT_DIR`               | lnd location <sup>4</sup> containing `LND_CERT`                 |

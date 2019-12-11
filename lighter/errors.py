@@ -104,11 +104,6 @@ ERRORS = {
         'msg': ("The gRPC parameter '%PARAM%' is not supported for this "
                 'implementation')
     },
-    'unimplemented_param_value': {
-        'code': 'UNIMPLEMENTED',
-        'msg': ("Field '%PARAM%' doesn't support value '%PARAM%' on this "
-                "implementation")
-    },
     'unsettable': {
         'code': 'INVALID_ARGUMENT',
         'msg': "Parameter '%PARAM%' unsettable"
@@ -140,17 +135,16 @@ class Err():  # pylint: disable=too-few-public-methods
     """ Class necessary to implement the __getattr__ method """
     def __getattr__(self, name):
         """ Dispatches the called error dynamically """
-        def error_dispatcher(context, *params):
+        def error_dispatcher(context, param=None):
             if name in ERRORS.keys():
                 scode = getattr(StatusCode, ERRORS[name]['code'])
                 msg = ''
                 if 'msg' in ERRORS[name]:
                     msg = ERRORS[name]['msg']
-                if params:
-                    for param in params:
-                        msg = sub('%PARAM%', str(param), msg, 1)
+                if param:
+                    msg = sub('%PARAM%', str(param), msg)
                 if name == 'unexpected_error':
-                    msg = params[0]
+                    msg = param
                     LOGGER.error('Unexpected error: %s', msg)
                 LOGGER.error('> %s', msg)
                 context.abort(scode, msg)

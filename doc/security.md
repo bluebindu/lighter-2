@@ -47,7 +47,6 @@ secrets to `make` via environment variables. As a full-configuration example:
 ```bash
 make lighter_password=somethingSecure create_macaroons=1 \
     eclair_password=eclairPassword \
-    electrum_password=electrumPassword \
     lnd_macaroon=/path/to/lndMacaroon lnd_password=lndPassword \
     secure
 ```
@@ -126,14 +125,6 @@ along with `eclair.api=True`). <sup>1</sup>
 
 If configured to run with eclair, `make secure` will ask to insert or
 update its password.
-
-### electrum
-
-We crypt electrum's password (config `rpcpassword` on the electrum node).
-
-If configured to run with electrum, `make secure` will ask to insert or
-update its password.
-
 
 ### lnd
 
