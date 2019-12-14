@@ -133,7 +133,7 @@ LOGS_LIGHTER = 'lighter.log'
 LOGS_MIGRATIONS = 'migrations.log'
 LOG_TIMEFMT = '%Y-%m-%d %H:%M:%S %z'
 LOG_TIMEFMT_SIMPLE = '%d %b %H:%M:%S'
-LOG_LEVEL_CONSOLE = 'INFO'
+LOGS_LEVEL = 'INFO'
 LOG_LEVEL_FILE = 'DEBUG'
 LOGGING = {
     'version': 1,
@@ -151,7 +151,7 @@ LOGGING = {
     },
     'handlers': {
         'console': {
-            'level': LOG_LEVEL_CONSOLE,
+            'level': LOGS_LEVEL,
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
             'stream': 'ext://sys.stdout'

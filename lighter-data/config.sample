@@ -38,9 +38,6 @@
 # Note: do not disable macaroons in production
 # DISABLE_MACAROONS="0"
 
-# Specifies the namespace for the docker image
-# DOCKER_NS="inbitcoin"
-
 ###############################################################################
 
 

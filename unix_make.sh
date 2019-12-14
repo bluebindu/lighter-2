@@ -388,9 +388,10 @@ docker_bash_env() {
 }
 
 set_defaults() {
-	declare -a vars=(PORT SERVER_KEY SERVER_CRT LOGS_DIR DB_DIR DB_NAME CERTS_DIR
-					 MACAROONS_DIR CL_CLI CL_RPC ECL_HOST ECL_PORT LND_HOST
-					 LND_PORT LND_CERT CLI_HOST)
+	declare -a vars=(INSECURE_CONNECTION PORT SERVER_KEY SERVER_CRT LOGS_DIR
+					 LOGS_LEVEL DB_DIR MACAROONS_DIR DISABLE_MACAROONS
+					 CL_CLI CL_RPC ECL_HOST ECL_PORT ELE_HOST ELE_PORT ELE_USER
+					 LND_HOST LND_PORT LND_CERT CLI_HOST DB_NAME CERTS_DIR)
 	for var_name in "${vars[@]}"; do
 		def_val=$(python3 -c "from lighter.settings import $var_name; print($var_name)")
 		[ -z "${!var_name}" ] && export ${var_name}="${def_val}"
