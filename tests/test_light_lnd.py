@@ -36,57 +36,48 @@ CTX = 'context'
 class LightLndTests(TestCase):
     """ Tests for light_lnd module """
 
+    @patch('lighter.light_lnd.ssl_channel_credentials')
+    def test_get_settings(self, mocked_ssl_chan):
+        # Correct case: with macaroons
+        values = {
+            'LND_HOST': 'lnd',
+            'LND_PORT': '10009',
+            'LND_CERT_DIR': '/path',
+            'LND_CERT': 'tls.cert',
+        }
+        mocked_ssl_chan.return_value = 'cert_creds'
+        mopen = mock_open(read_data='cert')
+        with patch.dict('os.environ', values):
+            with patch('lighter.light_lnd.open', mopen):
+                MOD.get_settings()
+        mopen.assert_called_with('/path/tls.cert', 'rb')
+        mopen.return_value.read.assert_called_once_with()
+        mocked_ssl_chan.assert_called_with('cert')
+        self.assertEqual(
+            settings.LND_ADDR, '{}:{}'.format(values['LND_HOST'],
+                                              values['LND_PORT']))
+        self.assertEqual(settings.LND_CREDS_FULL, 'cert_creds')
+        self.assertEqual(settings.IMPL_SEC_TYPE, 'macaroon')
+
     @patch('lighter.light_lnd.composite_channel_credentials')
     @patch('lighter.light_lnd.metadata_call_credentials')
     @patch('lighter.light_lnd._metadata_callback')
-    @patch('lighter.light_lnd.ssl_channel_credentials')
-    def test_update_settings(self, mocked_ssl_chan, mocked_callback,
+    def test_update_settings(self, mocked_callback,
                              mocked_meta_call, mocked_comp_chan):
         # Correct case: with macaroons
-        reset_mocks(vars())
-        values = {
-            'LND_HOST': 'lnd',
-            'LND_PORT': '10009',
-            'LND_CERT_DIR': '/path',
-            'LND_CERT': 'tls.cert',
-        }
-        mocked_ssl_chan.return_value = 'cert_creds'
+        settings.LND_CREDS_SSL = 'cert_creds'
         mocked_meta_call.return_value = 'auth_creds'
         mocked_comp_chan.return_value = 'combined_creds'
-        mopen = mock_open(read_data='cert')
-        with patch.dict('os.environ', values):
-            with patch('lighter.light_lnd.open', mopen):
-                MOD.update_settings('mac')
-        mopen.assert_called_with('/path/tls.cert', 'rb')
-        mopen.return_value.read.assert_called_once_with()
-        mocked_ssl_chan.assert_called_with('cert')
+        MOD.update_settings('mac')
         mocked_meta_call.assert_called_with(mocked_callback)
         mocked_comp_chan.assert_called_with('cert_creds', 'auth_creds')
-        self.assertEqual(
-            settings.LND_ADDR, '{}:{}'.format(values['LND_HOST'],
-                                              values['LND_PORT']))
         self.assertEqual(settings.LND_CREDS_FULL, 'combined_creds')
         # Correct case: without macaroons
         reset_mocks(vars())
-        values = {
-            'LND_HOST': 'lnd',
-            'LND_PORT': '10009',
-            'LND_CERT_DIR': '/path',
-            'LND_CERT': 'tls.cert',
-        }
-        mocked_ssl_chan.return_value = 'cert_creds'
-        mopen = mock_open(read_data='cert')
-        with patch.dict('os.environ', values):
-            with patch('lighter.light_lnd.open', mopen):
-                MOD.update_settings(None)
-        mopen.assert_called_with('/path/tls.cert', 'rb')
-        mopen.return_value.read.assert_called_once_with()
-        mocked_ssl_chan.assert_called_with('cert')
+        settings.LND_CREDS_FULL = 'cert_creds'
+        MOD.update_settings(None)
         assert not mocked_meta_call.called
         assert not mocked_comp_chan.called
-        self.assertEqual(
-            settings.LND_ADDR, '{}:{}'.format(values['LND_HOST'],
-                                              values['LND_PORT']))
         self.assertEqual(settings.LND_CREDS_FULL, 'cert_creds')
 
     def test_metadata_callback(self):

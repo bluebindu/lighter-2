@@ -97,13 +97,8 @@ ERRORS = {
 }
 
 
-def update_settings(_dummy):
-    """
-    Updates c-lightning specific settings
-
-    KeyError exception raised by missing dictionary keys in environ
-    are left unhandled on purpose and later catched by lighter.start()
-    """
+def get_settings():
+    """ Gets c-lightning settings """
     cl_cli_dir = environ['CL_CLI_DIR']
     cl_cli = environ['CL_CLI']
     cl_cli_path = path.join(cl_cli_dir, cl_cli)
@@ -114,6 +109,10 @@ def update_settings(_dummy):
         '--rpc-file={}'.format(cl_rpc), '-k'
     ]
     settings.CMD_BASE = [cl_cli_path] + cl_options
+
+
+def update_settings(_dummy):
+    """ Updates c-lightning specific settings """
 
 
 def GetInfo(request, context):  # pylint: disable=unused-argument

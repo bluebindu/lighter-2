@@ -31,7 +31,7 @@ CTX = 'context'
 class LightClightningTests(TestCase):
     """ Tests for light_clightning module """
 
-    def test_update_settings(self):
+    def test_get_settings(self):
         # Correct case
         values = {
             'CL_CLI': 'lightning-cli',
@@ -40,7 +40,7 @@ class LightClightningTests(TestCase):
             'CL_RPC_DIR': '/path/'
         }
         with patch.dict('os.environ', values):
-            MOD.update_settings(None)
+            MOD.get_settings()
         self.assertEqual(settings.CMD_BASE, [
             '/path/lightning-cli', '--lightning-dir={}'.format(
                 values['CL_RPC_DIR']), '--rpc-file={}'.format(
@@ -52,8 +52,11 @@ class LightClightningTests(TestCase):
         values = {}
         with patch.dict('os.environ', values):
             with self.assertRaises(KeyError):
-                MOD.update_settings(None)
+                MOD.get_settings()
         self.assertEqual(settings.CMD_BASE, '')
+
+    def test_update_settings(self):
+        MOD.update_settings(None)
 
     @patch('lighter.light_clightning._handle_error', autospec=True)
     @patch('lighter.light_clightning.command', autospec=True)

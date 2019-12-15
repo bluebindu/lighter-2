@@ -30,6 +30,10 @@ CTX = 'context'
 class LightElectrumTests(TestCase):
     """ Tests for light_electrum module """
 
+    def test_get_settings(self):
+        MOD.get_settings()
+        self.assertEqual(settings.IMPL_SEC_TYPE, 'password')
+
     def test_update_settings(self):
         # Correct case
         pwd = 'password'

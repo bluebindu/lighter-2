@@ -114,12 +114,15 @@ class UtilsTests(TestCase):
         res = MOD.FakeContext().time_remaining()
         self.assertEqual(res, None)
 
-    def test_get_start_options(self):
+    @patch('lighter.utils.getattr')
+    @patch('lighter.utils.import_module', autospec=True)
+    def test_get_start_options(self, mocked_import, mocked_getattr):
         settings.INSECURE_CONNECTION = 0
         # Secure connection case with macaroons enabled
         reset_mocks(vars())
+        impl = 'lnd'
         values = {
-            'IMPLEMENTATION': 'lnd',
+            'IMPLEMENTATION': impl,
             'SERVER_CRT': 'crt',
             'SERVER_KEY': 'key',
             'DB_DIR': 'mac_db_dir',
@@ -128,7 +131,10 @@ class UtilsTests(TestCase):
         with patch.dict('os.environ', values):
             MOD.get_start_options()
         self.assertEqual(settings.INSECURE_CONNECTION, False)
-        self.assertEqual(settings.IMPL_SEC_TYPE, 'macaroon')
+        mocked_import.assert_called_once_with('lighter.light_' + impl)
+        mocked_getattr.assert_called_with(
+            mocked_import.return_value, 'get_settings')
+        mocked_getattr.return_value.assert_called_once_with()
         # Insecure connection case
         settings.IMPLEMENTATION_SECRETS = False
         values = {
@@ -139,7 +145,6 @@ class UtilsTests(TestCase):
             MOD.get_start_options()
         self.assertEqual(settings.INSECURE_CONNECTION, True)
         self.assertEqual(settings.DISABLE_MACAROONS, True)
-        self.assertEqual(settings.IMPL_SEC_TYPE, 'password')
         # No secrets case (with warning)
         reset_mocks(vars())
         values = {
@@ -149,12 +154,6 @@ class UtilsTests(TestCase):
         }
         with patch.dict('os.environ', values):
             MOD.get_start_options(warning=True)
-        # Electrum case
-        reset_mocks(vars())
-        values = {'IMPLEMENTATION': 'electrum'}
-        with patch.dict('os.environ', values):
-            MOD.get_start_options()
-        self.assertEqual(settings.IMPL_SEC_TYPE, 'password')
 
     @patch('lighter.utils.get_secret_from_db', autospec=True)
     def test_detect_impl_secret(self, mocked_db_sec):

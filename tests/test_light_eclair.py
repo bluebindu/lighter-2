@@ -31,19 +31,24 @@ CTX = 'context'
 class LightEclairTests(TestCase):
     """ Tests for light_eclair module """
 
-    def test_update_settings(self):
-        password = b'password'
+    def test_get_settings(self):
         # Correct case
-        reset_mocks(vars())
         values = {
             'ECL_HOST': 'eclair',
             'ECL_PORT': '8080',
         }
         with patch.dict('os.environ', values):
-            MOD.update_settings(password)
+            MOD.get_settings()
+        self.assertEqual(settings.IMPL_SEC_TYPE, 'password')
         self.assertEqual(
             settings.RPC_URL,
             'http://{}:{}'.format(values['ECL_HOST'], values['ECL_PORT']))
+
+    def test_update_settings(self):
+        password = b'password'
+        # Correct case
+        MOD.update_settings(password)
+        self.assertEqual(settings.ECL_PASS, password.decode())
 
     @patch('lighter.light_eclair._handle_error', autospec=True)
     @patch('lighter.light_eclair.EclairRPC')

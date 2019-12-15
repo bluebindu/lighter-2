@@ -81,19 +81,19 @@ ERRORS = {
 }
 
 
-def update_settings(password):
-    """
-    Updates eclair specific settings
-
-    KeyError exception raised by missing dictionary keys in environ
-    are left unhandled on purpose and later catched by lighter.start()
-    """
+def get_settings():
+    """ Gets eclair settings """
+    settings.IMPL_SEC_TYPE = 'password'
     ecl_host = environ.get('ECL_HOST', settings.ECL_HOST)
     ecl_port = environ.get('ECL_PORT', settings.ECL_PORT)
-    ecl_pass = password.decode()
-    settings.ECL_PASS = ecl_pass
     ecl_url = '{}:{}'.format(ecl_host, ecl_port)
     settings.RPC_URL = 'http://{}:{}'.format(ecl_host, ecl_port)
+
+
+def update_settings(password):
+    """ Updates eclair specific settings """
+    ecl_pass = password.decode()
+    settings.ECL_PASS = ecl_pass
 
 
 def GetInfo(request, context):  # pylint: disable=unused-argument

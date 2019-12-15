@@ -44,6 +44,11 @@ ERRORS = {
 ELE_LN_TX = {'min_value': 1, 'max_value': 2**32, 'unit': Enf.SATS}
 
 
+def get_settings():
+    """ Gets electrum settings """
+    settings.IMPL_SEC_TYPE = 'password'
+
+
 def update_settings(password):
     """ Updates electrum specific settings """
     ele_host = environ.get('ELE_HOST', settings.ELE_HOST)

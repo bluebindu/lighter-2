@@ -160,13 +160,9 @@ LND_FUNDING = {'min_value': 20000, 'max_value': 2**24, 'unit': Enf.SATS}
 LND_PUSH = {'min_value': 0, 'max_value': 2**24, 'unit': Enf.SATS}
 
 
-def update_settings(macaroon):
-    """
-    Updates lnd specific settings
-
-    KeyError exception raised by missing dictionary keys in environ
-    are left unhandled on purpose and later catched by lighter.start()
-    """
+def get_settings():
+    """ Gets lnd settings """
+    settings.IMPL_SEC_TYPE = 'macaroon'
     lnd_host = environ.get('LND_HOST', settings.LND_HOST)
     lnd_port = environ.get('LND_PORT', settings.LND_PORT)
     settings.LND_ADDR = '{}:{}'.format(lnd_host, lnd_port)
@@ -178,6 +174,10 @@ def update_settings(macaroon):
     # Build ssl credentials using the cert
     settings.LND_CREDS_FULL = settings.LND_CREDS_SSL = \
         ssl_channel_credentials(cert)
+
+
+def update_settings(macaroon):
+    """ Updates lnd specific settings """
     if macaroon:
         LOGGER.info("Connecting to lnd in secure mode (tls + macaroon)")
         settings.LND_MAC = macaroon

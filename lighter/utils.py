@@ -99,7 +99,12 @@ def check_connection():
 
 
 def get_start_options(warning=False):
-    """ Sets Lighter start options """
+    """
+    Sets Lighter and implementation start options
+
+    KeyError exception raised by missing dictionary keys in environ
+    are left unhandled on purpose and later catched by lighter.start()
+    """
     sett.IMPLEMENTATION = env['IMPLEMENTATION'].lower()
     bool_opt = {
         'INSECURE_CONNECTION': sett.INSECURE_CONNECTION,
@@ -120,12 +125,9 @@ def get_start_options(warning=False):
     else:
         sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
     sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
-    if sett.IMPLEMENTATION == 'eclair':
-        sett.IMPL_SEC_TYPE = 'password'
-    if sett.IMPLEMENTATION == 'electrum':
-        sett.IMPL_SEC_TYPE = 'password'
-    if sett.IMPLEMENTATION == 'lnd':
-        sett.IMPL_SEC_TYPE = 'macaroon'
+    sett.DB_PATH = path.join(sett.DB_DIR, sett.DB_NAME)
+    module = import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
+    getattr(module, 'get_settings')()
 
 
 def detect_impl_secret(session):
