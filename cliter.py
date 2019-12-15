@@ -13,7 +13,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Implementation of a CLI (Command Line Interface) to command Lighter """
+"""
+Implementation of a CLI (Command Line Interface) to command Lighter
+
+- Exits with code 0 if everything is OK
+- Exits with code 1 when a general client-side error occurs
+- Exits with code 64 + <gRPC status code> when a gRPC error is raised by server
+(https://github.com/grpc/grpc/blob/master/doc/statuscodes.md)
+"""
 
 import sys
 
@@ -78,10 +85,10 @@ def _get_order(ctx, args, incomplete):
         return [k for k in orders if k.startswith(incomplete)]
 
 
-def _die(message):
-    """ Prints message to stderr with error code 1 """
+def _die(message, exit_code=1):
+    """ Prints message to stderr with specified error code """
     echo(message, err=True)
-    sys.exit(1)
+    sys.exit(exit_code)
 
 
 def _get_cli_options():
@@ -140,7 +147,8 @@ def handle_call(func):
             # pylint: disable=no-member
             json_err = {
                 'code': err.code().name, 'details': err.details()}
-            echo(dumps(json_err, indent=4, sort_keys=True))
+            error = dumps(json_err, indent=4, sort_keys=True)
+            _die(error, settings.CLI_BASE_GRPC_CODE + err.code().value[0])
         except Exception as err:
             _die('Error, terminating cli: {}'.format(err))
 
