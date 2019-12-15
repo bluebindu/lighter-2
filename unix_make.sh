@@ -296,11 +296,16 @@ _get_lnd_mac() {
 }
 
 _check_lnd_mac() {
-	[ ! -f "$macaroon_path" ] && \
-		_die "Could not find macaroon in specified path"
-	[ ! -r "$macaroon_path" ] && \
-		_die "Could not read macaroon in specified path (hint: check file permissions)"
+	_check_file "macaroon" "$macaroon_path"
 	export LND_MAC_PATH="$macaroon_path"
+}
+
+_check_file() {
+	file="$1" && file_path="$2"
+	[ ! -f "$file_path" ] && \
+		_die "Could not find ${file} in specified path"
+	[ ! -r "$file_path" ] && \
+		_die "Could not read ${file} in specified path (hint: check file permissions)"
 }
 
 set_lnd_mac() {
@@ -409,6 +414,15 @@ pairing() {
 	export config_file="$1"
 	_parse_config > /dev/null
 	[ "${INSECURE_CONNECTION}" == "1" ] && DISABLE_MACAROONS="1"
+	if [ "${INSECURE_CONNECTION}" == "0" ]; then
+		_check_file "certificate" "$SERVER_CRT"
+	fi
+	if [ "${DISABLE_MACAROONS}" == "0" ]; then
+		_check_file "macaroon" "$MACAROONS_DIR/admin.macaroon"
+		_check_file "macaroon" "$MACAROONS_DIR/readonly.macaroon"
+		_check_file "macaroon" "$MACAROONS_DIR/invoices.macaroon"
+	fi
+
 	_init_venv > /dev/null
 	. "$ENV/bin/activate"
 	_install_pips qrcode[pil] > /dev/null
