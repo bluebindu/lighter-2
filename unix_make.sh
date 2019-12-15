@@ -84,8 +84,13 @@ _check_result() {
 }
 
 check_deps() {
+	_check_deps $params
+}
+
+_check_deps() {
 	# Checks if given dependencies are installed
-	for dep in $params; do
+	deps="$*"
+	for dep in $deps; do
 		which "$dep" > /dev/null
 		_check_result $? "Checking dependency $dep..."
 	done
@@ -104,8 +109,9 @@ _init_venv() {
 }
 
 _install_pips() {
+	pips="$*"
 	pip install -q -U pip
-	pip install -q $params || \
+	pip install -q $pips || \
 		_die "Installation of pips failed (hint: run 'make clean')"
 	_check_result $? "Pip requirements..."
 }
@@ -123,13 +129,13 @@ setup_common() {
 	# Activates virtualenv after its creation and installs required pips
 	_init_venv
 	. "$ENV/bin/activate"
-	$PROG _install_pips $params
+	_install_pips $params
 }
 
 setup_lnd() {
 	# Downloads rpc.proto and googleapis, which are needed by lnd
 	. "$ENV/bin/activate"
-	$PROG _install_pips $params
+	_install_pips $params
 	cd "$L_DIR" || _die "Directory '$L_DIR' is missing"
 	curl -s -o "$LND_PROTO" "$LND_URL/$LND_REF/lnrpc/$LND_PROTO"
 	_check_result $? "Lnd's proto download..."
@@ -230,7 +236,7 @@ run() {
 
 _check_compose() {
 	if ! which docker-compose > /dev/null; then
-		$PROG _install_pips docker-compose==1.25.0
+		_install_pips docker-compose==1.25.0
 	fi
 }
 
@@ -249,7 +255,7 @@ _secure_interactive() {
 	_parse_config
 	_check_db
 	[ "$IMPLEMENTATION" = "lnd" ] && _get_lnd_mac
-	$PROG _install_pips $common_pips
+	_install_pips $common_pips
 	build_common
 	python3 -c 'from migrate import migrate; migrate()'
 	python3 -c 'from secure import secure; secure()'
@@ -264,7 +270,7 @@ _secure_non_interactive() {
 		macaroon_path="$lnd_macaroon"
 		_check_lnd_mac > /dev/null
 	fi
-	$PROG _install_pips $common_pips > /dev/null
+	_install_pips $common_pips > /dev/null
 	build_common > /dev/null
 	python3 -c 'from migrate import migrate; migrate()' > /dev/null 2>&1
 	python3 -c 'from secure import secure; secure()' > /dev/null
@@ -405,8 +411,8 @@ pairing() {
 	[ "${INSECURE_CONNECTION}" == "1" ] && DISABLE_MACAROONS="1"
 	_init_venv > /dev/null
 	. "$ENV/bin/activate"
-	$PROG _install_pips qrcode[pil]  > /dev/null
-	$PROG check_deps curl  > /dev/null
+	_install_pips qrcode[pil] > /dev/null
+	_check_deps curl > /dev/null
 
 	echo -e "\nStep 1: paring mode selection"
 	PS3="Which one do you want to use? "
