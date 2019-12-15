@@ -104,7 +104,7 @@ if __name__ == '__main__':
         packages=['lighter'],
         install_requires=[
             'Click~=7.0',
-            'grpcio~=1.22.1',
+            'grpcio~=1.25.0',
             'protobuf~=3.9.2',
         ],
         setup_requires=[
