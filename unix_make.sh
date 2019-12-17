@@ -234,12 +234,6 @@ run() {
 	fi
 }
 
-_check_compose() {
-	if ! which docker-compose > /dev/null; then
-		_install_pips docker-compose==1.25.0
-	fi
-}
-
 secure() {
 	export config_file="$1" VERSION="$2" && shift 2 && common_pips="$*"
 	if [ -z "$lighter_password" ]; then
@@ -254,7 +248,6 @@ _secure_interactive() {
 	. "$ENV/bin/activate"
 	_parse_config
 	_check_db
-	[ "$IMPLEMENTATION" = "lnd" ] && _get_lnd_mac
 	_install_pips $common_pips
 	build_common
 	python3 -c 'from migrate import migrate; migrate()'
@@ -266,10 +259,6 @@ _secure_non_interactive() {
 	. "$ENV/bin/activate"
 	_parse_config > /dev/null
 	[ ! -r "$DB_DIR/$DB_NAME" ] && export NO_DB=1
-	if [ ! -z "$lnd_macaroon" ]; then
-		macaroon_path="$lnd_macaroon"
-		_check_lnd_mac > /dev/null
-	fi
 	_install_pips $common_pips > /dev/null
 	build_common > /dev/null
 	python3 -c 'from migrate import migrate; migrate()' > /dev/null 2>&1
@@ -287,37 +276,12 @@ _check_db() {
 	fi
 }
 
-_get_lnd_mac() {
-	printf "If your lnd instance requires a macaroon for authorization, provide its path\nhere (filename included, overrides current one if any) or just press enter to\nprovide none (skip)\n"
-	read -r macaroon_path
-	if [ -n "$macaroon_path" ]; then
-		_check_lnd_mac
-	fi
-}
-
-_check_lnd_mac() {
-	_check_file "macaroon" "$macaroon_path"
-	export LND_MAC_PATH="$macaroon_path"
-}
-
 _check_file() {
 	file="$1" && file_path="$2"
 	[ ! -f "$file_path" ] && \
 		_die "Could not find ${file} in specified path"
 	[ ! -r "$file_path" ] && \
 		_die "Could not read ${file} in specified path (hint: check file permissions)"
-}
-
-set_lnd_mac() {
-	file="$1"
-	temp_file="/srv/lnd/.lnd/lnd.macaroon"
-	mkdir -p "/srv/lnd/.lnd"
-	if [ -r "$file" ]; then
-		cp "$file" "$temp_file"
-		chown "$USER" "$temp_file"
-		chmod 600 "$temp_file"
-		export LND_MAC_PATH="$temp_file"
-	fi
 }
 
 cli() {

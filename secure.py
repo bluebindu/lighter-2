@@ -137,11 +137,26 @@ def _get_electrum_password():
             return data.encode()
 
 
-def _get_lnd_macaroon(macaroon_path):
+def _get_lnd_macaroon(mac_path=None):
     """ Gets lnd's macaroon from file """
-    print('Reading lnd macaroon from the provided path...')
-    with open(macaroon_path, 'rb') as file:
-        return file.read()
+    def _read_macaroon(mac_path):
+        print('Reading lnd macaroon from the provided path...')
+        try:
+            with open(mac_path, 'rb') as file:
+                return file.read()
+        except OSError as err:
+            _die('Cannot read macaroon file: ' + str(err))
+    if mac_path:
+        return _read_macaroon(mac_path)
+    mac_path = input('If your lnd instance requires a macaroon for '
+                     'authorization, provide its path\nhere (filename included'
+                     ', overrides current one if any) or just press enter to\n'
+                     'provide none (skip) ')
+    if mac_path:
+        return _read_macaroon(mac_path)
+    print('You have not provided a path, usage of lnd without macaroon '
+          '(insecure)')
+    return None
 
 
 def _get_lnd_password():
@@ -190,18 +205,15 @@ def _set_lnd_macaroon(secret):
     """ Handles storage of lnd's macaroon """
     data = None
     activate_secret = 1
-    macaroon_path = environ.get('LND_MAC_PATH')
-    if not secret and not macaroon_path:
-        print("You have not provided a path and there's no macaroon "
-              "stored for lnd, assuming\nusage of lnd without macaroon")
-        activate_secret = 0
-    if macaroon_path:
-        data = _get_lnd_macaroon(macaroon_path)
-        secret = None
-    elif secret:
-        print('A macaroon for lnd is already stored')
+    if not secret:
+        data = _get_lnd_macaroon()
+    else:
         data = secret
-    if secret or macaroon_path:
+        rm_sec = input("A macaroon for lnd is already stored, "
+                       "do you want to update it? [y/N] ")
+        if str2bool(rm_sec):
+            data = _get_lnd_macaroon()
+    if data:
         res = input("Connect to lnd using its macaroon "
                     "(warning: insecure without)? [Y/n] ")
         if not str2bool(res, force_true=True):
