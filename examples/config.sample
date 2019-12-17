@@ -1,98 +1,113 @@
 # Values assigned to commented variables are the default ones
+# Option names are case insensitive
+# Paths are relative to Lighter's data directory (default ~/.lighter)
 
 
-
-### Lighter settings ##########################################################
+[lighter]
 
 # Set which implementation to use
 # Possible values: clightning, eclair, electrum, lnd (case-insensitive)
-# IMPLEMENTATION=""
+#implementation =
 
 # If set to 1, Lighter listens in cleartext (implies DISABLE_MACAROONS="1")
 # Possible values: 0, 1
-# INSECURE_CONNECTION="0"
+#insecure_connection = 0
 
 # Set Lighter's listening port
-# PORT="1708"
+#port = 1708
 
 # Specifies the private key path
-# SERVER_KEY="./lighter-data/certs/server.key"
+#server_key = ./certs/server.key
 
 # Specifies the certificate (chain) path
-# SERVER_CRT="./lighter-data/certs/server.crt"
+#server_crt = ./certs/server.crt
 
 # Specifies the location which will contain the logs
-# LOGS_DIR="./lighter-data/logs"
+#logs_dir = ./logs
 
 # Specifies the desired console log level
 # Possible values: critical, error, warning, info, debug
-# LOGS_LEVEL="info"
+#logs_level = info
 
 # Specifies the location which will contain the database
-# DB_DIR="./lighter-data/db"
+#db_dir = ./db
 
 # Specifies the location which will contain the macaroons
-# MACAROONS_DIR="./lighter-data/macaroons"
+#macaroons_dir = ./macaroons
 
 # If set to 1, macaroon authorization will be disabled
 # Note: do not disable macaroons in production
-# DISABLE_MACAROONS="0"
-
-###############################################################################
-
+# Possible values: 0, 1
+#disable_macaroons = 0
 
 
-### Implementation settings ###################################################
+[cliter]
+
+# Specifies Lighter host (IP or FQDN) and optional port
+#rpcserver = localhost:1708
+
+# Specifies the location of Lighter's certificate (chain) path
+#tlscert = ./certs/server.crt
+
+# Specifies the location of Lighter's macaroon
+#macaroon = ./macaroons/admin.macaroon
+
+# If set to 1, cliter tries to connect to Lighter in cleartext
+# (implies no_macaroon="1")
+# Possible values: 0, 1
+#insecure = 0
+
+# If set to 1, cliter tries to connect to Lighter with no macaroon
+# Possible values: 0, 1
+#no_macaroon = 0
 
 
-### c-lightning ###
+[clightning]
 
 # Specifies the location containing the CLI binary
-# CL_CLI_DIR=""
+#cl_cli_dir =
 
 # Specifies the c-lightning CLI binary, relative to CL_CLI_DIR
-# CL_CLI="lightning-cli"
+#cl_cli = lightning-cli
 
 # Specifies the location containing the RPC file
-# CL_RPC_DIR=""
+#cl_rpc_dir =
 
 # Specifies the c-lightning JSON-RPC socket file, relative to CL_RPC_DIR
-# CL_RPC="lightning-rpc"
+#cl_rpc = lightning-rpc
 
 
-### eclair ###
+[eclair]
 
 # Specifies eclair host
-# ECL_HOST="localhost"
+#ecl_host = localhost
 
 # Specifies eclair port
-# ECL_PORT="8080"
+#ecl_port = 8080
 
 
-### electrum ###
+[electrum]
 
 # Specifies electrum host
-# ELE_HOST="localhost"
+#ele_host = localhost
 
 # Specifies electrum port
-# ELE_PORT=7777
+#ele_port = 7777
 
 # Specifies electrum user
-# ELE_USER=user
+#ele_user = user
 
 
-### lnd ###
+[lnd]
 
 # Specifies lnd host
-# LND_HOST="localhost"
+#lnd_host = localhost
 
 # Specifies lnd port
-# LND_PORT="10009"
+#lnd_port = 10009
 
 # Specifies the location containing the lnd certificate file
-# LND_CERT_DIR=""
+#lnd_cert_dir =
 
 # Specifies the lnd certificate file, relative to LND_CERT_DIR
-# LND_CERT="tls.cert"
-
-###############################################################################
+#lnd_cert = tls.cert

@@ -1,31 +1,62 @@
 stages:
+  - prepare
   - test
+  - post
 
 variables:
   NAME: lighter
+  NAME_PIP: lighter-bitcoin
   DOCK_NS: inbitcoin
   GIT_DEPTH: "3"
-  APP_DIR: /srv/app
-  ENV_DIR: /srv/env
 
-image: docker:stable
+default:
+  image: docker:stable
+  services:
+    - docker:stable-dind
+  before_script:
+    - apt-get update && apt-get install -y libscrypt0 python3-pip zsh
+    - pip3 install --user --upgrade pip setuptools wheel
 
-services:
-  - docker:stable-dind
-
-before_script:
-  - apk add --update bash py3-virtualenv
+source_dist:
+  stage: prepare
+  image: debian:buster-slim
+  only:
+    - master
+    - develop
+    - /^merge\/.*$/
+  artifacts:
+    paths:
+      - dist/
+  script:
+    - python3 setup.py sdist bdist_wheel
 
 test:
   stage: test
   variables:
     VERSION: latest
-    PYTEST: $ENV_DIR/bin/pytest
   only:
-  - master
-  - develop
-  - /^merge\/.*$/
+    - master
+    - develop
+    - /^merge\/.*$/
+  before_script: []
   script:
     - docker build -f docker/Dockerfile -t $DOCK_NS/$NAME:$VERSION .
     - docker build -f docker/Dockerfile.ci -t $DOCK_NS/$NAME-ci:$VERSION .
-    - docker run --rm --entrypoint $PYTEST $DOCK_NS/$NAME-ci -v --cov=$NAME --cov-report=term-missing
+    - docker run --rm -u lighter --entrypoint python3 $DOCK_NS/$NAME-ci setup.py test
+
+pypi_test:
+  stage: post
+  image: debian:buster-slim
+  dependencies:
+    - source_dist
+  variables:
+    TEST_PYPI_UPLOAD_URL: https://test.pypi.org/legacy/
+    TEST_PYPI_INDEX_URL: https://test.pypi.org/simple/
+    PYPI_INDEX_URL: https://pypi.org/simple
+    TWINE_NON_INTERACTIVE: 1
+  only:
+    - tags
+  script:
+    - python3 -m pip install --user --upgrade twine
+    - python3 -m twine upload --repository-url "$TEST_PYPI_UPLOAD_URL" -u $TEST_PYPI_USER -p $TEST_PYPI_PASS dist/*
+    - python3 -m pip install --index-url "$TEST_PYPI_INDEX_URL" --extra-index-url "$PYPI_INDEX_URL" $NAME_PIP

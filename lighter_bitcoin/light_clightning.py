@@ -20,13 +20,13 @@ from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
 from datetime import datetime
 from logging import getLogger
-from os import environ, path
+from os import path
 
 from . import lighter_pb2 as pb
 from . import settings
 from .utils import check_req_params, command, convert, Enforcer as Enf, \
-    FakeContext, get_channel_balances, get_thread_timeout, get_node_timeout, \
-    handle_thread, has_amount_encoded
+    FakeContext, get_channel_balances, get_path, get_thread_timeout, \
+    get_node_timeout, handle_thread, has_amount_encoded, set_defaults
 from .errors import Err
 
 LOGGER = getLogger(__name__)
@@ -97,13 +97,16 @@ ERRORS = {
 }
 
 
-def get_settings():
+def get_settings(config, sec):
     """ Gets c-lightning settings """
-    cl_cli_dir = environ['CL_CLI_DIR']
-    cl_cli = environ['CL_CLI']
+    cl_values = ['CL_CLI', 'CL_RPC']
+    set_defaults(config, cl_values)
+    cl_cli_dir = get_path(config.get(sec, 'CL_CLI_DIR'))
+    cl_cli = config.get(sec, 'CL_CLI')
     cl_cli_path = path.join(cl_cli_dir, cl_cli)
-    cl_rpc_dir = environ['CL_RPC_DIR']
-    cl_rpc = environ['CL_RPC']
+    cl_rpc_dir = get_path(config.get(sec, 'CL_RPC_DIR'))
+    cl_rpc = config.get(sec, 'CL_RPC')
+    cl_rpc_path = path.join(cl_rpc_dir, cl_rpc)
     cl_options = [
         '--lightning-dir={}'.format(cl_rpc_dir),
         '--rpc-file={}'.format(cl_rpc), '-k'

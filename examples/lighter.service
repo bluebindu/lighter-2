@@ -12,7 +12,7 @@ After=network-online.target
 [Service]
 Type=simple
 # change with Lighter install path
-ExecStart=make -C /path/to/lighter run
+ExecStart=lighter
 Restart=always
 
 [Install]

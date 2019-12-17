@@ -17,20 +17,17 @@
 
 from logging import getLogger
 from logging.config import fileConfig
-from os.path import join
 
 from alembic import context
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
-from lighter import settings as sett
-
-
 cfg = context.config
 
+sec = 'lighter_log'
 env = {
-    'lighterlogfilename': join(sett.LOGS_DIR, sett.LOGS_LIGHTER),
-    'migrationslogfilename': join(sett.LOGS_DIR, sett.LOGS_MIGRATIONS)}
+    'lighterlogfilename': cfg.get_section_option(sec, 'lighter'),
+    'migrationslogfilename': cfg.get_section_option(sec, 'migrations')}
 fileConfig(cfg.config_file_name, disable_existing_loggers=False, defaults=env)
 
 LOGGER = getLogger(__name__)

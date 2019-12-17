@@ -17,7 +17,7 @@ depends_on = None
 
 
 def upgrade():
-    from lighter.db import ENGINE
+    from .db import ENGINE
     if not ENGINE.dialect.has_table(ENGINE, 'implementation_secrets'):
         return
     op.add_column(

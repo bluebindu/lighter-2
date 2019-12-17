@@ -21,7 +21,7 @@ from re import sub
 
 from grpc import StatusCode
 
-from lighter import settings
+from . import settings
 
 LOGGER = getLogger(__name__)
 
@@ -163,8 +163,8 @@ class Err():  # pylint: disable=too-few-public-methods
         """
         Calls the proper function in dictionary or throws an unexpected_error
         """
-        module = import_module('lighter.light_{}'.format(
-            settings.IMPLEMENTATION))
+        module = import_module('..light_{}'.format(settings.IMPLEMENTATION),
+                               __name__)
         for msg, act in module.ERRORS.items():
             if msg in error:
                 args = [context, act['params']] if 'params' in act \

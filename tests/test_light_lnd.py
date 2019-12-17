@@ -40,25 +40,27 @@ class LightLndTests(TestCase):
     """ Tests for light_lnd module """
 
     @patch(MOD.__name__ + '.ssl_channel_credentials')
-    def test_get_settings(self, mocked_ssl_chan):
+    @patch(MOD.__name__ + '.set_defaults')
+    def test_get_settings(self, mocked_set_def, mocked_ssl_chan):
         # Correct case: with macaroons
-        values = {
-            'LND_HOST': 'lnd',
-            'LND_PORT': '10009',
-            'LND_CERT_DIR': '/path',
-            'LND_CERT': 'tls.cert',
-        }
+        lnd_host = 'lnd'
+        lnd_port = '10009'
+        lnd_tls_cert_dir = '/path'
+        lnd_tls_cert = 'tls.cert'
+        config = Mock()
+        config.get.side_effect = \
+            [lnd_host, lnd_port, lnd_tls_cert_dir, lnd_tls_cert]
         mocked_ssl_chan.return_value = 'cert_creds'
         mopen = mock_open(read_data='cert')
-        with patch.dict('os.environ', values):
-            with patch(MOD.__name__ + '.open', mopen):
-                MOD.get_settings()
+        with patch(MOD.__name__ + '.open', mopen):
+            MOD.get_settings(config, 'lnd')
+        lnd_values = ['LND_HOST', 'LND_PORT', 'LND_CERT']
+        mocked_set_def.assert_called_once_with(config, lnd_values)
         mopen.assert_called_with('/path/tls.cert', 'rb')
         mopen.return_value.read.assert_called_once_with()
         mocked_ssl_chan.assert_called_with('cert')
         self.assertEqual(
-            settings.LND_ADDR, '{}:{}'.format(values['LND_HOST'],
-                                              values['LND_PORT']))
+            settings.LND_ADDR, '{}:{}'.format(lnd_host, lnd_port))
         self.assertEqual(settings.LND_CREDS_FULL, 'cert_creds')
         self.assertEqual(settings.IMPL_SEC_TYPE, 'macaroon')
 

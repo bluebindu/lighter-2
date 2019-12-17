@@ -15,7 +15,6 @@
 
 """ Implementation of lighter.proto defined methods for electrum """
 
-from os import environ
 from logging import getLogger
 
 from decimal import Decimal
@@ -23,7 +22,7 @@ from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
 from .utils import check_req_params, convert, ElectrumRPC, Enforcer as Enf, \
-    get_address_type, get_channel_balances, has_amount_encoded
+    get_address_type, get_channel_balances, has_amount_encoded, set_defaults
 
 LOGGER = getLogger(__name__)
 
@@ -44,19 +43,21 @@ ERRORS = {
 ELE_LN_TX = {'min_value': 1, 'max_value': 2**32, 'unit': Enf.SATS}
 
 
-def get_settings():
+def get_settings(config, sec):
     """ Gets electrum settings """
+    ele_values = ['ELE_HOST', 'ELE_PORT', 'ELE_USER']
+    set_defaults(config, ele_values)
+    settings.ELE_HOST = config.get(sec, 'ELE_HOST')
+    settings.ELE_PORT = config.get(sec, 'ELE_PORT')
+    settings.ELE_USER = config.get(sec, 'ELE_USER')
     settings.IMPL_SEC_TYPE = 'password'
 
 
 def update_settings(password):
     """ Updates electrum specific settings """
-    ele_host = environ.get('ELE_HOST', settings.ELE_HOST)
-    ele_port = environ.get('ELE_PORT', settings.ELE_PORT)
-    ele_user = environ.get('ELE_USER', settings.ELE_USER)
     ele_pass = password.decode()
     settings.RPC_URL = 'http://{}:{}@{}:{}'.format(
-        ele_user, ele_pass, ele_host, ele_port)
+        settings.ELE_USER, ele_pass, settings.ELE_HOST, settings.ELE_PORT)
 
 
 def GetInfo(request, context):  # pylint: disable=unused-argument

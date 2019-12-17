@@ -1,0 +1,2 @@
+include lighter_bitcoin/migrations/alembic.ini
+include lighter_bitcoin/lighter.proto

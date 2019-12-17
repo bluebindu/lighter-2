@@ -1,2 +1,2 @@
 [run]
-omit = lighter/*_pb2*.py
+omit = */*_pb2*.py, */migrate.py, */secure.py, */pairing.py, */migrations/*, */cliter.py, */__init__.py, */settings.py

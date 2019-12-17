@@ -15,26 +15,17 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Activates virtual environment
-. "$ENV/bin/activate"
-
-# Exports variables so they are available to python
-# Overrides cofiguration variables for docker environment
-set -a
-. "$APP_DIR/lighter-data/config"
-. "$APP_DIR/unix_make.sh"
-docker_bash_env
-set_defaults
-set +a
-
 # Sets ownership
+echo "Setting ownership to files..."
 [ -z "$MYUID" ] || usermod -u "$MYUID" "$USER"
-chown -R --silent "$USER" "$APP_DIR"
-
-# Applies migrations
-gosu "$USER" python3 -c 'from migrate import migrate; migrate()'
+chown -R --silent "$USER:$USER" "$APP_DIR"
 
 # Starts lighter
-if [ $? -eq 0 ]; then
-    exec gosu "$USER" python3 -u main.py
+export PATH="$PATH:$APP_DIR/.local/bin"
+if [ -z "$@" ]; then
+    echo "Starting lighter..."
+    exec gosu "$USER" "lighter"
+else
+    echo "Starting $@..."
+    exec gosu "$USER" "$@"
 fi

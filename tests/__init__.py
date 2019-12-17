@@ -17,4 +17,4 @@
 
 from pathlib import Path
 
-proj_root = Path(Path(__file__).parents[1], 'lighter').name
+proj_root = Path(Path(__file__).parents[1], 'lighter_bitcoin').name

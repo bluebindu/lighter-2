@@ -33,29 +33,28 @@ CTX = 'context'
 class LightClightningTests(TestCase):
     """ Tests for light_clightning module """
 
-    def test_get_settings(self):
+    @patch(MOD.__name__ + '.path', autospec=True)
+    @patch(MOD.__name__ + '.get_path', autospec=True)
+    @patch(MOD.__name__ + '.set_defaults', autospec=True)
+    def test_get_settings(self, mocked_set_def, mocked_get_path, mocked_path):
         # Correct case
-        values = {
-            'CL_CLI': 'lightning-cli',
-            'CL_CLI_DIR': '/path',
-            'CL_RPC': 'lightning-rpc',
-            'CL_RPC_DIR': '/path/'
-        }
-        with patch.dict('os.environ', values):
-            MOD.get_settings()
+        cl_cli_dir = cl_rpc_dir = '/path'
+        cl_cli = 'lightning-cli'
+        cl_rpc = 'lightning-rpc'
+        config = Mock()
+        cl_cli_path = '{}/{}'.format(cl_cli_dir, cl_cli)
+        config.get.side_effect = [cl_cli_dir, cl_cli, cl_rpc_dir, cl_rpc]
+        mocked_get_path.side_effect = [cl_cli_dir, cl_rpc_dir]
+        mocked_path.join.side_effect = [cl_cli_path,
+                                        '{}/{}'.format(cl_rpc_dir, cl_rpc)]
+        MOD.get_settings(config, 'clightning')
+        cl_values = ['CL_CLI', 'CL_RPC']
+        mocked_set_def.assert_called_once_with(config, cl_values)
         self.assertEqual(settings.CMD_BASE, [
-            '/path/lightning-cli', '--lightning-dir={}'.format(
-                values['CL_RPC_DIR']), '--rpc-file={}'.format(
-                    values['CL_RPC']), '-k'
+            cl_cli_path,
+            '--lightning-dir=' + cl_rpc_dir,
+            '--rpc-file=' + cl_rpc, '-k'
         ])
-        # Missing variable
-        reset_mocks(vars())
-        settings.CMD_BASE = ''
-        values = {}
-        with patch.dict('os.environ', values):
-            with self.assertRaises(KeyError):
-                MOD.get_settings()
-        self.assertEqual(settings.CMD_BASE, '')
 
     def test_update_settings(self):
         MOD.update_settings(None)

@@ -19,7 +19,6 @@ from ast import literal_eval
 from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
 from logging import getLogger
-from os import environ
 from string import ascii_lowercase, digits  # pylint: disable=deprecated-module
 from time import time, sleep
 
@@ -28,7 +27,7 @@ from . import settings
 from .errors import Err
 from .utils import check_req_params, convert, EclairRPC, Enforcer as Enf, \
     FakeContext, get_channel_balances, get_thread_timeout, \
-    get_node_timeout, handle_thread, has_amount_encoded
+    get_node_timeout, handle_thread, has_amount_encoded, set_defaults
 
 LOGGER = getLogger(__name__)
 
@@ -81,11 +80,13 @@ ERRORS = {
 }
 
 
-def get_settings():
+def get_settings(config, sec):
     """ Gets eclair settings """
     settings.IMPL_SEC_TYPE = 'password'
-    ecl_host = environ.get('ECL_HOST', settings.ECL_HOST)
-    ecl_port = environ.get('ECL_PORT', settings.ECL_PORT)
+    ecl_values = ['ECL_HOST', 'ECL_PORT']
+    set_defaults(config, ecl_values)
+    ecl_host = config.get(sec, 'ECL_HOST')
+    ecl_port = config.get(sec, 'ECL_PORT')
     ecl_url = '{}:{}'.format(ecl_host, ecl_port)
     settings.RPC_URL = 'http://{}:{}'.format(ecl_host, ecl_port)
 

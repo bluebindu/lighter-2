@@ -13,6 +13,4 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Lighter module """
-
-__version__ = "1.2.0"
+""" Alembic migrations module """

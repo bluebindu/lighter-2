@@ -14,6 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """ Tests for utils module """
 
+from argparse import Namespace
 from codecs import encode
 from decimal import InvalidOperation
 from importlib import import_module
@@ -22,7 +23,7 @@ from os import urandom
 from subprocess import PIPE, TimeoutExpired
 
 from nacl.exceptions import CryptoError
-from unittest import TestCase
+from unittest import TestCase, skip
 from unittest.mock import call, Mock, mock_open, patch
 from requests.exceptions import ConnectionError as ReqConnectionErr, Timeout
 
@@ -43,30 +44,54 @@ CTX = 'context'
 class UtilsTests(TestCase):
     """ Tests for the utils module """
 
+    @patch(MOD.__name__ + '.migrate', autospec=True)
+    @patch(MOD.__name__ + '.get_start_options', autospec=True)
+    @patch(MOD.__name__ + '.get_config_parser', autospec=True)
+    @patch(MOD.__name__ + '.init_tree', autospec=True)
+    @patch(MOD.__name__ + '.parse_args', autospec=True)
+    @patch(MOD.__name__ + '.update_logger', autospec=True)
+    def test_init_common(self, mocked_update_log, mocked_parse_args,
+                         mocked_init_tree, mocked_get_config,
+                         mocked_get_start_opt, mocked_migrate):
+        # core=True
+        msg = 'help message'
+        MOD.init_common(msg)
+        mocked_parse_args.assert_called_once_with(msg, False)
+        calls = [call(), call(mocked_get_config.return_value)]
+        mocked_update_log.assert_has_calls(calls)
+        # core=False, write_perms=True
+        reset_mocks(vars())
+        MOD.init_common(msg, core=False, write_perms=True)
+        mocked_parse_args.assert_called_once_with(msg, True)
+        assert not mocked_init_tree.called
+        assert not mocked_migrate.called
+
     @patch(MOD.__name__ + '.dictConfig')
     @patch(MOD.__name__ + '.path', autospec=True)
-    def test_update_logger(self, mocked_path, mocked_dictConfig):
-        # Correct case: absolute path
-        values = {'LOGS_DIR': '/srv/app/lighter-data/logs'}
-        log_path = '/srv/app/lighter-data/logs/lighter.log'
+    @patch(MOD.__name__ + '.get_path', autospec=True)
+    def test_update_logger(self, mocked_get_path, mocked_path,
+                           mocked_dictConfig):
+        # Correct case: config provided
+        logs_dir = '/srv/app/logs'
+        lvl = 'INFO'
+        config = Mock()
+        config.get.side_effect = [lvl, logs_dir]
+        log_path = logs_dir + '/lighter.log'
+        mocked_get_path.return_value = logs_dir
         mocked_path.join.return_value = log_path
-        with patch.dict('os.environ', values):
-            MOD.update_logger()
+        MOD.update_logger(config)
+        mocked_get_path.assert_called_once_with(logs_dir)
+        self.assertEqual(settings.LOGGING['handlers']['console']['level'], lvl)
         mocked_dictConfig.assert_called_once_with(settings.LOGGING)
-        self.assertEqual(settings.LOGS_DIR, '/srv/app/lighter-data/logs')
+        self.assertEqual(settings.LOGS_DIR, logs_dir)
         self.assertIn('file', settings.LOGGING['loggers']['']['handlers'])
         self.assertEqual(settings.LOGGING['handlers']['file']['filename'],
                          log_path)
-        # Correct case: relative path
+        # Correct case: no config provided
         reset_mocks(vars())
-        values = {'LOGS_DIR': './lighter-data/logs'}
-        with patch.dict('os.environ', values):
-            MOD.update_logger()
+        MOD.update_logger()
         mocked_dictConfig.assert_called_once_with(settings.LOGGING)
-        self.assertEqual(settings.LOGS_DIR, './lighter-data/logs')
-        self.assertIn('file', settings.LOGGING['loggers']['']['handlers'])
-        self.assertEqual(settings.LOGGING['handlers']['file']['filename'],
-                         log_path)
+        assert not mocked_get_path.called
 
     @patch(MOD.__name__ + '.LOGGER', autospec=True)
     def test_log_intro(self, mocked_logger):
@@ -77,6 +102,34 @@ class UtilsTests(TestCase):
     def test_log_outro(self, mocked_logger):
         MOD.log_outro()
         self.assertEqual(mocked_logger.info.call_count, 2)
+
+    @patch(MOD.__name__ + '.FileType', autospec=True)
+    @patch(MOD.__name__ + '.ArgumentParser', autospec=True)
+    def test_parse_args(self, mocked_argparse, mocked_filetype):
+        msg = 'help message'
+        # without args
+        MOD.parse_args(msg, False)
+        mocked_argparse.assert_called_once_with(description=msg)
+        mocked_argparse.return_value.add_argument.assert_called_once_with(
+            '--lighterdir', metavar='PATH', type=mocked_filetype.return_value,
+            help="Path containing config file and other data")
+        mocked_argparse.return_value.parse_args.assert_called_once_with()
+        mocked_filetype.assert_called_once_with('r')
+        # with args
+        reset_mocks(vars())
+        ldir = '/srv/lighter'
+        mocked_argparse.return_value.parse_args.return_value = Namespace(
+            lighterdir=ldir)
+        MOD.parse_args(msg, True)
+        self.assertEqual(settings.L_DATA, ldir)
+        mocked_filetype.assert_called_once_with('w')
+        # with invalid arg
+        reset_mocks(vars())
+        ldir = ''
+        mocked_argparse.return_value.parse_args.return_value = Namespace(
+            lighterdir=ldir)
+        with self.assertRaises(RuntimeError):
+            MOD.parse_args(msg, False)
 
     @patch(MOD.__name__ + '.sleep', autospec=True)
     @patch(MOD.__name__ + '.LOGGER', autospec=True)
@@ -92,7 +145,7 @@ class UtilsTests(TestCase):
             identity_pubkey='777', version='v1')
         mocked_getattr.return_value = func
         MOD.check_connection()
-        mocked_import.assert_called_once_with(proj_root + '.light_imp')
+        mocked_import.assert_called_once_with('..light_imp', MOD.__name__)
         # Correct case (no version)
         reset_mocks(vars())
         settings.IMPLEMENTATION = 'imp'
@@ -108,55 +161,113 @@ class UtilsTests(TestCase):
         MOD.check_connection()
         assert mocked_logger.error.called
 
-    def test_FakeContext(self):
-        # abort test
-        with self.assertRaises(RuntimeError):
-            MOD.FakeContext().abort(7, 'error')
-        # time_remaining test
-        res = MOD.FakeContext().time_remaining()
-        self.assertEqual(res, None)
+    @patch(MOD.__name__ + '.set_defaults', autospec=True)
+    @patch(MOD.__name__ + '.ConfigParser', autospec=True)
+    @patch(MOD.__name__ + '.copyfile', autospec=True)
+    @patch(MOD.__name__ + '.get_data_files_path', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.path', autospec=True)
+    def test_get_config_parser(self, mocked_path, mocked_logger,
+                               mocked_get_df, mocked_copy, mocked_config,
+                               mocked_set_def):
+        l_values = ['INSECURE_CONNECTION', 'PORT', 'SERVER_KEY', 'SERVER_CRT',
+                    'LOGS_DIR', 'LOGS_LEVEL', 'DB_DIR', 'MACAROONS_DIR',
+                    'DISABLE_MACAROONS']
+        # config exists
+        mocked_path.exists.return_value = True
+        res = MOD.get_config_parser()
+        assert not mocked_logger.error.called
+        mocked_config.assert_called_once_with()
+        mocked_config.return_value.read.assert_called_once_with(
+            settings.L_CONFIG)
+        mocked_set_def.assert_called_once_with(
+            mocked_config.return_value, l_values)
+        self.assertEqual(res, mocked_config.return_value)
+        # config not exists
+        reset_mocks(vars())
+        mocked_path.exists.return_value = False
+        res = MOD.get_config_parser()
+        assert mocked_logger.error.called
+        mocked_get_df.assert_called_once_with(
+            'share/doc/' + settings.PKG_NAME, 'examples/config.sample')
+        mocked_copy.assert_called_once_with(
+            mocked_get_df.return_value, settings.L_CONFIG)
+        self.assertEqual(res, mocked_config.return_value)
 
+    @patch(MOD.__name__ + '.glob', autospec=True)
+    @patch(MOD.__name__ + '.path', autospec=True)
+    def test_get_data_files_path(self, mocked_path, mocked_glob):
+        inst_dir = 'share/doc/pkg'
+        rel_path = 'examples/config.sample'
+        # normal install
+        mocked_path.exists.return_value = True
+        res = MOD.get_data_files_path(inst_dir, rel_path)
+        self.assertEqual(res, mocked_path.join.return_value)
+        # editable install
+        reset_mocks(vars())
+        mocked_path.exists.side_effect = [False, True]
+        egg_link = ['/srv/app/.virtualenvs/lighter-env/lib/python3.5/'
+                   'site-packages/{}.egg-link'.format(settings.PIP_NAME)]
+        mocked_glob.return_value = egg_link
+        mopen = mock_open(read_data=egg_link[0])
+        realpath = '/srv/app/lighter'
+        mopen.return_value.readline.return_value = realpath
+        with patch(MOD.__name__ + '.open', mopen):
+            res = MOD.get_data_files_path(inst_dir, rel_path)
+            mopen.return_value.readline.assert_called_once_with()
+            self.assertEqual(res, mocked_path.join.return_value)
+        # file not found case
+        reset_mocks(vars())
+        mocked_path.exists.side_effect = None
+        mocked_path.exists.return_value = False
+        mocked_glob.return_value = []
+        with self.assertRaises(RuntimeError):
+            res = MOD.get_data_files_path(inst_dir, rel_path)
+
+    def test_set_defaults(self):
+        config = Mock()
+        values = ['INSECURE_CONNECTION', 'PORT']
+        MOD.set_defaults(config, values)
+        def_dict = {'DEFAULT':
+            {'INSECURE_CONNECTION': settings.INSECURE_CONNECTION,
+            'PORT': settings.PORT}}
+        config.read_dict.assert_called_once_with(def_dict)
 
     @patch(MOD.__name__ + '.getattr')
     @patch(MOD.__name__ + '.import_module', autospec=True)
     def test_get_start_options(self, mocked_import, mocked_getattr):
         settings.INSECURE_CONNECTION = 0
         # Secure connection case with macaroons enabled
-        reset_mocks(vars())
-        impl = 'lnd'
-        values = {
-            'IMPLEMENTATION': impl,
-            'SERVER_CRT': 'crt',
-            'SERVER_KEY': 'key',
-            'DB_DIR': 'mac_db_dir',
-            'MACAROONS_DIR': 'mac_dir',
-        }
-        with patch.dict('os.environ', values):
-            MOD.get_start_options()
+        impl = 'funny'
+        ins_conn = dis_mac = 0
+        port = 1708
+        server_crt = 'crt'
+        server_key = 'key'
+        db_dir = 'db_dir'
+        mac_dir = 'mac_dir'
+        config = Mock()
+        config.get.side_effect = [impl, ins_conn, dis_mac, port, server_key,
+                                  server_crt, mac_dir, db_dir]
+        MOD.get_start_options(config)
         self.assertEqual(settings.INSECURE_CONNECTION, False)
-        mocked_import.assert_called_once_with(proj_root + '.light_' + impl)
+        mocked_import.assert_called_once_with('..light_' + impl, MOD.__name__)
         mocked_getattr.assert_called_with(
             mocked_import.return_value, 'get_settings')
-        mocked_getattr.return_value.assert_called_once_with()
-        # Insecure connection case
+        mocked_getattr.return_value.assert_called_once_with(config, impl)
+        # Insecure connection case, with only default config
+        reset_mocks(vars())
         settings.IMPLEMENTATION_SECRETS = False
-        values = {
-            'IMPLEMENTATION': 'eclair',
-            'INSECURE_CONNECTION': '1',
-        }
-        with patch.dict('os.environ', values):
-            MOD.get_start_options()
+        ins_conn = 1
+        config = Mock()
+        config.get.side_effect = [impl, ins_conn, dis_mac, port, db_dir]
+        MOD.get_start_options(config)
         self.assertEqual(settings.INSECURE_CONNECTION, True)
         self.assertEqual(settings.DISABLE_MACAROONS, True)
         # No secrets case (with warning)
         reset_mocks(vars())
-        values = {
-            'IMPLEMENTATION': 'clightning',
-            'INSECURE_CONNECTION': '1',
-            'DISABLE_MACAROONS': '1',
-        }
-        with patch.dict('os.environ', values):
-            MOD.get_start_options(warning=True)
+        dis_mac = 1
+        config.get.side_effect = [impl, ins_conn, dis_mac, port, db_dir]
+        MOD.get_start_options(config)
 
     @patch(MOD.__name__ + '.get_secret_from_db', autospec=True)
     def test_detect_impl_secret(self, mocked_db_sec):
@@ -193,6 +304,38 @@ class UtilsTests(TestCase):
         with self.assertRaises(RuntimeError):
             res = MOD.detect_impl_secret(ses)
 
+    @patch(MOD.__name__ + '.path', autospec=True)
+    @patch(MOD.__name__ + '._try_mkdir', autospec=True)
+    def test_init_tree(self, mocked_try_mkdir, mocked_path):
+        MOD.init_tree()
+        calls = [call(settings.L_DATA, 'certs'),
+                 call(settings.L_DATA, 'db'),
+                 call(settings.L_DATA, 'logs'),
+                 call(settings.L_DATA, 'macaroons')]
+        mocked_path.join.assert_has_calls(calls)
+        calls = [call(settings.L_DATA), call(mocked_path.join.return_value),
+                 call(mocked_path.join.return_value),
+                 call(mocked_path.join.return_value),
+                 call(mocked_path.join.return_value)]
+        mocked_try_mkdir.assert_has_calls(calls)
+
+    @patch(MOD.__name__ + '.mkdir', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.path', autospec=True)
+    def test_try_mkdir(self, mocked_path, mocked_logger, mocked_mkdir):
+        dir_path = '/srv/app/certs'
+        # dir doesn't exist
+        mocked_path.exists.return_value = False
+        MOD._try_mkdir(dir_path)
+        assert mocked_logger.info.called
+        mocked_mkdir.assert_called_once_with(dir_path)
+        # dir exists
+        reset_mocks(vars())
+        mocked_path.exists.return_value = True
+        MOD._try_mkdir(dir_path)
+        assert not mocked_logger.info.called
+        assert not mocked_mkdir.called
+
     def test_str2bool(self):
         ## force_true=False
         # Empty string case
@@ -220,6 +363,14 @@ class UtilsTests(TestCase):
         # Random string case
         res = MOD.str2bool('p', force_true=True)
         self.assertEqual(res, True)
+
+    def test_FakeContext(self):
+        # abort test
+        with self.assertRaises(RuntimeError):
+            MOD.FakeContext().abort(7, 'error')
+        # time_remaining test
+        res = MOD.FakeContext().time_remaining()
+        self.assertEqual(res, None)
 
     @patch(MOD.__name__ + '.LOGGER', autospec=True)
     @patch(MOD.__name__ + '.Err')
@@ -562,28 +713,18 @@ class UtilsTests(TestCase):
         res = MOD.get_thread_timeout(ctx)
         self.assertEqual(res, 0)
 
-    @patch(MOD.__name__ + '.sleep', autospec=True)
-    def test_handle_keyboardinterrupt(self, mocked_sleep):
-        grpc_server = Mock()
-        # Correct case
-        func = Mock()
-        wrapped = MOD.handle_keyboardinterrupt(func)
-        res = wrapped(grpc_server)
-        self.assertEqual(res, None)
-        self.assertEqual(func.call_count, 1)
+    def test_handle_sigterm(self):
+        with self.assertRaises(MOD.InterruptException):
+            MOD.handle_sigterm(15, None)
+
+    def test_handle_keyboardinterrupt(self):
         # KeyboardInterrupt case
-        reset_mocks(vars())
+        func = Mock()
         func.side_effect = KeyboardInterrupt()
-        close_event = Mock()
-        close_event.is_set.side_effect = [False, True]
-        grpc_server.stop.return_value = close_event
         wrapped = MOD.handle_keyboardinterrupt(func)
-        with self.assertRaises(RuntimeError):
-            res = wrapped(grpc_server)
-        assert mocked_sleep.called
-        self.assertEqual(res, None)
+        with self.assertRaises(MOD.InterruptException):
+            wrapped()
         self.assertEqual(func.call_count, 1)
-        grpc_server.stop.assert_called_once_with(settings.GRPC_GRACE_TIME)
 
     def test_handle_logs(self):
         req = pb.GetInfoRequest()

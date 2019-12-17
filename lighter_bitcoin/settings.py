@@ -16,29 +16,32 @@
 """ Configuration settings module for Lighter """
 
 from os import path
-
+from pathlib import Path
 
 # Empty variables are set at runtime
 # Some variables contain default values, could be overwritten
 
 IMPLEMENTATION = ''
 
-L_DATA = './lighter-data'
+L_DATA = path.join(str(Path.home()), '.lighter')
+L_CONFIG = path.join(L_DATA, 'config')
+
+PKG_NAME = 'lighter_bitcoin'
+PIP_NAME = 'lighter-bitcoin'
 
 HOST = '0.0.0.0'
 PORT = '1708'
 LIGHTER_ADDR = ''
 INSECURE_CONNECTION = 0
-SERVER_KEY = path.join(L_DATA, 'certs/server.key')
-SERVER_CRT = path.join(L_DATA, 'certs/server.crt')
-CERTS_DIR = path.join(L_DATA, 'certs')
+SERVER_KEY = './certs/server.key'
+SERVER_CRT = './certs/server.crt'
 IMPLEMENTATION_SECRETS = False
 IMPL_SEC_TYPE = ''
 
 # Macaroons settings
 RUNTIME_BAKER = None
 DISABLE_MACAROONS = 0
-MACAROONS_DIR = path.join(L_DATA, 'macaroons')
+MACAROONS_DIR = './macaroons'
 MAC_ADMIN = 'admin.macaroon'
 MAC_READONLY = 'readonly.macaroon'
 MAC_INVOICES = 'invoices.macaroon'
@@ -57,9 +60,10 @@ SCRYPT_PARAMS = {
 }
 
 # DB settings
-DB_DIR = path.join(L_DATA, 'db')
+DB_DIR = './db'
 DB_NAME = 'lighter.db'
-ALEMBIC_CFG = 'migrations/alembic.ini'
+DB_PATH = ''
+ALEMBIC_CFG = path.join(path.dirname(__file__), 'migrations/alembic.ini')
 
 # Server settings
 ONE_DAY_IN_SECONDS = 60 * 60 * 24
@@ -70,13 +74,17 @@ RUNTIME_SERVER = None
 THREADS = []
 
 # cliter settings
-CLI_HOST = '127.0.0.1'
-CLI_ADDR = ''
+RPCSERVER = 'localhost:1708'
+TLSCERT = './certs/server.crt'
+MACAROON = path.join(MACAROONS_DIR, MAC_ADMIN)
+INSECURE = 0
+NO_MACAROON = 0
+CLI_RPCSERVER = None
+CLI_TLSCERT = None
+CLI_MACAROON = None
+CLI_INSECURE = None
+CLI_NO_MACAROON = None
 CLI_TIMEOUT = 10
-CLI_INSECURE_CONNECTION = 0
-CLI_DISABLE_MACAROONS = 0
-CLI_CRT = ''
-CLI_MAC = ''
 CLI_BASE_GRPC_CODE = 64
 
 ENFORCE = True
@@ -129,7 +137,7 @@ EXPIRY_TIME = 420
 DUST_LIMIT_SAT = 546
 
 # Logging settings
-LOGS_DIR = path.join(L_DATA, 'logs')
+LOGS_DIR = './logs'
 LOGS_LIGHTER = 'lighter.log'
 LOGS_MIGRATIONS = 'migrations.log'
 LOG_TIMEFMT = '%Y-%m-%d %H:%M:%S %z'
@@ -157,20 +165,22 @@ LOGGING = {
             'formatter': 'simple',
             'stream': 'ext://sys.stdout'
         },
-        'file': {
-            'level': LOG_LEVEL_FILE,
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': path.join(LOGS_DIR, LOGS_LIGHTER),
-            'maxBytes': 1048576,
-            'backupCount': 7,
-            'formatter': 'verbose'
-        }
     },
     'loggers': {
         '': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'DEBUG'
         },
+    }
+}
+LOGGING_FILE = {
+    'file': {
+        'level': LOG_LEVEL_FILE,
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': path.join(LOGS_DIR, LOGS_LIGHTER),
+        'maxBytes': 1048576,
+        'backupCount': 7,
+        'formatter': 'verbose'
     }
 }
 

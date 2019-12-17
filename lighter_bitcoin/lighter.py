@@ -15,11 +15,16 @@
 
 """ The Python implementation of the gRPC Lighter server """
 
+import sys
+
 from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
+from configparser import Error as ConfigError
 from importlib import import_module
 from logging import getLogger
-from threading import Thread
+from os import environ
+from signal import signal, SIGTERM
+from threading import active_count, Thread
 from time import sleep
 
 from grpc import server, ServerInterceptor, ssl_server_credentials, \
@@ -32,10 +37,17 @@ from .db import get_mac_params_from_db, init_db, is_db_ok, session_scope
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
 from .utils import check_connection, check_password, check_req_params, \
-    Crypter, detect_impl_secret, FakeContext, get_secret, get_start_options, \
-    handle_keyboardinterrupt, handle_logs, ScryptParams
+    Crypter, detect_impl_secret, FakeContext, get_secret, \
+    handle_keyboardinterrupt, handle_logs, handle_sigterm, init_common, \
+    InterruptException, log_intro, log_outro, ScryptParams
+
+signal(SIGTERM, handle_sigterm)
 
 LOGGER = getLogger(__name__)
+
+environ["GRPC_SSL_CIPHER_SUITES"] = (
+    "HIGH+ECDSA:"
+    "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384")
 
 
 class UnlockerServicer(pb_grpc.UnlockerServicer):
@@ -58,7 +70,7 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
         check_req_params(context, request, 'password')
         password = request.password
         # Checks if implementation is supported, could throw an ImportError
-        mod = import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
+        mod = import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
         plain_secret = None
         with session_scope(context) as session:
             check_password(context, session, password)
@@ -136,8 +148,8 @@ class LightningServicer():  # pylint: disable=too-few-public-methods
         @handle_logs
         def dispatcher(request, context):
             # Importing module for specific implementation
-            module = import_module('lighter.light_{}'.format(
-                sett.IMPLEMENTATION))
+            module = import_module('..light_{}'.format(sett.IMPLEMENTATION),
+                                   __name__)
             # Searching client requested function in module
             try:
                 func = getattr(module, name)
@@ -280,6 +292,19 @@ def _log_listening(servicer_name):
             servicer_name, sett.LIGHTER_ADDR)
 
 
+def _interrupt_threads():
+    """ Tries to gracefully stop all pending threads of the runtime server """
+    close_event = None
+    if sett.RUNTIME_SERVER:
+        close_event = sett.RUNTIME_SERVER.stop(sett.GRPC_GRACE_TIME)
+    if close_event:
+        while not close_event.is_set() or sett.THREADS:
+            LOGGER.error('Waiting for %s threads to complete...',
+                         active_count())
+            sleep(3)
+    LOGGER.info('All threads shutdown correctly')
+
+
 @handle_keyboardinterrupt
 def _unlocker_wait(grpc_server):
     """ Waits a signal to stop the UnlockerServicer """
@@ -296,33 +321,35 @@ def _lightning_wait(_grpc_server):
         sleep(sett.ONE_DAY_IN_SECONDS)
 
 
+@handle_keyboardinterrupt
 def start():
     """
-    Starts the Lighter server.
+    Starts Lighter.
 
     Checks if a module for the requested implementation exists and imports it.
-    Updates settings and starts the Lighter gRPC server.
+    Initializes Lighter and starts the Unlocker gRPC service.
 
-    Any raised exception will be handled with a slow exit.
+    Any raised and uncaught exception will be handled here.
     """
     try:
-        get_start_options(warning=True)
+        init_common("Start Lighter's gRPC server")
+        log_intro()
         init_db()
         with session_scope(FakeContext()) as session:
             if not is_db_ok(session):
                 raise RuntimeError(
                     'Your database configuration is incomplete or old. '
-                    'Update it by running make secure (and deleting db)')
+                    'Update it by running lighter-secure (and deleting db)')
             sett.IMPLEMENTATION_SECRETS = detect_impl_secret(session)
-        # Checks if implementation is supported, could throw an ImportError
-        import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
+        import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
         _serve_unlocker()
         con_thread = Thread(target=check_connection)
         con_thread.daemon = True
         con_thread.start()
         _serve_runtime()
-    except ImportError:
-        LOGGER.error('%s is not supported', sett.IMPLEMENTATION)
+    except ImportError as err:
+        LOGGER.error(
+            "Implementation '%s' is not supported", sett.IMPLEMENTATION)
     except KeyError as err:
         LOGGER.error('%s environment variable needs to be set', err)
     except RuntimeError as err:
@@ -330,3 +357,9 @@ def start():
             LOGGER.error(str(err))
     except FileNotFoundError as err:
         LOGGER.error(str(err))
+    except ConfigError as err:
+        LOGGER.error('Configuration error: %s', str(err))
+    except InterruptException:
+        _interrupt_threads()
+        log_outro()
+        sys.exit(0)

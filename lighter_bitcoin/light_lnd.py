@@ -23,7 +23,7 @@ from contextlib import contextmanager, ExitStack, suppress
 from datetime import datetime
 from functools import wraps
 from logging import getLogger
-from os import environ, path
+from os import path
 
 from grpc import channel_ready_future, composite_channel_credentials, \
     FutureTimeoutError, metadata_call_credentials, RpcError, secure_channel, \
@@ -36,8 +36,9 @@ from . import settings
 from .db import session_scope
 from .errors import Err
 from .utils import check_password, check_req_params, convert, \
-    Enforcer as Enf, FakeContext, get_channel_balances, get_secret, \
-    get_thread_timeout, get_node_timeout, handle_thread, has_amount_encoded
+    Enforcer as Enf, FakeContext, get_channel_balances, get_path, get_secret, \
+    get_thread_timeout, get_node_timeout, handle_thread, has_amount_encoded, \
+    set_defaults
 
 LOGGER = getLogger(__name__)
 
@@ -160,14 +161,16 @@ LND_FUNDING = {'min_value': 20000, 'max_value': 2**24, 'unit': Enf.SATS}
 LND_PUSH = {'min_value': 0, 'max_value': 2**24, 'unit': Enf.SATS}
 
 
-def get_settings():
+def get_settings(config, sec):
     """ Gets lnd settings """
     settings.IMPL_SEC_TYPE = 'macaroon'
-    lnd_host = environ.get('LND_HOST', settings.LND_HOST)
-    lnd_port = environ.get('LND_PORT', settings.LND_PORT)
+    lnd_values = ['LND_HOST', 'LND_PORT', 'LND_CERT']
+    set_defaults(config, lnd_values)
+    lnd_host = config.get(sec, 'LND_HOST')
+    lnd_port = config.get(sec, 'LND_PORT')
     settings.LND_ADDR = '{}:{}'.format(lnd_host, lnd_port)
-    lnd_tls_cert_dir = environ['LND_CERT_DIR']
-    lnd_tls_cert = environ.get('LND_CERT', settings.LND_CERT)
+    lnd_tls_cert_dir = get_path(config.get(sec, 'LND_CERT_DIR'))
+    lnd_tls_cert = config.get(sec, 'LND_CERT')
     lnd_tls_cert_path = path.join(lnd_tls_cert_dir, lnd_tls_cert)
     with open(lnd_tls_cert_path, 'rb') as file:
         cert = file.read()
@@ -239,7 +242,7 @@ def unlock_node(ctx, password, session=None):
         lnd_pass = get_secret(ctx, ses, password, 'lnd', 'password')
         if not lnd_pass:
             Err().node_error(ctx, 'No password stored, add one by '
-                             'running make secure')
+                             'running lighter-secure')
         lnd_req = ln.UnlockWalletRequest(wallet_password=lnd_pass)
         try:
             with _connect(ctx, stub_class=lnrpc.WalletUnlockerStub,
@@ -249,7 +252,7 @@ def unlock_node(ctx, password, session=None):
         except RpcError as err:
             if 'invalid passphrase for master public key' in str(err):
                 Err().node_error(ctx, 'Stored node password is incorrect, '
-                                      'update it by running make secure')
+                                      'update it by running lighter-secure')
             elif 'unknown service lnrpc.WalletUnlocker' in str(err):
                 LOGGER.info('Node is already unlocked')
             else:

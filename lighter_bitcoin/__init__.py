@@ -13,38 +13,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Lighter starting point """
+""" Lighter package """
 
-import sys
-
-from os import environ
-from signal import signal, SIGTERM
-
-from lighter.utils import handle_keyboardinterrupt, log_intro, log_outro, \
-    update_logger
-from lighter.lighter import start
-
-environ["GRPC_SSL_CIPHER_SUITES"] = (
-    "HIGH+ECDSA:"
-    "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384")
-
-
-def sigterm_handler(_signo, _stack_frame):
-    """ Raises SystemExit(0) """
-    log_outro()
-    sys.exit(0)
-
-
-signal(SIGTERM, sigterm_handler)
-
-
-@handle_keyboardinterrupt
-def main():
-    update_logger()
-    log_intro()
-    start()
-    log_outro()
-
-
-if __name__ == '__main__':
-    main()
+__version__ = "1.2.0"

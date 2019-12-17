@@ -23,8 +23,7 @@ Lighter has a unit test suite made with the
 To run the tests, using docker, run:
 
 ```
-$ make docker
-$ make test
+$ ./unix_helper.sh test
 ```
 
 
@@ -33,8 +32,7 @@ $ make test
 To check the code for common errors, using docker, run:
 
 ```
-$ make docker
-$ make lint
+$ ./unix_helper.sh lint
 ```
 
 This will check the code with pycodestyle and pylint.

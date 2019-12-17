@@ -1,45 +1,72 @@
 # Configuring
 
-All configuration options can be set in the `lighter-data/config` file.
-See [config.sample](/lighter-data/config.sample) for a commented example.
+All configuration options can be set in the `config` file.
+See [config.sample](/examples/config.sample) for a commented example.
 If run without a config file, the example file will be copied in place and
 left behind for the user to edit.
 
-Paths are relative to the project directory, unless otherwise stated.
+The configuration file along with other data will be stored in a single
+directory, `~/.lighter` by default (use `--lighterdir` option to override).
+Paths specified in the configuration file are relative to this directory.
 
-### Lighter settings
+### lighter section
 
 | Variable                      | Description                                                                |
 | ----------------------------- | -------------------------------------------------------------------------- |
-| `IMPLEMENTATION` <sup>1</sup> | Implementation to use (possible values: `clightning`, `eclair`, `electrum`, `lnd`; no default) |
-| `INSECURE_CONNECTION`         | Set to `1` to make Lighter listen in cleartext (default `0`). Implies disabling macaroons. |
-| `PORT`                        | Lighter's listening port (default `1708`)                                  |
-| `SERVER_KEY` <sup>2</sup>     | Private key path (default `./lighter-data/certs/server.key`)               |
-| `SERVER_CRT` <sup>2</sup>     | Certificate (chain) path (default `./lighter-data/certs/server.crt`)       |
-| `LOGS_DIR`                    | Location <sup>4</sup> to hold log files (default `./lighter-data/logs`)    |
-| `LOGS_LEVEL`                  | Desired console log level (possible values: `critical`, `error`, `warning`, `info`, `debug`; default `info`) |
-| `DB_DIR`                      | Location to hold the database (default `./lighter-data/db`)                |
-| `MACAROONS_DIR`               | Location to hold macaroons (default `./lighter-data/macaroons`)            |
-| `DISABLE_MACAROONS` <sup>3</sup> | Set to `1` to disable macaroons authentication (default `0`)            |
+| `implementation` <sup>1</sup> | Implementation to use (possible values: `clightning`, `eclair`, `electrum`, `lnd`; no default) |
+| `insecure_connection`         | Set to `1` to make Lighter listen in cleartext (default `0`). Implies disabling macaroons. |
+| `port`                        | Lighter's listening port (default `1708`)                                  |
+| `server_key` <sup>2</sup>     | Private key path (default `./certs/server.key`)                            |
+| `server_crt` <sup>2</sup>     | Certificate (chain) path (default `./certs/server.crt`)                    |
+| `logs_dir`                    | Location <sup>4</sup> to hold log files (default `./logs`)                 |
+| `logs_level`                  | Desired console log level (possible values: `critical`, `error`, `warning`, `info`, `debug`; default `info`) |
+| `db_dir`                      | Location to hold the database (default `./db`)                             |
+| `macaroons_dir`               | Location to hold macaroons (default `./macaroons`)                         |
+| `disable_macaroons` <sup>3</sup> | Set to `1` to disable macaroons authentication (default `0`)            |
 
-### Implementation settings
+### cliter section
 
-| Variable                     | Description                                                     |
-| ---------------------------- | --------------------------------------------------------------- |
-| `CL_CLI_DIR`                 | c-lightning location <sup>4</sup> containing `CL_CLI`           |
-| `CL_CLI`                     | c-lightning  cli binary (relative; default `lightning-cli`)     |
-| `CL_RPC_DIR` <sup>5</sup>    | c-lightning location <sup>4</sup> containing `CL_RPC`           |
-| `CL_RPC` <sup>6</sup>        | c-lightning JSON-RPC socket (relative; default `lightning-rpc`) |
-| `ECL_HOST`                   | eclair host <sup>7</sup> (default `localhost`)                  |
-| `ECL_PORT` <sup>8</sup>      | eclair port (default `8080`)                                    |
-| `ELE_HOST`                   | electrum host <sup>7</sup> (default `localhost`)                |
-| `ELE_PORT`                   | electrum port (default `7777`)                                  |
-| `ELE_USER`                   | electrum user (default `user`)                                  |
-| `LND_HOST`                   | lnd host <sup>7</sup> (default `localhost`)                     |
-| `LND_PORT`                   | lnd port (default `10009`)                                      |
-| `LND_CERT_DIR`               | lnd location <sup>4</sup> containing `LND_CERT`                 |
-| `LND_CERT`                   | lnd TLS certificate (default `tls.cert`)                        |
+| Variable                      | Description                                                                |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `rpcserver`                   | Lighter host[:port] (default `localhost:1708`)                             |
+| `tlscert`                     | Lighter certificate (chain) path (default `./certs/server.crt`)          |
+| `macaroon`                    | Lighter macaroon path (default `./macaroons/admin.macaroon`)             |
+| `insecure`                    | Set to `1` to connect to Lighter in cleartext  (default `0`)               |
+| `no_macaroon`                 | Set to `1` to connect to Lighter with no macaroon (default `0`)            |
 
+
+### clightning section
+
+| Variable                      | Description                                                                |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `cl_cli_dir`                  | Location <sup>4</sup> containing `cl_cli`                                  |
+| `cl_cli`                      | CLI binary name (default `lightning-cli`)                                  |
+| `cl_rpc_dir` <sup>5</sup>     | Location <sup>4</sup> containing `cl_rpc`                                  |
+| `cl_rpc` <sup>6</sup>         | JSON-RPC socket name (default `lightning-rpc`)                             |
+
+### eclair section
+
+| Variable                      | Description                                                                |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `ecl_host`                    | Host <sup>7</sup> (default `localhost`)                                    |
+| `ecl_port` <sup>8</sup>       | Port (default `8080`)                                                      |
+
+### electrum section
+
+| Variable                      | Description                                                                |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `ele_host`                    | Host <sup>7</sup> (default `localhost`)                                    |
+| `ele_port`                    | Port (default `7777`)                                                      |
+| `ele_user`                    | User (default `user`)                                                      |
+
+### lnd section
+
+| Variable                      | Description                                                                |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `lnd_host`                    | Host <sup>7</sup> (default `localhost`)                                    |
+| `lnd_port`                    | Port (default `10009`)                                                     |
+| `lnd_cert_dir`                | Location <sup>4</sup> containing `lnd_cert`                                |
+| `lnd_cert`                    | TLS certificate name (default `tls.cert`)                                  |
 
 #### Notes
 
@@ -50,7 +77,7 @@ Paths are relative to the project directory, unless otherwise stated.
    implications and is highly discouraged, don't do this unless you know
    what you're doing_
 4. _location must be a directory;
-   path can be absolute or relative, if relative it has to start with_ `./`
+path can be absolute or relative (to Lighter's data directory)_
 5. _option:_ `lightning-dir` _(usually ~/.lightning)_
 6. _option:_ `rpc-file` _the JSON-RPC socket needs to be owned by the same user
    Lighter is running as_

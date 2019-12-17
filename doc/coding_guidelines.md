@@ -43,6 +43,7 @@ shortened implementation name (2/3 chars) + `_req` / `_res`.
 Example names from currently supported implementations are:
 -  `cl_req` / `cl_res`
 -  `ecl_req` / `ecl_res`
+-  `ele_req` / `ele_res`
 -  `lnd_req` / `lnd_res`
 
 Use instead the full names `request` and `response` when

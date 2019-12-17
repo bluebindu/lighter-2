@@ -15,17 +15,25 @@
 
 """ The utils module for Lighter """
 
+import sys
+
+from argparse import ArgumentParser, FileType
+from configparser import ConfigParser
 from contextlib import suppress
 from decimal import Decimal, InvalidOperation
 from functools import wraps
+from glob import glob
 from importlib import import_module
 from json import dumps, loads, JSONDecodeError
 from logging import getLogger
 from logging.config import dictConfig
 from marshal import dumps as mdumps, loads as mloads
-from os import environ as env, path
+from os import mkdir, path
+from pathlib import Path
+from shutil import copyfile
+from site import USER_BASE
 from subprocess import PIPE, Popen, TimeoutExpired
-from threading import active_count, current_thread
+from threading import current_thread
 from time import sleep, strftime, time
 
 from requests import Session as ReqSession
@@ -37,17 +45,38 @@ from . import lighter_pb2 as pb
 from . import __version__, settings as sett
 from .db import get_secret_from_db, get_token_from_db
 from .errors import Err
+from .migrate import migrate
 
 LOGGER = getLogger(__name__)
 
 
-def update_logger():
-    """ Activate logs on file """
-    logs_level = env.get('LOGS_LEVEL', sett.LOGS_LEVEL).upper()
-    sett.LOGGING['handlers']['console']['level'] = logs_level
-    sett.LOGS_DIR = env.get('LOGS_DIR', sett.LOGS_DIR)
-    log_path = path.join(path.abspath(sett.LOGS_DIR), sett.LOGS_LIGHTER)
-    sett.LOGGING['handlers']['file']['filename'] = log_path
+def init_common(help_msg, core=True, write_perms=False):
+    """ Initializes common entrypoints calls """
+    update_logger()
+    parse_args(help_msg, write_perms)
+    if core:
+        init_tree()
+    config = get_config_parser()
+    update_logger(config)
+    get_start_options(config)
+    if core:
+        migrate()
+
+
+def update_logger(config=None):
+    """
+    Activates console logs by default and, when configuration is available,
+    activates file logs and sets configured log level
+    """
+    if config:
+        sec = 'lighter'
+        logs_level = config.get(sec, 'LOGS_LEVEL').upper()
+        sett.LOGGING['handlers']['console']['level'] = logs_level
+        sett.LOGGING['loggers']['']['handlers'].append('file')
+        sett.LOGGING['handlers'].update(sett.LOGGING_FILE)
+        sett.LOGS_DIR = get_path(config.get(sec, 'LOGS_DIR'))
+        log_path = path.join(sett.LOGS_DIR, sett.LOGS_LIGHTER)
+        sett.LOGGING['handlers']['file']['filename'] = log_path
     dictConfig(sett.LOGGING)
 
 
@@ -72,12 +101,29 @@ def log_outro():
     LOGGER.info('*'*37)
 
 
+def parse_args(help_msg, write_perms):
+    """ Parses command line arguments """
+    parser = ArgumentParser(description=help_msg)
+    acc_mode = 'r'
+    if write_perms:
+        acc_mode = 'w'
+    parser.add_argument(
+        '--lighterdir', metavar='PATH', type=FileType(acc_mode),
+        help="Path containing config file and other data")
+    args = vars(parser.parse_args())
+    if 'lighterdir' in args and args['lighterdir'] is not None:
+        if not args['lighterdir']:
+            raise RuntimeError('Invalid lighterdir')
+        sett.L_DATA = args['lighterdir']
+        sett.L_CONFIG = path.join(sett.L_DATA, 'config')
+
+
 def check_connection():
     """
     Calls a GetInfo in order to check if connection to node is successful
     """
     request = pb.GetInfoRequest()
-    module = import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
+    module = import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
     info = None
     LOGGER.info('Checking connection to %s node...', sett.IMPLEMENTATION)
     while not info:
@@ -98,36 +144,77 @@ def check_connection():
             LOGGER.info('Using %s', sett.IMPLEMENTATION)
 
 
-def get_start_options(warning=False):
+def get_config_parser():
     """
-    Sets Lighter and implementation start options
+    Reads config file, settings default values, and returns its parser.
+    When config is missing, it copies config.sample in its expected location.
+    """
+    if not path.exists(sett.L_CONFIG):
+        LOGGER.error('Missing config file, copying sample to "%s", '
+                     'read doc/configuring.md for details', sett.L_CONFIG)
+        sample = get_data_files_path(
+            'share/doc/' + sett.PKG_NAME, 'examples/config.sample')
+        copyfile(sample, sett.L_CONFIG)
+    config = ConfigParser()
+    config.read(sett.L_CONFIG)
+    l_values = ['INSECURE_CONNECTION', 'PORT', 'SERVER_KEY', 'SERVER_CRT',
+                'LOGS_DIR', 'LOGS_LEVEL', 'DB_DIR', 'MACAROONS_DIR',
+                'DISABLE_MACAROONS']
+    set_defaults(config, l_values)
+    return config
 
-    KeyError exception raised by missing dictionary keys in environ
-    are left unhandled on purpose and later catched by lighter.start()
+
+def get_data_files_path(install_dir, relative_path):
     """
-    sett.IMPLEMENTATION = env['IMPLEMENTATION'].lower()
-    bool_opt = {
-        'INSECURE_CONNECTION': sett.INSECURE_CONNECTION,
-        'DISABLE_MACAROONS': sett.DISABLE_MACAROONS}
-    for opt, def_val in bool_opt.items():
-        setattr(sett, opt, str2bool(env.get(opt, def_val)))
-    sett.PORT = env.get('PORT', sett.PORT)
+    Given a relative path to a data file, returns its absolute path.
+    If it detects editable pip install / python setup.py develop, it uses a
+    path relative to the source directory (following the .egg-link).
+    """
+    for base_path in (sys.prefix, USER_BASE, path.join(sys.prefix, 'local')):
+        install_path = path.join(base_path, install_dir)
+        if path.exists(path.join(install_path, relative_path)):
+            return path.join(install_path, relative_path)
+        egg_glob = path.join(base_path, 'lib*', 'python*', '*-packages',
+                             '{}.egg-link'.format(sett.PIP_NAME))
+        egg_link = glob(egg_glob)
+        if egg_link:
+            with open(egg_link[0], 'r') as f:
+                realpath = f.readline().strip()
+            if path.exists(path.join(realpath, relative_path)):
+                return path.join(realpath, relative_path)
+    raise RuntimeError('File "{}" not found'.format(relative_path))
+
+
+def set_defaults(config, values):
+    """ Sets configuration defaults """
+    defaults = {}
+    for var in values:
+        defaults[var] = getattr(sett, var)
+    config.read_dict({'DEFAULT': defaults})
+
+
+def get_start_options(config):
+    """ Sets Lighter and implementation start options """
+    sec = 'lighter'
+    sett.IMPLEMENTATION = config.get(sec, 'IMPLEMENTATION').lower()
+    sett.INSECURE_CONNECTION = str2bool(config.get(sec, 'INSECURE_CONNECTION'))
+    sett.DISABLE_MACAROONS = str2bool(config.get(sec, 'DISABLE_MACAROONS'))
+    sett.PORT = config.get(sec, 'PORT')
     sett.LIGHTER_ADDR = '{}:{}'.format(sett.HOST, sett.PORT)
     if sett.INSECURE_CONNECTION:
         sett.DISABLE_MACAROONS = True
     else:
-        sett.SERVER_KEY = env.get('SERVER_KEY', sett.SERVER_KEY)
-        sett.SERVER_CRT = env.get('SERVER_CRT', sett.SERVER_CRT)
+        sett.SERVER_KEY = get_path(config.get(sec, 'SERVER_KEY'))
+        sett.SERVER_CRT = get_path(config.get(sec, 'SERVER_CRT'))
     if sett.DISABLE_MACAROONS:
-        if warning:
-            LOGGER.warning('Disabling macaroons is not safe, '
-                           'do not disable them in production')
+        LOGGER.warning('Disabling macaroons is not safe, '
+                       'do not disable them in production')
     else:
-        sett.MACAROONS_DIR = env.get('MACAROONS_DIR', sett.MACAROONS_DIR)
-    sett.DB_DIR = env.get('DB_DIR', sett.DB_DIR)
+        sett.MACAROONS_DIR = get_path(config.get(sec, 'MACAROONS_DIR'))
+    sett.DB_DIR = get_path(config.get(sec, 'DB_DIR'))
     sett.DB_PATH = path.join(sett.DB_DIR, sett.DB_NAME)
-    module = import_module('lighter.light_{}'.format(sett.IMPLEMENTATION))
-    getattr(module, 'get_settings')()
+    module = import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
+    getattr(module, 'get_settings')(config, sett.IMPLEMENTATION)
 
 
 def detect_impl_secret(session):
@@ -149,9 +236,38 @@ def detect_impl_secret(session):
                 error = True
     if error:
         raise RuntimeError(
-            'Cannot obtain implementation secret, add it by running make '
-            'secure')
+            'Cannot obtain implementation secret, add it by running '
+            'lighter-secure')
     return detected
+
+
+def init_tree():
+    """ Creates data directory tree if missing """
+    _try_mkdir(sett.L_DATA)
+    _try_mkdir(path.join(sett.L_DATA, 'certs'))
+    _try_mkdir(path.join(sett.L_DATA, 'db'))
+    _try_mkdir(path.join(sett.L_DATA, 'logs'))
+    _try_mkdir(path.join(sett.L_DATA, 'macaroons'))
+
+
+def _try_mkdir(dir_path):
+    """ Creates a directory if it doesn't exist """
+    if not path.exists(dir_path):
+        LOGGER.info('Creating dir %s', dir_path)
+        mkdir(dir_path)
+
+
+def get_path(ipath, base_path=None):
+    """
+    Gets absolute posix path. By default relative paths are calculated from
+    lighterdir
+    """
+    ipath = Path(ipath).expanduser()
+    if ipath.is_absolute():
+        return ipath.as_posix()
+    if not base_path:
+        base_path = sett.L_DATA
+    return Path(base_path, ipath).as_posix()
 
 
 def str2bool(string, force_true=False):
@@ -426,27 +542,21 @@ def get_thread_timeout(context):
     return wait_time
 
 
+def handle_sigterm(_signo, _stack_frame):
+    """ Handles a SIGTERM, raising an InterruptException """
+    raise InterruptException
+
+
 def handle_keyboardinterrupt(func):
-    """ Handles KeyboardInterrupt stopping the gRPC server and exiting """
+    """ Handles KeyboardInterrupt, raising an InterruptException """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        close_event = None
         try:
             func(*args, **kwargs)
         except KeyboardInterrupt:
-            with suppress(IndexError):
-                close_event = args[0].stop(sett.GRPC_GRACE_TIME)
-                print()
-
-            LOGGER.error('Keyboard interrupt detected.')
-            if close_event:
-                while not close_event.is_set() or sett.THREADS:
-                    LOGGER.error('Waiting for %s threads to complete...',
-                                 active_count())
-                    sleep(3)
-            LOGGER.info('All threads shutdown correctly')
-            raise RuntimeError
+            print('\nKeyboard interrupt detected.')
+            raise InterruptException
 
     return wrapper
 
@@ -646,3 +756,7 @@ class Crypter():  # pylint: disable=too-many-instance-attributes
             return SecretBox(derived_key).decrypt(encrypted_data)
         except CryptoError:
             Err().wrong_password(context)
+
+
+class InterruptException(Exception):
+    """ Raised to interrupt Lighter """

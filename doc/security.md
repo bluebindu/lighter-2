@@ -5,7 +5,7 @@ In order to accomplish this, we added a locking system and
 [macaroons](/doc/security.md#lighters-macaroons)
 as authorization method.
 
-To handle security, running `make secure` is essential.
+To handle security, running `lighter-secure` is essential.
 This script will allow you to set Lighter's password and insert
 all the secrets that will be needed to communicate with your LN node.
 Secrets will be encrypted using Lighter's password and
@@ -32,7 +32,7 @@ When unlocked, a `LockLighter` API is available to request locking
 
 You can choose an **interactive** mode by running:
 ```bash
-make secure
+lighter-secure
 ```
 This will prompt you all the required secrets for the
 [configured implementation](/doc/configuring.md#lighter-settings).
@@ -43,13 +43,13 @@ On successive runs, the provided password will be used to verify its
 correctness, manage implementation secrets and recreate macaroon files.
 
 Otherwise, you can use a **non-interactive** version by passing
-secrets to `make` via environment variables. As a full-configuration example:
+secrets via environment variables. As a full-configuration example:
 ```bash
-make lighter_password=somethingSecure create_macaroons=1 \
+lighter_password=somethingSecure create_macaroons=1 \
     eclair_password=eclairPassword \
     electrum_password=electrumPassword \
     lnd_macaroon=/path/to/lndMacaroon lnd_password=lndPassword \
-    secure
+    lighter-secure
 ```
 This will create or update the database without asking for user prompt.
 `lighter_password` is necessary to run in non-interactive mode.
@@ -64,7 +64,7 @@ responsibility to protect secrets while calling this command.
 We strongly suggest the usage of a
 [password manager](https://en.wikipedia.org/wiki/List_of_password_managers)
 to create and store on users' behalf a randomly crafted strong password.
-Lighter can generate it for you when running `make secure` for the first
+Lighter can generate it for you when running `lighter-secure` for the first
 time or after choosing to delete the database.
 The auto generated password is by default 12 chars long and uses a 64-char
 alphabet.
@@ -124,14 +124,14 @@ To secure communication with the node, we suggest using Docker.
 We crypt eclair's password (`eclair.api.password` to be set on the eclair node,
 along with `eclair.api=True`). <sup>1</sup>
 
-If configured to run with eclair, `make secure` will ask to insert or
+If configured to run with eclair, `lighter-secure` will ask to insert or
 update its password.
 
 ### electrum
 
 We crypt electrum's password (config `rpcpassword` on the electrum node).
 
-If configured to run with electrum, `make secure` will ask to insert or
+If configured to run with electrum, `lighter-secure` will ask to insert or
 update its password.
 
 
@@ -139,7 +139,7 @@ update its password.
 
 We crypt lnd's macaroon <sup>2</sup> and password, if given.
 
-If configured to run with lnd, `make secure` will insert or update the macaroon
+If configured to run with lnd, `lighter-secure` will insert or update the macaroon
 (if a path to the file has been provided) and then ask if it should be used when
 connecting to lnd. Connection with no macaroon will be attempted if none is
 available (implies `--no-macaroons` set on the lnd node).

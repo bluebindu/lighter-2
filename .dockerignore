@@ -1,28 +1,23 @@
 # Compiled and downloaded files
-*.pyc
-*__pycache__
-/lighter/rpc.proto
+*.bak
 *_pb2*.py
-/lighter/google
-!/docker/Dockerfile.ci
-/complete-cliter.sh
-/.bashrc
-/.zshrc
-/cliter.egg-info/
-/.eggs
+*.pyc
+**/__pycache__
 *.swp
+*.zip
+/*/rpc.proto
+/*/googleapis
+!/docker/Dockerfile.ci
+/examples/complete-*-*.sh
+/*.egg-info/
+/.eggs
+/build
+/dist
 
 # Tests coverage, lint and cache
 /.coverage
 /reports/*.report
 **/.pytest_cache
-
-# Lighter data directory
-/lighter-data/config
-/lighter-data/certs/
-/lighter-data/db/
-/lighter-data/logs/
-/lighter-data/macaroons/
 
 # Other
 /.idea

@@ -45,7 +45,9 @@ def get_db_url(new_db):
     try:
         try:
             # from python3.6 strict is necessary to raise FileNotFoundError
+            # pylint: disable=unexpected-keyword-arg
             db_abspath = db_relpath.resolve(strict=True)
+            # pylint: enable=unexpected-keyword-arg
         except TypeError:
             db_abspath = db_relpath.resolve()
     except FileNotFoundError:
@@ -54,7 +56,7 @@ def get_db_url(new_db):
             db_abspath = db_relpath.resolve()
         else:
             raise RuntimeError('Your database is missing. Create it by '
-                               'running make secure')
+                               'running lighter-secure')
     running_sys = system()
     if running_sys in ('Linux', 'Darwin'):
         return 'sqlite:///{}'.format(db_abspath)
@@ -85,6 +87,8 @@ def get_alembic_cfg(new_db):
     """ Returns alembic Config object """
     alembic_cfg = Config(sett.ALEMBIC_CFG)
     alembic_cfg.set_main_option('sqlalchemy.url', get_db_url(new_db))
+    alembic_cfg.set_main_option('script_location',
+                                sett.PKG_NAME + ':migrations')
     return alembic_cfg
 
 

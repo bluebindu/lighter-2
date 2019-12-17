@@ -66,7 +66,7 @@ secured.
 
 First of all, Lighter will need to connect to an already existing and
 supported LN node, which determines the main configuration parameter,
-`IMPLEMENTATION`.
+`implementation`.
 
 Before it's run, Lighter needs to be configured according to the chosen
 implementation.
@@ -80,21 +80,10 @@ dependencies, based on its configuration.
 
 ### System dependencies
 
-
 - Linux <sup>1</sup> or macOS <sup>2</sup>
 (_Windows may work, but is not supported_)
 - Python 3.5+ <sup>3</sup>
-- bash
-- make
-- virtualenv
-- which
-- [optional] libscrypt 1.8+ (faster start)
-
-### Implementation dependencies
-
-- **lnd**
-    - curl
-    - unzip
+- [optional] libscrypt 1.8+ (_faster start_)
 
 ### Resources
 
@@ -103,8 +92,8 @@ More precise recommendations will be available in the future
 as gathered real-world usage data grows.
 
 - CPU: 1 core is enough
-- RAM: ~32MB when idling
-- disk: docker image weights ~300MB
+- RAM: ~64MB when idling
+- disk: docker image weights ~170MB
 
 #### Notes
 
@@ -115,32 +104,19 @@ as gathered real-world usage data grows.
 
 ## Building
 
-All build operations are automated in a [Makefile](/Makefile).
-Run `make help` to see available targets.
-
 #### Building locally
 
-In order to install Lighter with support for all implementations,
-run
+In order to install Lighter, run
 ```bash
-$ make all
+$ pip install .
 ```
+Usage of `virtualenv` is recommended.
 
-otherwise, to support a single implementation, run
+#### Building docker image
+
+To build a docker image, run:
 ```bash
-$ make $IMPLEMENTATION
-```
-
-See [Implementations](#implementations-) above for possible `$IMPLEMENTATION`
-values.
-
-#### Building in docker
-
-To create the Dockerfile for your architecture
-<sup>1</sup>
-and build a docker image, run:
-```bash
-$ make docker
+$ ./unix_helper.sh docker_build
 ```
 
 #### Notes
@@ -163,7 +139,7 @@ In order to run Lighter, you need to configure the necessary secrets and set a
 password to manage and protect them.
 To do so, run:
 ```bash
-$ make secure
+$ lighter-secure
 ```
 
 This can be run interactively or not.
@@ -177,10 +153,10 @@ Read [Security](/doc/security.md) for more details.
 
 ## Running
 
-To start Lighter's gRPC server, according to the configured scenario, run:
+To start Lighter's gRPC server, run:
 
 ```bash
-$ make run
+$ lighter
 ```
 
 
@@ -208,18 +184,25 @@ A set of **documentation for the gRPC APIs**, along with example code in
 Python, Go, Node.js and Bash can be found at our
 [lighter-doc API page](https://lighter-doc.inbitcoin.it).
 
-To use Lighter's **CLI** and have a full list of available commands, run:
+To unlock Lighter and have a full list of available commands of
+Lighter's **CLI**, run:
 ```bash
-$ make cli
 $ cliter unlocklighter
 $ cliter --help
 ```
-Note: `make cli` spawns a new shell, configured for `cliter`,
-run `exit` to leave environment.
+To activate completion support, first locate completion scripts,
+which are in `share/doc/lighter_bitcoin/examples/`, relative to python
+installation path.
+Possible installation paths: `/venv/path/`, `~/.local/`, `/usr/local/`.
+
+Then, you can add completion support by adding the appropriate line to your
+shell's RC file:
+- `~/.bashrc`: `. /path/to/complete-cliter-bash.sh`
+- `~/.zshrc`: `. /path/to/complete-cliter-zsh.sh`
 
 To **pair** Lighter with a client, run:
 ```bash
-$ make pairing
+$ lighter-pairing
 ```
 This will create two URIs to allow easy retrieval of
 connection data (`lighterconnect://<host>:<port>[?cert=<PEM certificate>]`)

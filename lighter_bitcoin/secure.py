@@ -19,21 +19,25 @@ import sys
 
 from concurrent.futures import TimeoutError as TimeoutErrFut, \
     ThreadPoolExecutor
+from configparser import Error as ConfigError
 from contextlib import suppress
 from datetime import datetime, timedelta, timezone
-from functools import wraps
 from getpass import getpass
 from logging import CRITICAL, getLogger
 from select import select
 from time import time, sleep
-from os import environ, path, remove, urandom
+from os import devnull, environ, path, remove, urandom
+from signal import signal, SIGTERM
 
-from lighter import settings as sett
-from lighter.db import init_db, is_db_ok, save_mac_params_to_db, \
-    save_secret_to_db, save_token_to_db, session_scope
-from lighter.macaroons import get_baker, MACAROONS, MAC_VERSION
-from lighter.utils import check_password, Crypter, FakeContext, get_secret, \
-    get_start_options, ScryptParams, str2bool, update_logger
+from . import settings as sett
+from .db import init_db, is_db_ok, save_mac_params_to_db, save_secret_to_db, \
+    save_token_to_db, session_scope
+from .macaroons import get_baker, MACAROONS, MAC_VERSION
+from .utils import check_password, Crypter, FakeContext, get_secret, \
+    handle_keyboardinterrupt, handle_sigterm, init_common, \
+    InterruptException, ScryptParams, str2bool
+
+signal(SIGTERM, handle_sigterm)
 
 LOGGER = getLogger(__name__)
 
@@ -71,28 +75,6 @@ def _die(message):
     sys.exit(1)
 
 
-def _handle_keyboardinterrupt(func):
-    """ Handles KeyboardInterrupt """
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        global COLLECTING_INPUT
-        global SEARCHING_ENTROPY
-        global DONE
-        global NEW_DB
-        try:
-            func(*args, **kwargs)
-        except KeyboardInterrupt:
-            print()
-            COLLECTING_INPUT = False
-            SEARCHING_ENTROPY = False
-            if not DONE and NEW_DB:
-                _remove_files()
-            _die('\nKeyboard interrupt detected. Exiting...')
-
-    return wrapper
-
-
 def _consume_bytes(consumable, num):
     """ Consume num elements from a byte string and returns them """
     consumable = list(consumable)
@@ -107,9 +89,8 @@ def _consume_bytes(consumable, num):
 def _remove_files():
     """ Removes database and macaroons """
     LOGGER.info('Removing database and macaroons')
-    database = path.join(sett.DB_DIR, sett.DB_NAME)
     with suppress(FileNotFoundError):
-        remove(database)
+        remove(sett.DB_PATH)
         for file_name in MACAROONS:
             macaroon_file = path.join(sett.MACAROONS_DIR, file_name)
             remove(macaroon_file)
@@ -433,6 +414,22 @@ def _get_req_salt_len(new, interactive=True):
     return sett.SALT_LEN * secrets + for_password
 
 
+def _rm_db():
+    """
+    Checks if DB exists and eventually deletes it. Returns False if DB
+    was missing or has been requested deletion.
+    """
+    if path.exists(sett.DB_PATH):
+        delete = input('Db already exists, do you want to override it? (note '
+                       'this will also delete\nmacaroon files) [y/N] ')
+        if str2bool(delete):
+            _remove_files()
+            return False
+        return True
+    else:
+        return False
+
+
 def db_config_interactive(session, new):
     """ Configures a new or existing database interactively """
     ecl_pass = ele_pass = lnd_mac = lnd_pass = None
@@ -534,25 +531,40 @@ def db_config_non_interactive(session, new, password):
                 secret[1], implementation=secret[3])
 
 
-@_handle_keyboardinterrupt
+@handle_keyboardinterrupt
 def secure():
     """ Handles Lighter and implementation secrets """
-    update_logger()
-    getLogger('lighter.errors').setLevel(CRITICAL)
-    get_start_options()
-    no_db = environ.get('NO_DB')
-    rm_db = environ.get('RM_DB')
-    if rm_db:
-        _remove_files()
-    global NEW_DB
-    NEW_DB = no_db or rm_db
-    init_db(new_db=NEW_DB)
-    lighter_password = environ.get('lighter_password')
-    with session_scope(FakeContext()) as session:
-        if lighter_password:
-            db_config_non_interactive(session, NEW_DB, lighter_password)
-        else:
-            db_config_interactive(session, NEW_DB)
+    global COLLECTING_INPUT
     global DONE
-    DONE = True
-    print('All done!')
+    global NEW_DB
+    global SEARCHING_ENTROPY
+    try:
+        getLogger('lighter.errors').setLevel(CRITICAL)
+        init_common("Start Lighter's secure procedure", write_perms=True)
+        if not _rm_db():
+            NEW_DB = True
+        init_db(new_db=NEW_DB)
+        lighter_password = environ.get('lighter_password')
+        try:
+            if lighter_password:
+                sys.stdout = open(devnull, 'w')
+            with session_scope(FakeContext()) as session:
+                if lighter_password:
+                    db_config_non_interactive(session, NEW_DB, lighter_password)
+                else:
+                    db_config_interactive(session, NEW_DB)
+            DONE = True
+            print('All done!')
+        finally:
+            if lighter_password:
+                sys.stdout.close()
+    except RuntimeError as err:
+        if str(err):
+            LOGGER.error(str(err))
+    except ConfigError as err:
+        LOGGER.error('Configuration error: %s', str(err))
+    except InterruptException:
+        COLLECTING_INPUT = False
+        SEARCHING_ENTROPY = False
+        if not DONE and NEW_DB:
+            _remove_files()

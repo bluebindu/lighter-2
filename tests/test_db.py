@@ -118,8 +118,9 @@ class DbTests(TestCase):
         MOD.get_alembic_cfg(new)
         mocked_config.assert_called_once_with(settings.ALEMBIC_CFG)
         mocked_url.assert_called_once_with(new)
-        mocked_config.return_value.set_main_option.assert_called_once_with(
-            'sqlalchemy.url', mocked_url.return_value)
+        calls = [call('sqlalchemy.url', mocked_url.return_value),
+                 call('script_location', settings.PKG_NAME + ':migrations')]
+        mocked_config.return_value.set_main_option.assert_has_calls(calls)
         # new_db=True
         reset_mocks(vars())
         new = True

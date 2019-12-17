@@ -13,20 +13,40 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Module to bundle cliter with setuptools """
+""" Module to bundle Lighter with setuptools """
 
-import os
 import sys
 
-from distutils.command.build_py import build_py as _build_py
-from distutils.command.clean import clean as _clean
-from distutils.debug import DEBUG
+from distutils.command.build_py import build_py
+from distutils.command.clean import clean
+from importlib import import_module
+from os import chdir, chmod, path, remove, rename, stat, walk
+from pathlib import Path
+from shutil import rmtree, which
+from stat import S_IXGRP, S_IXOTH, S_IXUSR
+from subprocess import Popen, TimeoutExpired
+from urllib.request import urlretrieve
+from zipfile import ZipFile
+
+from pkg_resources import resource_filename
 from setuptools import setup
-from setuptools.command.develop import develop as _develop
+from setuptools.command.develop import develop
+from setuptools.command.test import test as TestCommand
 
-from lighter import __version__
+L_DIR = 'lighter_bitcoin'
+E_DIR = 'examples'
+__version__ = getattr(import_module(L_DIR), '__version__')
+PKG_NAME = getattr(import_module(L_DIR + '.settings'), 'PKG_NAME')
+PIP_NAME = getattr(import_module(L_DIR + '.settings'), 'PIP_NAME')
+L_PROTO = 'lighter.proto'
 
-PROTO_FILES = ['lighter/lighter.proto']
+CLI_NAME = 'cliter'
+SHELLS = ['bash', 'zsh']
+
+LND_REF = 'v0.8.1-beta'
+LND_PROTO = 'rpc.proto'
+GAPIS = 'googleapis'
+GAPIS_ZIP = GAPIS + '.zip'
 
 CLEANUP_SUFFIXES = [
     '_pb2.py',
@@ -43,84 +63,238 @@ def _die(message):
     sys.exit(1)
 
 
-def generate_proto(source):
-    """ Generate python from given source proto file """
-    print('Generating proto files')
-    if not os.path.exists(source):
-        _die('Can\'t find required file: %s\n' % source)
+def _try_rm(tree):
+    """ Tries to remove a directory or file, without failing if missing """
     try:
-        from grpc_tools import protoc
-        opts = ['-I.', '--python_out=.', '--grpc_python_out=.', source]
-        if protoc.main(opts) != 0:
+        rmtree(tree)
+    except OSError:
+        pass
+    try:
+        remove(tree)
+    except OSError:
+        pass
+
+
+def _download_lnd_deps():
+    """
+    Downloads lnd's proto file for the supported version and googleapis
+    """
+    chdir(L_DIR)
+    lnd_url = 'https://raw.githubusercontent.com/lightningnetwork/lnd'
+    urlretrieve('{}/{}/lnrpc/{}'.format(lnd_url, LND_REF, LND_PROTO),
+                LND_PROTO)
+    googleapis_url = \
+        'https://github.com/{}/{}/archive/master.zip'.format(GAPIS, GAPIS)
+    urlretrieve(googleapis_url, GAPIS_ZIP)
+    with ZipFile(GAPIS_ZIP, 'r') as zip_ref:
+        zip_ref.extractall('.')
+    _try_rm(GAPIS_ZIP)
+    _try_rm(GAPIS)
+    rename(GAPIS + '-master', GAPIS)
+    chdir('..')
+
+
+def _gen_cli_completion(shell):
+    """ Generates CLI completion files for bash and zsh """
+    if not which(shell):
+        Path(COMPLETION_SCRIPTS[shell]).touch()
+        return
+    source = 'source'
+    if shell == 'zsh':
+        source = 'source_zsh'
+    cmd = [shell, '-c', '_{}_COMPLETE={} {} > {}'.format(
+        CLI_NAME.upper(), source, CLI_NAME, COMPLETION_SCRIPTS[shell])]
+    proc = Popen(cmd)
+    try:
+        _, _ = proc.communicate(timeout=10)
+    except TimeoutExpired:
+        proc.kill()
+    status = stat(COMPLETION_SCRIPTS[shell])
+    chmod(COMPLETION_SCRIPTS[shell],
+          status.st_mode | S_IXUSR | S_IXGRP | S_IXOTH)
+
+
+def _gen_proto(opts):
+    """ Generates python code from given proto file """
+    print('Generating proto files from', opts[-1])
+    if not path.exists(opts[-1]):
+        _die("Can't find required file: " + opts[-1])
+    try:
+        from grpc_tools.protoc import main as run_protoc
+        if run_protoc(opts) != 0:
             _die('Failed generation of proto files')
     except ImportError:
         _die('Package grpcio-tools isn\'t installed')
 
 
-class build_py(_build_py):
+def _build_lighter():
+    """ Downloads and builds Lighter dependencies and shell completions """
+    _download_lnd_deps()
+    opts = ['--proto_path=.', '--python_out=.', '--grpc_python_out=.',
+            path.sep.join([L_DIR, L_PROTO])]
+    _gen_proto(opts)
+    proto_include = resource_filename('grpc_tools', '_proto')
+    opts = [__file__, '--proto_path=.', '--proto_path=' + L_DIR,
+            '--proto_path=' + path.sep.join([L_DIR, GAPIS]),
+            '--proto_path=' + proto_include,
+            '--python_out=.', '--grpc_python_out=.',
+            path.sep.join([L_DIR, LND_PROTO])]
+    _gen_proto(opts)
+    chdir(E_DIR)
+    _gen_cli_completion('bash')
+    _gen_cli_completion('zsh')
+    chdir('..')
+
+
+class Clean(clean):
+    """ Cleans up generated and downloaded files """
+
+    def run(self):
+        """ Overrides default behavior """
+        for (dirpath, _dirnames, filenames) in walk('.'):
+            _try_rm(path.sep.join([dirpath, '__pycache__']))
+            for filename in filenames:
+                filepath = path.join(dirpath, filename)
+                for suffix in CLEANUP_SUFFIXES:
+                    if filepath.endswith(suffix):
+                        print('Removing file: "{}"'.format(filepath))
+                        remove(filepath)
+        for shell in SHELLS:
+            _try_rm(path.sep.join([E_DIR, COMPLETION_SCRIPTS[shell]]))
+        for report in Path('reports').glob('*.report'):
+            _try_rm(report.as_posix())
+        _try_rm(path.sep.join([L_DIR, GAPIS]))
+        _try_rm(path.sep.join([L_DIR, GAPIS_ZIP]))
+        _try_rm(path.sep.join([L_DIR, LND_PROTO]))
+        _try_rm('dist')
+        _try_rm('.eggs')
+        _try_rm('.coverage')
+        _try_rm('lighter_bitcoin.egg-info')
+        _try_rm('.pytest_cache')
+        clean.run(self)
+
+
+class BuildPy(build_py):
     """ Builds Python source """
 
     def run(self):
         """ Overrides default behavior """
-        for proto in PROTO_FILES:
-            generate_proto(proto)
-        _build_py.run(self)
+        _build_lighter()
+        build_py.run(self)
 
 
-class clean(_clean):
-    """ Cleans up temporary files from build """
-
-    def run(self):
-        """ Overrides default behavior """
-        for (dirpath, _dirnames, filenames) in os.walk('.'):
-            for filename in filenames:
-                filepath = os.path.join(dirpath, filename)
-                for suffix in CLEANUP_SUFFIXES:
-                    if filepath.endswith(suffix):
-                        if DEBUG:
-                            print('Removing file: "{}"'.format(filepath))
-                        os.remove(filepath)
-        _clean.run(self)
-
-
-class develop(_develop):
+class Develop(develop):
     """ Defines installation in development mode """
 
     def run(self):
         """ Overrides default behavior """
-        for proto in PROTO_FILES:
-            generate_proto(proto)
+        _build_lighter()
         super().run()
 
 
-if __name__ == '__main__':
-    if DEBUG:
-        print("Started!")
+class PyTest(TestCommand):
+    """ Runs unit tests (deprecated) """
 
-    setup(
-        name='cliter',
-        version=__version__,
-        py_modules=['cliter'],
-        packages=['lighter'],
-        install_requires=[
-            'Click~=7.0',
-            'grpcio~=1.25.0',
-            'protobuf~=3.9.2',
-        ],
-        setup_requires=[
-            'grpcio-tools~=1.25.0',
-        ],
-        entry_points={
-            'console_scripts': [
-                'cliter = cliter:entrypoint'
-            ]
-        },
-        cmdclass={
-            'build_py': build_py,
-            'clean': clean,
-            'develop': develop
-        }
-    )
+    def initialize_options(self):
+        """ Overrides default behavior """
+        TestCommand.initialize_options(self)
+        self.pytest_args = ['-v', '--cov=' + L_DIR,
+                            '--cov-report=term-missing']
 
-    if DEBUG:
-        print("Finished!")
+    def finalize_options(self):
+        """ Overrides default behavior """
+        TestCommand.finalize_options(self)
+        self.test_args = []
+        self.test_suite = True
+
+    def run_tests(self):
+        """ Overrides default behavior """
+        _build_lighter()
+        from pytest import main as run_pytest
+        errno = run_pytest(self.pytest_args)
+        sys.exit(errno)
+
+LONG_DESC = ''
+with open('README.md', encoding='utf-8') as f:
+    LONG_DESC = f.read()
+
+COMPLETION_SCRIPTS = {}
+for SHELL in SHELLS:
+    COMPLETION_SCRIPTS[SHELL] = 'complete-{}-{}.sh'.format(CLI_NAME, SHELL)
+
+EXAMPLES = [path.as_posix() for path in Path(E_DIR).glob('*')] + \
+    [path.sep.join([E_DIR, COMPLETION_SCRIPTS[shell]]) for shell in SHELLS]
+DOC = [path.as_posix() for path in Path('.').glob('*.md')] + \
+    [path.as_posix() for path in Path('doc').glob('*.md')]
+
+MIGRATIONS_DIR = path.sep.join([L_DIR, 'migrations'])
+MGR_VERSIONS_DIR = path.sep.join([MIGRATIONS_DIR, 'versions'])
+
+setup(
+    name=PIP_NAME,
+    version=__version__,
+    description='The Lightning Network node wrapper - enabling the 3rd '
+                'layer with consensus on the 2nd',
+    long_description=LONG_DESC,
+    long_description_content_type='text/markdown',
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: GNU Affero General Public License v3 '
+        'or later (AGPLv3+)',
+        'Natural Language :: English',
+        'Operating System :: MacOS',
+        'Operating System :: POSIX :: Linux',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Topic :: Other/Nonlisted Topic',
+    ],
+    keywords='lighter ln lightning network cliter wrapper',
+    url='https://gitlab.com/inbitcoin/lighter',
+    author='inbitcoin',
+    author_email='lightning@inbitcoin.it',
+    license='AGPLv3',
+    packages=[L_DIR, MIGRATIONS_DIR, MGR_VERSIONS_DIR],
+    include_package_data=True,
+    package_data={
+        L_DIR: ['migrations/alembic.ini', L_PROTO],
+    },
+    data_files=[
+        ('share/doc/{}/{}'.format(PKG_NAME, E_DIR), EXAMPLES),
+        ('share/doc/{}'.format(PKG_NAME), DOC),
+    ],
+    python_requires='>=3.5',
+    install_requires=[
+        'alembic~=1.2.1',
+        'Click~=7.0',
+        'grpcio~=1.25.0',
+        'macaroonbakery~=1.2.3',
+        'pylibscrypt~=1.8.0',
+        'pymacaroons~=0.13.0',
+        'pynacl~=1.3.0',
+        'qrcode~=6.1',
+        'requests~=2.22.0',
+        'SQLAlchemy~=1.3.10',
+    ],
+    setup_requires=[
+        'googleapis-common-protos~=1.6.0',
+        'grpcio-tools~=1.25.0',
+        'protobuf~=3.10.0',
+    ],
+    tests_require=['pycodestyle', 'pylint', 'pytest', 'pytest-cov'],
+    entry_points={
+        'console_scripts': [
+            'cliter = {}.cliter:entrypoint'.format(L_DIR),
+            'lighter = {}.lighter:start'.format(L_DIR),
+            'lighter-pairing = {}.pairing:start'.format(L_DIR),
+            'lighter-secure = {}.secure:secure'.format(L_DIR),
+        ]
+    },
+    cmdclass={
+        'build_py': BuildPy,
+        'clean': Clean,
+        'develop': Develop,
+        'test': PyTest,
+    }
+)

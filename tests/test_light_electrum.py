@@ -32,29 +32,25 @@ CTX = 'context'
 class LightElectrumTests(TestCase):
     """ Tests for light_electrum module """
 
-    def test_get_settings(self):
-        MOD.get_settings()
+    @patch(MOD.__name__ + '.set_defaults', autospec=True)
+    def test_get_settings(self, mocked_set_def):
+        ele_host = 'electrum'
+        ele_port = '7777'
+        ele_user = 'user'
+        config = Mock()
+        config.get.side_effect = [ele_host, ele_port, ele_user]
+        MOD.get_settings(config, 'electrum')
+        ele_values = ['ELE_HOST', 'ELE_PORT', 'ELE_USER']
+        mocked_set_def.assert_called_once_with(config, ele_values)
+        self.assertEqual(settings.ELE_HOST, ele_host)
+        self.assertEqual(settings.ELE_PORT, ele_port)
+        self.assertEqual(settings.ELE_USER, ele_user)
         self.assertEqual(settings.IMPL_SEC_TYPE, 'password')
 
     def test_update_settings(self):
         # Correct case
         pwd = 'password'
-        values = {
-            'ELE_HOST': 'electrum',
-            'ELE_PORT': '7777',
-            'ELE_USER': 'user',
-        }
-        with patch.dict('os.environ', values):
-            MOD.update_settings(pwd.encode())
-        self.assertEqual(
-            settings.RPC_URL, 'http://{}:{}@{}:{}'.format(
-            values['ELE_USER'], pwd, values['ELE_HOST'], values['ELE_PORT']))
-        # Missing variable
-        reset_mocks(vars())
-        settings.RPC_URL = ''
-        values = {}
-        with patch.dict('os.environ', values):
-            MOD.update_settings(pwd.encode())
+        MOD.update_settings(pwd.encode())
         self.assertEqual(
             settings.RPC_URL, 'http://{}:{}@{}:{}'.format(
             settings.ELE_USER, pwd, settings.ELE_HOST, settings.ELE_PORT))

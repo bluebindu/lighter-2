@@ -39,7 +39,8 @@ fi
 set +e
 
 echo "Running pycodestyle..."
-${ENV_BIN}pycodestyle --exclude=*_pb2*.py \
+ignore="*_pb2*.py,cliter.py,secure.py,env.py,*_add_secret_type_column.py"
+${ENV_BIN}pycodestyle --exclude=$ignore \
 	"${PROJECTNAME}" \
 	> "${REPORTS}/pycodestyle.report"
 
