@@ -43,8 +43,11 @@ def get_db_url(new_db):
     db_abspath = ''
     db_relpath = Path(sett.DB_DIR).joinpath(sett.DB_NAME)
     try:
-        # from python3.6 'strict' in 'resolve' can be used to avoid exception
-        db_abspath = db_relpath.resolve()
+        try:
+            # from python3.6 strict is necessary to raise FileNotFoundError
+            db_abspath = db_relpath.resolve(strict=True)
+        except TypeError:
+            db_abspath = db_relpath.resolve()
     except FileNotFoundError:
         if new_db:
             db_relpath.touch()

@@ -16,7 +16,7 @@
 
 from importlib import import_module
 from unittest import TestCase
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import call, MagicMock, Mock, patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -40,6 +40,7 @@ class DbTests(TestCase):
         mocked_system.return_value = 'Linux'
         res = MOD.get_db_url(False)
         self.assertEqual(res, 'sqlite:///{}'.format(db_abspath))
+        mocked_path().joinpath().resolve.assert_called_once_with(strict=True)
         # macOS case
         db_abspath = '/home/user/lighter-data/db/lighter.db'
         mocked_path().joinpath().resolve.return_value = db_abspath
@@ -69,9 +70,15 @@ class DbTests(TestCase):
         mocked_path().joinpath().resolve.side_effect = FileNotFoundError()
         with self.assertRaises(RuntimeError):
             res = MOD.get_db_url(False)
-        mocked_path().joinpath().resolve.assert_called_once_with()
         assert not mocked_path().joinpath().touch.called
-
+        # simulate case with python3.5 and existing DB
+        reset_mocks(vars())
+        mocked_path().joinpath().resolve.side_effect = [
+            TypeError(), FileNotFoundError()]
+        with self.assertRaises(RuntimeError):
+            res = MOD.get_db_url(False)
+        calls = [call(strict=True), call()]
+        mocked_path().joinpath().resolve.assert_has_calls(calls)
 
     @patch('lighter.db.stamp', autospec=True)
     @patch('lighter.db.get_alembic_cfg', autospec=True)
