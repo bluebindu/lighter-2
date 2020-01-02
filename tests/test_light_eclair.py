@@ -19,12 +19,14 @@ from importlib import import_module
 from unittest import TestCase
 from unittest.mock import call, Mock, patch
 
-from lighter import lighter_pb2 as pb
-from lighter import settings
-from lighter.utils import Enforcer as Enf
 from tests import fixtures_eclair as fix
 
-MOD = import_module('lighter.light_eclair')
+from . import proj_root
+
+Enf = getattr(import_module(proj_root + '.utils'), 'Enforcer')
+MOD = import_module(proj_root + '.light_eclair')
+pb = import_module(proj_root + '.lighter_pb2')
+settings = import_module(proj_root + '.settings')
 CTX = 'context'
 
 
@@ -50,8 +52,8 @@ class LightEclairTests(TestCase):
         MOD.update_settings(password)
         self.assertEqual(settings.ECL_PASS, password.decode())
 
-    @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair.EclairRPC')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.EclairRPC')
     def test_GetInfo(self, mocked_rpcses, mocked_handle):
         ses = mocked_rpcses.return_value
         mocked_handle.side_effect = Exception()
@@ -83,15 +85,15 @@ class LightEclairTests(TestCase):
             res = MOD.GetInfo('request', CTX)
         mocked_handle.assert_called_once_with(CTX, fix.ERR)
 
-    @patch('lighter.light_eclair.get_channel_balances', autospec=True)
-    @patch('lighter.light_eclair.ListChannels', autospec=True)
+    @patch(MOD.__name__ + '.get_channel_balances', autospec=True)
+    @patch(MOD.__name__ + '.ListChannels', autospec=True)
     def test_ChannelBalance(self, mocked_ListChannels, mocked_get_chan_bal):
         mocked_get_chan_bal.return_value = pb.ChannelBalanceResponse()
         res = MOD.ChannelBalance('request', CTX)
         self.assertEqual(res, pb.ChannelBalanceResponse())
 
-    @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair.EclairRPC')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.EclairRPC')
     def test_ListPeers(self, mocked_rpcses, mocked_handle):
         ses = mocked_rpcses.return_value
         mocked_handle.side_effect = Exception()
@@ -120,9 +122,9 @@ class LightEclairTests(TestCase):
         res = MOD.ListPeers('request', CTX)
         assert not mocked_handle.called
 
-    @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair._add_channel', autospec=True)
-    @patch('lighter.light_eclair.EclairRPC')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._add_channel', autospec=True)
+    @patch(MOD.__name__ + '.EclairRPC')
     def test_ListChannels(self, mocked_rpcses, mocked_add, mocked_handle):
         ses = mocked_rpcses.return_value
         mocked_handle.side_effect = Exception()
@@ -147,10 +149,10 @@ class LightEclairTests(TestCase):
         mocked_handle.assert_called_once_with(CTX, fix.ERR)
         assert not mocked_add.called
 
-    @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair.EclairRPC')
-    @patch('lighter.light_eclair.convert', autospec=True)
-    @patch('lighter.light_eclair.Err')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.EclairRPC')
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.Err')
     def test_CreateInvoice(self, mocked_err, mocked_conv, mocked_rpcses,
                            mocked_handle):
         ses = mocked_rpcses.return_value
@@ -210,10 +212,10 @@ class LightEclairTests(TestCase):
             CTX, 'min_final_cltv_expiry')
         assert not mocked_handle.called
 
-    @patch('lighter.light_eclair.Err')
-    @patch('lighter.light_eclair._get_invoice_state', autospec=True)
-    @patch('lighter.light_eclair.EclairRPC')
-    @patch('lighter.light_eclair.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '._get_invoice_state', autospec=True)
+    @patch(MOD.__name__ + '.EclairRPC')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_CheckInvoice(self, mocked_check_par, mocked_rpcses,
                           mocked_inv_st, mocked_err):
         ses = mocked_rpcses.return_value
@@ -244,12 +246,12 @@ class LightEclairTests(TestCase):
             res = MOD.CheckInvoice(request, CTX)
         mocked_err().invalid.assert_called_once_with(CTX, 'payment_hash')
 
-    @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair.EclairRPC')
-    @patch('lighter.light_eclair.convert', autospec=True)
-    @patch('lighter.light_eclair.has_amount_encoded', autospec=True)
-    @patch('lighter.light_eclair.Err')
-    @patch('lighter.light_eclair.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.EclairRPC')
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.has_amount_encoded', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_PayInvoice(self, mocked_check_par, mocked_err, mocked_has_amt,
                         mocked_conv, mocked_rpcses, mocked_handle):
         ses = mocked_rpcses.return_value
@@ -354,12 +356,12 @@ class LightEclairTests(TestCase):
         mocked_handle.assert_called_once_with(CTX, fix.ERR)
         assert not ses.getsentinfo.called
 
-    @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair._is_description_hash', autospec=True)
-    @patch('lighter.light_eclair.convert', autospec=True)
-    @patch('lighter.light_eclair.EclairRPC')
-    @patch('lighter.light_eclair.Err')
-    @patch('lighter.light_eclair.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._is_description_hash', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.EclairRPC')
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_DecodeInvoice(self, mocked_check_par, mocked_err, mocked_rpcses,
                            mocked_conv, mocked_d_hash, mocked_handle):
         cmd = 'parseinvoice'
@@ -425,11 +427,11 @@ class LightEclairTests(TestCase):
             res = MOD.DecodeInvoice(req, CTX)
         mocked_handle.assert_called_once_with(CTX, fix.ERR)
 
-    @patch('lighter.light_eclair.convert', autospec=True)
-    @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair.EclairRPC')
-    @patch('lighter.light_eclair.Err')
-    @patch('lighter.light_eclair.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.EclairRPC')
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_OpenChannel(self, mocked_check_par, mocked_err, mocked_rpcses,
                          mocked_handle, mocked_conv):
         ses = mocked_rpcses.return_value
@@ -488,12 +490,12 @@ class LightEclairTests(TestCase):
         res = MOD.OpenChannel(request, CTX)
         self.assertEqual(res, pb.OpenChannelResponse())
 
-    @patch('lighter.light_eclair.Err')
-    @patch('lighter.light_eclair._handle_error', autospec=True)
-    @patch('lighter.light_eclair.get_thread_timeout', autospec=True)
-    @patch('lighter.light_eclair.get_node_timeout', autospec=True)
-    @patch('lighter.light_eclair.ThreadPoolExecutor', autospec=True)
-    @patch('lighter.light_eclair.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.get_thread_timeout', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '.ThreadPoolExecutor', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_CloseChannel(self, mocked_check_par, mocked_thread,
                           mocked_get_time, mocked_thread_time,
                           mocked_handle, mocked_err):
@@ -558,8 +560,8 @@ class LightEclairTests(TestCase):
         res = MOD._is_description_hash(fix.PARSEINVOICE['description'])
         self.assertEqual(res, False)
 
-    @patch('lighter.light_eclair.convert', autospec=True)
-    @patch('lighter.light_eclair._get_channel_state', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '._get_channel_state', autospec=True)
     def test_add_channel(self, mocked_state, mocked_conv):
         # Add channel case
         response = pb.ListChannelsResponse()
@@ -595,11 +597,11 @@ class LightEclairTests(TestCase):
         res = MOD._add_channel(CTX, response, fix.CHANNEL_OFFLINE, True)
         self.assertEqual(response, pb.ListChannelsResponse())
 
-    @patch('lighter.light_eclair.sleep', autospec=True)
-    @patch('lighter.light_eclair.LOGGER', autospec=True)
-    @patch('lighter.light_eclair.FakeContext', autospec=True)
-    @patch('lighter.light_eclair.EclairRPC')
-    @patch('lighter.light_eclair.time', autospec=True)
+    @patch(MOD.__name__ + '.sleep', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.FakeContext', autospec=True)
+    @patch(MOD.__name__ + '.EclairRPC')
+    @patch(MOD.__name__ + '.time', autospec=True)
     def test_close_channel(self, mocked_time, mocked_rpcses, mocked_ctx,
                            mocked_log, mocked_sleep):
         ses = mocked_rpcses.return_value
@@ -688,7 +690,7 @@ class LightEclairTests(TestCase):
         res = MOD._get_invoice_state(invoice)
         self.assertEqual(res, pb.PENDING)
 
-    @patch('lighter.light_eclair.Err')
+    @patch(MOD.__name__ + '.Err')
     def test_handle_error(self, mocked_err):
         mocked_err().report_error.side_effect = Exception()
         # Key 'failures' in ecl_res

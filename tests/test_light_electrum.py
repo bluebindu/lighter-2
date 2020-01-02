@@ -18,12 +18,14 @@ from importlib import import_module
 from unittest import TestCase
 from unittest.mock import call, Mock, patch
 
-from lighter import lighter_pb2 as pb
-from lighter import light_electrum, settings
-from lighter.utils import Enforcer as Enf
 from tests import fixtures_electrum as fix
 
-MOD = import_module('lighter.light_electrum')
+from . import proj_root
+
+Enf = getattr(import_module(proj_root + '.utils'), 'Enforcer')
+MOD = import_module(proj_root + '.light_electrum')
+pb = import_module(proj_root + '.lighter_pb2')
+settings = import_module(proj_root + '.settings')
 CTX = 'context'
 
 
@@ -57,8 +59,8 @@ class LightElectrumTests(TestCase):
             settings.RPC_URL, 'http://{}:{}@{}:{}'.format(
             settings.ELE_USER, pwd, settings.ELE_HOST, settings.ELE_PORT))
 
-    @patch('lighter.light_electrum._handle_error', autospec=True)
-    @patch('lighter.light_electrum.ElectrumRPC')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.ElectrumRPC')
     def test_GetInfo(self, mocked_rpcses, mocked_handle):
         ses = mocked_rpcses.return_value
         mocked_handle.side_effect = Exception()
@@ -94,11 +96,11 @@ class LightElectrumTests(TestCase):
             res = MOD.GetInfo('req', CTX)
         mocked_handle.assert_called_once_with(CTX, err_msg)
 
-    @patch('lighter.light_electrum.get_address_type', autospec=True)
-    @patch('lighter.light_electrum.LOGGER', autospec=True)
-    @patch('lighter.light_electrum.Err')
-    @patch('lighter.light_electrum._handle_error', autospec=True)
-    @patch('lighter.light_electrum.ElectrumRPC')
+    @patch(MOD.__name__ + '.get_address_type', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.ElectrumRPC')
     def test_NewAddress(self, mocked_rpcses, mocked_handle, mocked_err,
                         mocked_log, mocked_addr_type):
         ses = mocked_rpcses.return_value
@@ -137,9 +139,9 @@ class LightElectrumTests(TestCase):
             res = MOD.NewAddress(req, CTX)
         mocked_handle.assert_called_once_with(CTX, err_msg)
 
-    @patch('lighter.light_electrum.convert', autospec=True)
-    @patch('lighter.light_electrum._handle_error', autospec=True)
-    @patch('lighter.light_electrum.ElectrumRPC')
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.ElectrumRPC')
     def test_WalletBalance(self, mocked_rpcses, mocked_handle, mocked_conv):
         ses = mocked_rpcses.return_value
         ses.getbalance.return_value = (fix.GETBALANCE, False)
@@ -170,17 +172,17 @@ class LightElectrumTests(TestCase):
             res = MOD.WalletBalance('req', CTX)
         mocked_handle.assert_called_once_with(CTX, err_msg)
 
-    @patch('lighter.light_electrum.get_channel_balances', autospec=True)
-    @patch('lighter.light_electrum.ListChannels')
+    @patch(MOD.__name__ + '.get_channel_balances', autospec=True)
+    @patch(MOD.__name__ + '.ListChannels')
     def test_ChannelBalance(self, mocked_ListChannels, mocked_get_chan_bal):
         mocked_get_chan_bal.return_value = pb.ChannelBalanceResponse()
         res = MOD.ChannelBalance('request', CTX)
         self.assertEqual(res, pb.ChannelBalanceResponse())
 
-    @patch('lighter.light_electrum._add_channel', autospec=True)
-    @patch('lighter.light_electrum._handle_error', autospec=True)
-    @patch('lighter.light_electrum.ElectrumRPC')
-    @patch('lighter.light_electrum.Err')
+    @patch(MOD.__name__ + '._add_channel', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.ElectrumRPC')
+    @patch(MOD.__name__ + '.Err')
     def test_ListChannels(self, mocked_err, mocked_rpcses, mocked_handle,
                           mocked_add):
         ses = mocked_rpcses.return_value
@@ -208,11 +210,11 @@ class LightElectrumTests(TestCase):
             res = MOD.ListChannels(req, CTX)
         mocked_handle.assert_called_once_with(CTX, err_msg)
 
-    @patch('lighter.light_electrum._handle_error', autospec=True)
-    @patch('lighter.light_electrum.ElectrumRPC')
-    @patch('lighter.light_electrum.convert', autospec=True)
-    @patch('lighter.light_electrum.Err')
-    @patch('lighter.light_electrum.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.ElectrumRPC')
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_CreateInvoice(self, mocked_check_par, mocked_err, mocked_conv,
                            mocked_rpcses, mocked_handle):
         ses = mocked_rpcses.return_value
@@ -271,11 +273,11 @@ class LightElectrumTests(TestCase):
             res = MOD.CreateInvoice(req, CTX)
         mocked_handle.assert_called_once_with(CTX, err_msg)
 
-    @patch('lighter.light_electrum._handle_error', autospec=True)
-    @patch('lighter.light_electrum.ElectrumRPC')
-    @patch('lighter.light_electrum.Err')
-    @patch('lighter.light_electrum.has_amount_encoded', autospec=True)
-    @patch('lighter.light_electrum.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.ElectrumRPC')
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.has_amount_encoded', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_PayInvoice(self, mocked_check_par, mocked_has_amt, mocked_err,
                         mocked_rpcses, mocked_handle):
         ses = mocked_rpcses.return_value
@@ -347,12 +349,12 @@ class LightElectrumTests(TestCase):
             res = MOD.PayInvoice(req, CTX)
         mocked_handle.assert_called_once_with(CTX, False)
 
-    @patch('lighter.light_electrum._handle_error', autospec=True)
-    @patch('lighter.light_electrum.ElectrumRPC')
-    @patch('lighter.light_electrum.convert', autospec=True)
-    @patch('lighter.light_electrum.Err')
-    @patch('lighter.light_electrum.Enf.check_value')
-    @patch('lighter.light_electrum.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.ElectrumRPC')
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.Enf.check_value')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_PayOnChain(self, mocked_check_par, mocked_check_val, mocked_err,
                         mocked_conv, mocked_rpcses, mocked_handle):
         ses = mocked_rpcses.return_value
@@ -403,10 +405,10 @@ class LightElectrumTests(TestCase):
         with self.assertRaises(Exception):
             MOD.PayOnChain(req, CTX)
 
-    @patch('lighter.light_electrum.convert', autospec=True)
-    @patch('lighter.light_electrum._handle_error', autospec=True)
-    @patch('lighter.light_electrum.Err')
-    @patch('lighter.light_electrum.ElectrumRPC')
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.ElectrumRPC')
     def test_OpenChannel(self, mocked_rpcses, mocked_err, mocked_handle,
                          mocked_conv):
         ses = mocked_rpcses.return_value
@@ -438,8 +440,8 @@ class LightElectrumTests(TestCase):
             res = MOD.OpenChannel(req, CTX)
         mocked_handle.assert_called_once_with(CTX, err_msg)
 
-    @patch('lighter.light_electrum.convert', autospec=True)
-    @patch('lighter.light_electrum._get_channel_state', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '._get_channel_state', autospec=True)
     def test_add_channel(self, mocked_state, mocked_conv):
         # Add channel case
         response = pb.ListChannelsResponse()
@@ -491,7 +493,7 @@ class LightElectrumTests(TestCase):
         res = MOD._get_channel_state(fix.CHANNEL_UNKNOWN)
         self.assertEqual(res, pb.UNKNOWN)
 
-    @patch('lighter.light_electrum.Err')
+    @patch(MOD.__name__ + '.Err')
     def test_handle_error(self, mocked_err):
         err_msg = 'electrum_error'
         MOD._handle_error(CTX, err_msg)

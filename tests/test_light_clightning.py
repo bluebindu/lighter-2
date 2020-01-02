@@ -19,12 +19,14 @@ from importlib import import_module
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from lighter import lighter_pb2 as pb
-from lighter import light_clightning, settings
-from lighter.utils import Enforcer as Enf
 from tests import fixtures_clightning as fix
 
-MOD = import_module('lighter.light_clightning')
+from . import proj_root
+
+Enf = getattr(import_module(proj_root + '.utils'), 'Enforcer')
+MOD = import_module(proj_root + '.light_clightning')
+pb = import_module(proj_root + '.lighter_pb2')
+settings = import_module(proj_root + '.settings')
 CTX = 'context'
 
 
@@ -58,8 +60,8 @@ class LightClightningTests(TestCase):
     def test_update_settings(self):
         MOD.update_settings(None)
 
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
     def test_GetInfo(self, mocked_command, mocked_handle):
         # Correct case
         mocked_command.return_value = fix.GETINFO
@@ -85,8 +87,8 @@ class LightClightningTests(TestCase):
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
     def test_NewAddress(self, mocked_command, mocked_handle):
         # Legacy case: request.type = 0 = NP2WKH = P2SH_SEGWIT
         reset_mocks(vars())
@@ -123,9 +125,9 @@ class LightClightningTests(TestCase):
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
-    @patch('lighter.light_clightning.convert', autospec=True)
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
     def test_WalletBalance(self, mocked_command, mocked_handle,
                            mocked_conv):
         # Correct case
@@ -157,17 +159,17 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
 
-    @patch('lighter.light_clightning.get_channel_balances', autospec=True)
-    @patch('lighter.light_clightning.ListChannels', autospec=True)
+    @patch(MOD.__name__ + '.get_channel_balances', autospec=True)
+    @patch(MOD.__name__ + '.ListChannels', autospec=True)
     def test_ChannelBalance(self, mocked_ListChannels, mocked_get_chan_bal):
         mocked_get_chan_bal.return_value = pb.ChannelBalanceResponse()
         res = MOD.ChannelBalance('request', CTX)
         self.assertEqual(res, pb.ChannelBalanceResponse())
 
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning._add_channel', autospec=True)
-    @patch('lighter.light_clightning._get_channel_state', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._add_channel', autospec=True)
+    @patch(MOD.__name__ + '._get_channel_state', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
     def test_ListChannels(self, mocked_command, mocked_state, mocked_add,
                           mocked_handle):
         api = 'listpeers'
@@ -216,9 +218,9 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
 
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning._add_payment', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._add_payment', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
     def test_ListPayments(self, mocked_command, mocked_add, mocked_handle):
         api = 'listsendpays'
         # Correct case
@@ -236,8 +238,8 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
 
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
     def test_ListPeers(self, mocked_command, mocked_handle):
         listpeers = 'listpeers'
         listnodes = 'listnodes'
@@ -266,11 +268,11 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
 
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
-    @patch('lighter.light_clightning._create_label', autospec=True)
-    @patch('lighter.light_clightning.convert', autospec=True)
-    @patch('lighter.light_clightning.Err')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
+    @patch(MOD.__name__ + '._create_label', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.Err')
     def test_CreateInvoice(self, mocked_err, mocked_conv, mocked_label,
                            mocked_command, mocked_handle):
         # Correct case
@@ -358,11 +360,11 @@ class LightClightningTests(TestCase):
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
-    @patch('lighter.light_clightning._get_invoice_state', autospec=True)
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.Err')
-    @patch('lighter.light_clightning.command', autospec=True)
-    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._get_invoice_state', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.command', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_CheckInvoice(self, mocked_check_par, mocked_command, mocked_err,
                           mocked_handle, mocked_inv_st):
         # Correct case: paid invoice
@@ -430,13 +432,13 @@ class LightClightningTests(TestCase):
             CTX, fix.BADRESPONSE, always_abort=False)
         assert not mocked_err().invoice_not_found.called
 
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
-    @patch('lighter.light_clightning.Enf.check_value')
-    @patch('lighter.light_clightning.convert', autospec=True)
-    @patch('lighter.light_clightning.has_amount_encoded', autospec=True)
-    @patch('lighter.light_clightning.Err')
-    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
+    @patch(MOD.__name__ + '.Enf.check_value')
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.has_amount_encoded', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_PayInvoice(self, mocked_check_par, mocked_err, mocked_has_amt,
                         mocked_conv, mocked_check_val, mocked_command,
                         mocked_handle):
@@ -524,12 +526,12 @@ class LightClightningTests(TestCase):
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
-    @patch('lighter.light_clightning.Enf.check_value')
-    @patch('lighter.light_clightning.convert', autospec=True)
-    @patch('lighter.light_clightning.Err')
-    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
+    @patch(MOD.__name__ + '.Enf.check_value')
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_PayOnChain(self, mocked_check_par, mocked_err, mocked_conv,
                         mocked_check_val, mocked_command, mocked_handle):
         api = 'withdraw'
@@ -566,12 +568,12 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
 
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning._add_route_hint', autospec=True)
-    @patch('lighter.light_clightning.convert', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
-    @patch('lighter.light_clightning.Err')
-    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._add_route_hint', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_DecodeInvoice(self, mocked_check_par, mocked_err, mocked_command,
                            mocked_conv, mocked_add, mocked_handle):
         # Correct case: simple description, fallback and routes
@@ -657,11 +659,11 @@ class LightClightningTests(TestCase):
             CTX, fix.BADRESPONSE, always_abort=False)
         self.assertEqual(res, 'not set')
 
-    @patch('lighter.light_clightning.convert', autospec=True)
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
-    @patch('lighter.light_clightning.Err')
-    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_OpenChannel(self, mocked_check_par, mocked_err, mocked_command,
                          mocked_handle, mocked_conv):
         amt = 7
@@ -717,12 +719,12 @@ class LightClightningTests(TestCase):
         mocked_handle.assert_called_once_with(
             CTX, fix.BADRESPONSE, always_abort=False)
 
-    @patch('lighter.light_clightning.Err')
-    @patch('lighter.light_clightning._handle_error', autospec=True)
-    @patch('lighter.light_clightning.get_thread_timeout', autospec=True)
-    @patch('lighter.light_clightning.ThreadPoolExecutor', autospec=True)
-    @patch('lighter.light_clightning.get_node_timeout', autospec=True)
-    @patch('lighter.light_clightning.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.get_thread_timeout', autospec=True)
+    @patch(MOD.__name__ + '.ThreadPoolExecutor', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_CloseChannel(self, mocked_check_par, mocked_get_time,
                           mocked_thread, mocked_thread_time, mocked_handle,
                           mocked_err):
@@ -768,7 +770,7 @@ class LightClightningTests(TestCase):
         mocked_err().report_error.assert_called_once_with(CTX, err)
         future.result.side_effect = None
 
-    @patch('lighter.light_clightning.convert', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
     def test_add_channel(self, mocked_conv):
         # Add channel case
         response = pb.ListChannelsResponse()
@@ -794,7 +796,7 @@ class LightClightningTests(TestCase):
             pb.PENDING_OPEN, True)
         self.assertEqual(response, pb.ListChannelsResponse())
 
-    @patch('lighter.light_clightning.convert', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
     def test_add_payment(self, mocked_conv):
         # Full response
         response = pb.ListPaymentsResponse()
@@ -842,8 +844,8 @@ class LightClightningTests(TestCase):
         self.assertEqual(
             response.route_hints[0].hop_hints[1].cltv_expiry_delta, 4)
 
-    @patch('lighter.light_clightning.LOGGER', autospec=True)
-    @patch('lighter.light_clightning.command', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.command', autospec=True)
     def test_close_channel(self, mocked_command, mocked_log):
         cl_req = ['close']
         node_timeout = 30
@@ -868,7 +870,7 @@ class LightClightningTests(TestCase):
             self.assertEqual(res, None)
         assert mocked_log.debug.called
 
-    @patch('lighter.light_clightning.datetime', autospec=True)
+    @patch(MOD.__name__ + '.datetime', autospec=True)
     def test_create_label(self, mocked_datetime):
         mocked_datetime.now().timestamp.return_value = 1533152937.911157
         res = MOD._create_label()
@@ -915,7 +917,7 @@ class LightClightningTests(TestCase):
         res = MOD._get_invoice_state(invoice)
         self.assertEqual(res, pb.PENDING)
 
-    @patch('lighter.light_clightning.Err')
+    @patch(MOD.__name__ + '.Err')
     def test_handle_error(self, mocked_err):
         mocked_err().report_error.side_effect = Exception()
         mocked_err().unexpected_error.side_effect = Exception()
@@ -937,7 +939,7 @@ class LightClightningTests(TestCase):
         # MacaroonKeys code and message not in cl_res, always_abort=False
         reset_mocks(vars())
         cl_res = {'no code': 'in cl_res'}
-        light_clightning._handle_error(CTX, cl_res, always_abort=False)
+        MOD._handle_error(CTX, cl_res, always_abort=False)
         assert not mocked_err().report_error.called
         assert not mocked_err().unexpected_error.called
 

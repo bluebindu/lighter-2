@@ -15,7 +15,11 @@
 
 """ Fixtures for utils module """
 
-from lighter import lighter_pb2 as pb
+from importlib import import_module
+
+from . import proj_root
+
+pb = import_module(proj_root + '.lighter_pb2')
 
 
 class FakeMetadatum():

@@ -15,9 +15,6 @@
 
 """ Tests starting point """
 
-from os import path as osp
-from sys import path as spa
+from pathlib import Path
 
-test_dir = osp.dirname(osp.realpath(__file__))
-proj_dir = osp.dirname(test_dir)
-spa.append(proj_dir)
+proj_root = Path(Path(__file__).parents[1], 'lighter').name

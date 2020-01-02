@@ -2,8 +2,15 @@ import sys
 
 from codecs import encode
 from datetime import datetime, timedelta, timezone
-from lighter import settings
-from lighter.macaroons import get_baker, MACAROONS, MAC_VERSION
+from importlib import import_module
+
+from . import proj_root
+
+settings = import_module(proj_root + '.settings')
+lighter_mac_mod = import_module(proj_root + '.macaroons')
+get_baker = getattr(lighter_mac_mod, 'get_baker')
+MACAROONS = getattr(lighter_mac_mod, 'MACAROONS')
+MAC_VERSION = getattr(lighter_mac_mod, 'MAC_VERSION')
 
 this = sys.modules[__name__]
 

@@ -23,18 +23,20 @@ from pymacaroons import Macaroon
 from unittest import TestCase, skip
 from unittest.mock import Mock, mock_open, patch
 
-from lighter import settings
-from lighter.macaroons import MACAROONS
 from tests import fixtures_macaroons as fix
 
-MOD = import_module('lighter.macaroons')
+from . import proj_root
+
+MACAROONS = getattr(import_module(proj_root + '.macaroons'), 'MACAROONS')
+settings = import_module(proj_root + '.settings')
+MOD = import_module(proj_root + '.macaroons')
 
 
 class MacaroonsTests(TestCase):
     """ Tests for macaroons module """
 
-    @patch('lighter.macaroons._validate_macaroon', autospec=True)
-    @patch('lighter.macaroons.LOGGER')
+    @patch(MOD.__name__ + '._validate_macaroon', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER')
     def test_check_macaroons(self, mocked_logger, mocked_validate):
         key = 'macaroon'
         root_key = urandom(32)

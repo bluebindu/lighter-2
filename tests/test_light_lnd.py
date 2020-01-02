@@ -22,21 +22,24 @@ from unittest.mock import call, Mock, mock_open, patch
 
 from grpc import FutureTimeoutError, RpcError
 
-from lighter import rpc_pb2 as ln
-from lighter import lighter_pb2 as pb
-from lighter import settings
-from lighter.light_lnd import LND_LN_TX, LND_PAYREQ
-from lighter.utils import Enforcer as Enf
 from tests import fixtures_lnd as fix
 
-MOD = import_module('lighter.light_lnd')
+from . import proj_root
+
+ln = import_module(proj_root + '.rpc_pb2')
+Enf = getattr(import_module(proj_root + '.utils'), 'Enforcer')
+pb = import_module(proj_root + '.lighter_pb2')
+settings = import_module(proj_root + '.settings')
+LND_LN_TX = getattr(import_module(proj_root + '.light_lnd'), 'LND_LN_TX')
+LND_PAYREQ = getattr(import_module(proj_root + '.light_lnd'), 'LND_PAYREQ')
+MOD = import_module(proj_root + '.light_lnd')
 CTX = 'context'
 
 
 class LightLndTests(TestCase):
     """ Tests for light_lnd module """
 
-    @patch('lighter.light_lnd.ssl_channel_credentials')
+    @patch(MOD.__name__ + '.ssl_channel_credentials')
     def test_get_settings(self, mocked_ssl_chan):
         # Correct case: with macaroons
         values = {
@@ -48,7 +51,7 @@ class LightLndTests(TestCase):
         mocked_ssl_chan.return_value = 'cert_creds'
         mopen = mock_open(read_data='cert')
         with patch.dict('os.environ', values):
-            with patch('lighter.light_lnd.open', mopen):
+            with patch(MOD.__name__ + '.open', mopen):
                 MOD.get_settings()
         mopen.assert_called_with('/path/tls.cert', 'rb')
         mopen.return_value.read.assert_called_once_with()
@@ -59,9 +62,9 @@ class LightLndTests(TestCase):
         self.assertEqual(settings.LND_CREDS_FULL, 'cert_creds')
         self.assertEqual(settings.IMPL_SEC_TYPE, 'macaroon')
 
-    @patch('lighter.light_lnd.composite_channel_credentials')
-    @patch('lighter.light_lnd.metadata_call_credentials')
-    @patch('lighter.light_lnd._metadata_callback')
+    @patch(MOD.__name__ + '.composite_channel_credentials')
+    @patch(MOD.__name__ + '.metadata_call_credentials')
+    @patch(MOD.__name__ + '._metadata_callback')
     def test_update_settings(self, mocked_callback,
                              mocked_meta_call, mocked_comp_chan):
         # Correct case: with macaroons
@@ -87,7 +90,7 @@ class LightLndTests(TestCase):
         MOD._metadata_callback(CTX, mocked_callback)
         mocked_callback.assert_called_once_with([('macaroon', mac)], None)
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
     def test_handle_rpc_errors(self, mocked_handle_err):
         # Correct case
         func = Mock()
@@ -106,12 +109,12 @@ class LightLndTests(TestCase):
         self.assertEqual(func.call_count, 1)
         mocked_handle_err.assert_called_once_with('context', error)
 
-    @patch('lighter.light_lnd.lnrpc.WalletUnlockerStub', autospec=True)
-    @patch('lighter.light_lnd.lnrpc.LightningStub', autospec=True)
-    @patch('lighter.light_lnd.Err')
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd.channel_ready_future', autospec=True)
-    @patch('lighter.light_lnd.secure_channel', autospec=True)
+    @patch(MOD.__name__ + '.lnrpc.WalletUnlockerStub', autospec=True)
+    @patch(MOD.__name__ + '.lnrpc.LightningStub', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '.channel_ready_future', autospec=True)
+    @patch(MOD.__name__ + '.secure_channel', autospec=True)
     def test_connect(self, mocked_secure_chan, mocked_future, mocked_get_time,
                      mocked_err, mocked_ln_stub, mocked_wu_stub):
         settings.LND_ADDR = 'lnd:10009'
@@ -140,14 +143,14 @@ class LightLndTests(TestCase):
             with MOD._connect(CTX) as stub:
                 self.assertEqual(stub, 'stub')
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.LOGGER', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
-    @patch('lighter.light_lnd.Err')
-    @patch('lighter.light_lnd.get_secret', autospec=True)
-    @patch('lighter.light_lnd.session_scope', autospec=True)
-    @patch('lighter.light_lnd.ExitStack', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.get_secret', autospec=True)
+    @patch(MOD.__name__ + '.session_scope', autospec=True)
+    @patch(MOD.__name__ + '.ExitStack', autospec=True)
     def test_unlock_node(self, mocked_stack, mocked_ses, mocked_get_sec,
                          mocked_err, mocked_connect, mocked_get_time,
                          mocked_log, mocked_handle_err):
@@ -196,9 +199,9 @@ class LightLndTests(TestCase):
         assert not mocked_ses.called
         assert mocked_err().node_error.called
 
-    @patch('lighter.light_lnd.unlock_node', autospec=True)
-    @patch('lighter.light_lnd.check_password', autospec=True)
-    @patch('lighter.light_lnd.session_scope', autospec=True)
+    @patch(MOD.__name__ + '.unlock_node', autospec=True)
+    @patch(MOD.__name__ + '.check_password', autospec=True)
+    @patch(MOD.__name__ + '.session_scope', autospec=True)
     def test_UnlockNode(self, mocked_ses, mocked_check, mocked_unlock):
         pwd = 'password'
         req = pb.UnlockNodeRequest(password=pwd)
@@ -210,9 +213,9 @@ class LightLndTests(TestCase):
         mocked_unlock.assert_called_once_with(
             CTX, pwd, session=mocked_ses.return_value.__enter__.return_value)
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
     def test_GetInfo(self, mocked_connect, mocked_get_time, mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
         time = 10
@@ -238,9 +241,9 @@ class LightLndTests(TestCase):
         stub.GetInfo.assert_called_once_with(
             ln.GetInfoRequest(), timeout=time)
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
     def test_NewAddress(self, mocked_connect, mocked_get_time, mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
         time = 10
@@ -265,10 +268,10 @@ class LightLndTests(TestCase):
         assert not mocked_handle.called
         self.assertEqual(res.address, 'addr')
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.convert', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
     def test_WalletBalance(self, mocked_connect, mocked_get_time, mocked_conv,
                            mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
@@ -285,17 +288,17 @@ class LightLndTests(TestCase):
         assert not mocked_handle.called
         self.assertEqual(res.balance, 777)
 
-    @patch('lighter.light_lnd.get_channel_balances', autospec=True)
-    @patch('lighter.light_lnd.ListChannels', autospec=True)
+    @patch(MOD.__name__ + '.get_channel_balances', autospec=True)
+    @patch(MOD.__name__ + '.ListChannels', autospec=True)
     def test_ChannelBalance(self, mocked_ListChannels, mocked_get_chan_bal):
         mocked_get_chan_bal.return_value = pb.ChannelBalanceResponse()
         res = MOD.ChannelBalance('request', CTX)
         self.assertEqual(res, pb.ChannelBalanceResponse())
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd._add_channel', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._add_channel', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
     def test_ListChannels(self, mocked_connect, mocked_get_time, mocked_add,
                           mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
@@ -354,10 +357,10 @@ class LightLndTests(TestCase):
         assert not mocked_handle.called
         self.assertEqual(res, pb.ListChannelsResponse())
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd._parse_invoices', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._parse_invoices', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
     def test_ListInvoices(self, mocked_connect, mocked_get_time, mocked_parse,
                           mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
@@ -398,10 +401,10 @@ class LightLndTests(TestCase):
         assert not mocked_parse.called
         assert not mocked_handle.called
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd._add_payment', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._add_payment', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
     def test_ListPayments(self, mocked_connect, mocked_get_time, mocked_add,
                           mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
@@ -418,9 +421,9 @@ class LightLndTests(TestCase):
             calls.append(call(CTX, response, lnd_payment))
         mocked_add.assert_has_calls(calls)
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
     def test_ListPeers(self, mocked_connect, mocked_get_time, mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
         time = 10
@@ -448,10 +451,10 @@ class LightLndTests(TestCase):
         assert not mocked_handle.called
         self.assertEqual(res, pb.ListPeersResponse())
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd._add_transaction', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._add_transaction', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
     def test_ListTransactions(self, mocked_connect, mocked_get_time,
                               mocked_add, mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
@@ -468,12 +471,12 @@ class LightLndTests(TestCase):
             calls.append(call(CTX, response, lnd_transaction))
         mocked_add.assert_has_calls(calls)
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.convert', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
-    @patch('lighter.light_lnd.Err')
-    @patch('lighter.light_lnd.Enf.check_value')
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.Enf.check_value')
     def test_CreateInvoice(self, mocked_check_val, mocked_err, mocked_connect,
                            mocked_get_time, mocked_conv, mocked_handle):
         stub = mocked_connect.return_value.__enter__.return_value
@@ -534,10 +537,10 @@ class LightLndTests(TestCase):
             res = MOD.CreateInvoice(request, CTX)
         assert not mocked_connect.called
 
-    @patch('lighter.light_lnd._get_invoice_state', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
-    @patch('lighter.light_lnd.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._get_invoice_state', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_CheckInvoice(self, mocked_check_par, mocked_connect,
                           mocked_get_time, mocked_inv_st):
         stub = mocked_connect.return_value.__enter__.return_value
@@ -568,14 +571,14 @@ class LightLndTests(TestCase):
         with self.assertRaises(Exception):
             MOD.CheckInvoice(request, CTX)
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
-    @patch('lighter.light_lnd.convert', autospec=True)
-    @patch('lighter.light_lnd.Err')
-    @patch('lighter.light_lnd.Enf.check_value')
-    @patch('lighter.light_lnd.has_amount_encoded', autospec=True)
-    @patch('lighter.light_lnd.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.Enf.check_value')
+    @patch(MOD.__name__ + '.has_amount_encoded', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_PayInvoice(self, mocked_check_par, mocked_has_amt,
                         mocked_check_val, mocked_err, mocked_conv,
                         mocked_connect, mocked_get_time, mocked_handle):
@@ -675,13 +678,13 @@ class LightLndTests(TestCase):
             lnd_req, timeout=time)
         self.assertEqual(res, pb.PayInvoiceResponse())
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.Err')
-    @patch('lighter.light_lnd.Enf.check_value')
-    @patch('lighter.light_lnd.convert', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
-    @patch('lighter.light_lnd.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.Enf.check_value')
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_PayOnChain(self, mocked_check_par, mocked_connect,
                         mocked_get_time, mocked_conv, mocked_check_val,
                         mocked_err, mocked_handle):
@@ -713,13 +716,13 @@ class LightLndTests(TestCase):
         MOD.PayOnChain(request, CTX)
         mocked_err().out_of_range.assert_called_once_with(CTX, 'fee_sat_byte')
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd._add_route_hint', autospec=True)
-    @patch('lighter.light_lnd.convert', autospec=True)
-    @patch('lighter.light_lnd.Err')
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
-    @patch('lighter.light_lnd.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '._add_route_hint', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_DecodeInvoice(self, mocked_check_par, mocked_connect,
                            mocked_get_time, mocked_err, mocked_conv,
                            mocked_add, mocked_handle):
@@ -753,13 +756,13 @@ class LightLndTests(TestCase):
         assert not mocked_add.called
         assert not mocked_handle.called
 
-    @patch('lighter.light_lnd._txid_bytes_to_str', autospec=True)
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.convert', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
-    @patch('lighter.light_lnd.Err')
-    @patch('lighter.light_lnd.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._txid_bytes_to_str', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_OpenChannel(self, mocked_check_par, mocked_err, mocked_connect,
                          mocked_get_time, mocked_conv, mocked_handle,
                          mocked_txid_bs):
@@ -841,13 +844,13 @@ class LightLndTests(TestCase):
         assert not mocked_conv.called
         assert not mocked_handle.called
 
-    @patch('lighter.light_lnd._handle_error', autospec=True)
-    @patch('lighter.light_lnd.get_thread_timeout', autospec=True)
-    @patch('lighter.light_lnd.get_node_timeout', autospec=True)
-    @patch('lighter.light_lnd.ThreadPoolExecutor', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
-    @patch('lighter.light_lnd.Err')
-    @patch('lighter.light_lnd.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '._handle_error', autospec=True)
+    @patch(MOD.__name__ + '.get_thread_timeout', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '.ThreadPoolExecutor', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_CloseChannel(self, mocked_check_par, mocked_err, mocked_connect,
                           mocked_thread, mocked_get_time, mocked_thread_time,
                           mocked_handle):
@@ -895,9 +898,9 @@ class LightLndTests(TestCase):
         MOD.CloseChannel(request, ctx)
         mocked_handle.assert_called_once_with(ctx, error)
 
-    @patch('lighter.light_lnd._txid_bytes_to_str', autospec=True)
-    @patch('lighter.light_lnd.LOGGER', autospec=True)
-    @patch('lighter.light_lnd._connect', autospec=True)
+    @patch(MOD.__name__ + '._txid_bytes_to_str', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '._connect', autospec=True)
     def test_close_channel(self, mocked_connect, mocked_log, mocked_txid_bs):
         ptxid = 'ptxid'
         mocked_txid_bs.return_value = ptxid
@@ -926,7 +929,7 @@ class LightLndTests(TestCase):
             MOD._close_channel(lnd_req, 15)
         assert not mocked_log.called
 
-    @patch('lighter.light_lnd.convert', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
     def test_add_channel(self, mocked_conv):
         # Active: empty
         response = pb.ListChannelsResponse()
@@ -1037,9 +1040,9 @@ class LightLndTests(TestCase):
         res = MOD._check_timestamp(request, 'lnd_invoice')
         self.assertEqual(res, False)
 
-    @patch('lighter.light_lnd._add_invoice', autospec=True)
-    @patch('lighter.light_lnd._get_invoice_state', autospec=True)
-    @patch('lighter.light_lnd._check_timestamp', autospec=True)
+    @patch(MOD.__name__ + '._add_invoice', autospec=True)
+    @patch(MOD.__name__ + '._get_invoice_state', autospec=True)
+    @patch(MOD.__name__ + '._check_timestamp', autospec=True)
     def test_parse_invoices(self, mocked_check, mocked_inv_st, mocked_add):
         # Correct case: every state is requested
         mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED]
@@ -1068,8 +1071,8 @@ class LightLndTests(TestCase):
         self.assertEqual(mocked_add.call_count, 0)
         self.assertEqual(res, False)
 
-    @patch('lighter.light_lnd._add_route_hint', autospec=True)
-    @patch('lighter.light_lnd.convert', autospec=True)
+    @patch(MOD.__name__ + '._add_route_hint', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
     def test_add_invoice(self, mocked_conv, mocked_add):
         amt = 7
         # Correct case
@@ -1093,7 +1096,7 @@ class LightLndTests(TestCase):
         MOD._add_invoice(CTX, response, invoice, 2)
         assert not mocked_conv.called
 
-    @patch('lighter.light_lnd.convert', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
     def test_add_payment(self, mocked_conv):
         # Correct case
         response = pb.ListPaymentsResponse()
@@ -1109,7 +1112,7 @@ class LightLndTests(TestCase):
         MOD._add_payment(CTX, response, payment)
         assert not mocked_conv.called
 
-    @patch('lighter.light_lnd.convert', autospec=True)
+    @patch(MOD.__name__ + '.convert', autospec=True)
     def test_add_transaction(self, mocked_conv):
         # Correct case
         response = pb.ListTransactionsResponse()
@@ -1139,7 +1142,7 @@ class LightLndTests(TestCase):
         MOD._add_route_hint(response, lnd_route)
         self.assertEqual(response.route_hints[0].hop_hints[0].pubkey, 'id')
 
-    @patch('lighter.light_lnd.datetime', autospec=True)
+    @patch(MOD.__name__ + '.datetime', autospec=True)
     def test_get_invoice_state(self, mocked_datetime):
         mocked_datetime.now().timestamp.return_value = fix.NOW
         # Correct case: paid invoice
@@ -1166,7 +1169,7 @@ class LightLndTests(TestCase):
         res = MOD._get_invoice_state(lnd_invoice)
         self.assertEqual(res, pb.PENDING)
 
-    @patch('lighter.light_lnd.Err')
+    @patch(MOD.__name__ + '.Err')
     def test_handle_error(self, mocked_err):
         # Error string
         MOD._handle_error(CTX, 'an error')

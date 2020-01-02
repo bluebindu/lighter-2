@@ -15,7 +15,11 @@
 
 """ Fixtures for test_light_lnd module """
 
-from lighter import rpc_pb2 as ln
+from importlib import import_module
+
+from . import proj_root
+
+ln = import_module(proj_root + '.rpc_pb2')
 
 
 GETINFO_MAINNET = ln.GetInfoResponse(

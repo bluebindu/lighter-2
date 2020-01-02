@@ -26,22 +26,25 @@ from unittest import TestCase
 from unittest.mock import call, Mock, mock_open, patch
 from requests.exceptions import ConnectionError as ReqConnectionErr, Timeout
 
-from lighter import lighter_pb2 as pb
-from lighter import settings
-from lighter.db import ImplementationSecret
-from lighter.light_lnd import LND_PAYREQ
-from lighter.utils import Enforcer as Enf
 from tests import fixtures_utils as fix
 
-MOD = import_module('lighter.utils')
+from . import proj_root
+
+Enf = getattr(import_module(proj_root + '.utils'), 'Enforcer')
+ImplementationSecret = getattr(
+    import_module(proj_root + '.db'), 'ImplementationSecret')
+LND_PAYREQ = getattr(import_module(proj_root + '.light_lnd'), 'LND_PAYREQ')
+pb = import_module(proj_root + '.lighter_pb2')
+settings = import_module(proj_root + '.settings')
+MOD = import_module(proj_root + '.utils')
 CTX = 'context'
 
 
 class UtilsTests(TestCase):
     """ Tests for the utils module """
 
-    @patch('lighter.utils.dictConfig')
-    @patch('lighter.utils.path', autospec=True)
+    @patch(MOD.__name__ + '.dictConfig')
+    @patch(MOD.__name__ + '.path', autospec=True)
     def test_update_logger(self, mocked_path, mocked_dictConfig):
         # Correct case: absolute path
         values = {'LOGS_DIR': '/srv/app/lighter-data/logs'}
@@ -65,20 +68,20 @@ class UtilsTests(TestCase):
         self.assertEqual(settings.LOGGING['handlers']['file']['filename'],
                          log_path)
 
-    @patch('lighter.utils.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
     def test_log_intro(self, mocked_logger):
         MOD.log_intro()
         self.assertEqual(mocked_logger.info.call_count, 11)
 
-    @patch('lighter.utils.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
     def test_log_outro(self, mocked_logger):
         MOD.log_outro()
         self.assertEqual(mocked_logger.info.call_count, 2)
 
-    @patch('lighter.utils.sleep', autospec=True)
-    @patch('lighter.utils.LOGGER', autospec=True)
-    @patch('lighter.utils.getattr')
-    @patch('lighter.utils.import_module')
+    @patch(MOD.__name__ + '.sleep', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.getattr')
+    @patch(MOD.__name__ + '.import_module')
     def test_check_connection(self, mocked_import, mocked_getattr,
                               mocked_logger, mocked_sleep):
         # Correct case (with version)
@@ -89,7 +92,7 @@ class UtilsTests(TestCase):
             identity_pubkey='777', version='v1')
         mocked_getattr.return_value = func
         MOD.check_connection()
-        mocked_import.assert_called_once_with('lighter.light_imp')
+        mocked_import.assert_called_once_with(proj_root + '.light_imp')
         # Correct case (no version)
         reset_mocks(vars())
         settings.IMPLEMENTATION = 'imp'
@@ -99,7 +102,6 @@ class UtilsTests(TestCase):
         func.return_value = info
         mocked_getattr.return_value = func
         MOD.check_connection()
-        mocked_import.assert_called_once_with('lighter.light_imp')
         # No response case
         reset_mocks(vars())
         mocked_getattr.side_effect = [RuntimeError(), func]
@@ -114,8 +116,9 @@ class UtilsTests(TestCase):
         res = MOD.FakeContext().time_remaining()
         self.assertEqual(res, None)
 
-    @patch('lighter.utils.getattr')
-    @patch('lighter.utils.import_module', autospec=True)
+
+    @patch(MOD.__name__ + '.getattr')
+    @patch(MOD.__name__ + '.import_module', autospec=True)
     def test_get_start_options(self, mocked_import, mocked_getattr):
         settings.INSECURE_CONNECTION = 0
         # Secure connection case with macaroons enabled
@@ -131,7 +134,7 @@ class UtilsTests(TestCase):
         with patch.dict('os.environ', values):
             MOD.get_start_options()
         self.assertEqual(settings.INSECURE_CONNECTION, False)
-        mocked_import.assert_called_once_with('lighter.light_' + impl)
+        mocked_import.assert_called_once_with(proj_root + '.light_' + impl)
         mocked_getattr.assert_called_with(
             mocked_import.return_value, 'get_settings')
         mocked_getattr.return_value.assert_called_once_with()
@@ -155,7 +158,7 @@ class UtilsTests(TestCase):
         with patch.dict('os.environ', values):
             MOD.get_start_options(warning=True)
 
-    @patch('lighter.utils.get_secret_from_db', autospec=True)
+    @patch(MOD.__name__ + '.get_secret_from_db', autospec=True)
     def test_detect_impl_secret(self, mocked_db_sec):
         sec = 'secret'
         ses = 'session'
@@ -218,10 +221,10 @@ class UtilsTests(TestCase):
         res = MOD.str2bool('p', force_true=True)
         self.assertEqual(res, True)
 
-    @patch('lighter.utils.LOGGER', autospec=True)
-    @patch('lighter.utils.Err')
-    @patch('lighter.utils.Popen', autospec=True)
-    @patch('lighter.utils.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.Popen', autospec=True)
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
     def test_command(self, mocked_get_time, mocked_popen, mocked_err,
                      mocked_logger):
         time = 10
@@ -279,11 +282,11 @@ class UtilsTests(TestCase):
         with self.assertRaises(RuntimeError):
             MOD.command(CTX, 'command')
 
-    @patch('lighter.utils.sleep', autospec=True)
-    @patch('lighter.utils.LOGGER', autospec=True)
-    @patch('lighter.utils.Err')
-    @patch('lighter.utils.get_node_timeout', autospec=True)
-    @patch('lighter.utils.ReqSession', autospec=True)
+    @patch(MOD.__name__ + '.sleep', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.get_node_timeout', autospec=True)
+    @patch(MOD.__name__ + '.ReqSession', autospec=True)
     def test_RPCSession(self, mocked_ses, mocked_time, mocked_err, mocked_log,
                         mocked_sleep):
         url = 'http://host:port/method'
@@ -363,8 +366,8 @@ class UtilsTests(TestCase):
             mocked_post.return_value.reason)
         mocked_err().node_error.assert_called_once_with(ctx, err_msg)
 
-    @patch('lighter.utils.RPCSession.call', autospec=True)
-    @patch('lighter.utils.HTTPBasicAuth', autospec=True)
+    @patch(MOD.__name__ + '.RPCSession.call', autospec=True)
+    @patch(MOD.__name__ + '.HTTPBasicAuth', autospec=True)
     def test_EclairRPC(self, mocked_auth, mocked_call):
         settings.ECL_PASS = 'pass'
         # Without data and timeout case
@@ -383,7 +386,7 @@ class UtilsTests(TestCase):
         mocked_call.assert_called_once_with(rpc_ecl, CTX, data, url, timeout)
         settings.ECL_PASS = ''
 
-    @patch('lighter.utils.RPCSession.call', autospec=True)
+    @patch(MOD.__name__ + '.RPCSession.call', autospec=True)
     def test_ElectrumRPC(self, mocked_call):
         settings.ECL_PASS = 'pass'
         # Without params and timeout case
@@ -408,7 +411,7 @@ class UtilsTests(TestCase):
         mocked_call.assert_called_once_with(
             rpc_ele, CTX, payload, timeout=timeout)
 
-    @patch('lighter.utils.Err')
+    @patch(MOD.__name__ + '.Err')
     def test_conversion(self, mocked_err):
         mocked_err().value_error.side_effect = Exception()
         # Correct case: bits to msats
@@ -430,8 +433,8 @@ class UtilsTests(TestCase):
             res = MOD.convert(CTX, Enf.SATS, 0.009, enforce=LND_PAYREQ,
                               max_precision=Enf.SATS)
 
-    @patch('lighter.utils.Enforcer.check_value')
-    @patch('lighter.utils._convert_value', autospec=True)
+    @patch(MOD.__name__ + '.Enforcer.check_value')
+    @patch(MOD.__name__ + '._convert_value', autospec=True)
     def test_convert(self, mocked_conv_val, mocked_check_val):
         # Correct case: bits to msats
         mocked_conv_val.return_value = 77700000
@@ -459,7 +462,7 @@ class UtilsTests(TestCase):
         mocked_conv_val.assert_has_calls(calls)
         self.assertEqual(res, 0.777000)
 
-    @patch('lighter.utils.Err')
+    @patch(MOD.__name__ + '.Err')
     def test_convert_value(self, mocked_err):
         mocked_err().value_error.side_effect = Exception()
         # Correct case: Decimal output
@@ -489,7 +492,7 @@ class UtilsTests(TestCase):
             res = MOD._convert_value(CTX, Enf.BITS, Enf.SATS, 0.009, Enf.SATS)
         mocked_err().value_error.assert_called_once_with(CTX)
 
-    @patch('lighter.utils.Err')
+    @patch(MOD.__name__ + '.Err')
     def test_check_value(self, mocked_err):
         mocked_err().value_too_low.side_effect = Exception()
         mocked_err().value_too_high.side_effect = Exception()
@@ -516,7 +519,7 @@ class UtilsTests(TestCase):
         assert not mocked_err().value_too_low.called
         assert not mocked_err().value_too_high.called
 
-    @patch('lighter.utils.Err')
+    @patch(MOD.__name__ + '.Err')
     def test_check_req_params(self, mocked_err):
         # Raising error case
         mocked_err().missing_parameter.side_effect = Exception()
@@ -559,7 +562,7 @@ class UtilsTests(TestCase):
         res = MOD.get_thread_timeout(ctx)
         self.assertEqual(res, 0)
 
-    @patch('lighter.utils.sleep', autospec=True)
+    @patch(MOD.__name__ + '.sleep', autospec=True)
     def test_handle_keyboardinterrupt(self, mocked_sleep):
         grpc_server = Mock()
         # Correct case
@@ -610,7 +613,7 @@ class UtilsTests(TestCase):
             res = wrapped(req)
             self.assertEqual(res, None)
 
-    @patch('lighter.utils._has_numbers', autospec=True)
+    @patch(MOD.__name__ + '._has_numbers', autospec=True)
     def test_has_amount_encoded(self, mocked_has_num):
         pay_req = 'lntb5n1pw3mupk'
         mocked_has_num.return_value = True
@@ -663,10 +666,10 @@ class UtilsTests(TestCase):
         scrypt_params.deserialize(serialized)
         self.assertEqual(scrypt_params.salt, salt)
 
-    @patch('lighter.utils.Err')
-    @patch('lighter.utils.Crypter')
-    @patch('lighter.utils.ScryptParams', autospec=True)
-    @patch('lighter.utils.get_token_from_db', autospec=True)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.Crypter')
+    @patch(MOD.__name__ + '.ScryptParams', autospec=True)
+    @patch(MOD.__name__ + '.get_token_from_db', autospec=True)
     def test_check_password(self, mocked_db_tok, mocked_params, mocked_crypter,
                             mocked_err):
         pwd = 'password'
@@ -682,9 +685,9 @@ class UtilsTests(TestCase):
         MOD.check_password(CTX, ses, pwd)
         mocked_err().wrong_password.assert_called_once_with(CTX)
 
-    @patch('lighter.utils.Crypter')
-    @patch('lighter.utils.ScryptParams', autospec=True)
-    @patch('lighter.utils.get_secret_from_db', autospec=True)
+    @patch(MOD.__name__ + '.Crypter')
+    @patch(MOD.__name__ + '.ScryptParams', autospec=True)
+    @patch(MOD.__name__ + '.get_secret_from_db', autospec=True)
     def test_get_secret(self, mocked_db_sec, mocked_params, mocked_crypter):
         ses = 'session'
         pwd = 'password'
@@ -703,7 +706,7 @@ class UtilsTests(TestCase):
         res = MOD.get_secret(CTX, ses, pwd, impl, sec_type, active_only=True)
         self.assertEqual(res, None)
 
-    @patch('lighter.utils.Err')
+    @patch(MOD.__name__ + '.Err')
     def test_Crypter(self, mocked_err):
         password = 'lighterrocks'
         plain_data = b'lighter is cool'

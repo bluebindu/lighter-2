@@ -22,27 +22,29 @@ from inspect import unwrap
 from unittest import TestCase, skip
 from unittest.mock import Mock, mock_open, patch
 
-from lighter import lighter_pb2 as pb
-from lighter import settings, utils
+from . import proj_root
 
-MOD = import_module('lighter.lighter')
+pb = import_module(proj_root + '.lighter_pb2')
+utils = import_module(proj_root + '.utils')
+settings = import_module(proj_root + '.settings')
+MOD = import_module(proj_root + '.lighter')
 CTX = 'context'
 
 
 class LighterTests(TestCase):
     """ Tests for lighter module """
 
-    @patch('lighter.lighter.LOGGER', autospec=True)
-    @patch('lighter.lighter.ThreadPoolExecutor', autospec=True)
-    @patch('lighter.lighter.import_module', autospec=True)
-    @patch('lighter.lighter.ScryptParams', autospec=True)
-    @patch('lighter.lighter.get_baker', autospec=True)
-    @patch('lighter.lighter.get_secret', autospec=True)
-    @patch('lighter.lighter.get_mac_params_from_db', autospec=True)
-    @patch('lighter.lighter.Crypter', autospec=True)
-    @patch('lighter.lighter.check_password', autospec=True)
-    @patch('lighter.lighter.session_scope', autospec=True)
-    @patch('lighter.lighter.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.ThreadPoolExecutor', autospec=True)
+    @patch(MOD.__name__ + '.import_module', autospec=True)
+    @patch(MOD.__name__ + '.ScryptParams', autospec=True)
+    @patch(MOD.__name__ + '.get_baker', autospec=True)
+    @patch(MOD.__name__ + '.get_secret', autospec=True)
+    @patch(MOD.__name__ + '.get_mac_params_from_db', autospec=True)
+    @patch(MOD.__name__ + '.Crypter', autospec=True)
+    @patch(MOD.__name__ + '.check_password', autospec=True)
+    @patch(MOD.__name__ + '.session_scope', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_UnlockLighter(self, mocked_check_par, mocked_ses,
                            mocked_check_password, mocked_crypter,
                            mocked_db_mac, mocked_get_sec, mocked_baker,
@@ -110,10 +112,10 @@ class LighterTests(TestCase):
         assert not executor.shutdown.called
         assert not mocked_log.called
 
-    @patch('lighter.lighter.Thread', autospec=True)
-    @patch('lighter.lighter.check_password', autospec=True)
-    @patch('lighter.lighter.session_scope', autospec=True)
-    @patch('lighter.lighter.check_req_params', autospec=True)
+    @patch(MOD.__name__ + '.Thread', autospec=True)
+    @patch(MOD.__name__ + '.check_password', autospec=True)
+    @patch(MOD.__name__ + '.session_scope', autospec=True)
+    @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_LockLighter(self, mocked_check_par, mocked_ses,
                          mocked_check_password, mocked_thread):
         password = 'password'
@@ -127,23 +129,23 @@ class LighterTests(TestCase):
         self.assertEqual(res, pb.LockLighterResponse())
 
 
-    @patch('lighter.lighter.Err')
-    @patch('lighter.lighter.getattr')
-    @patch('lighter.lighter.import_module')
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.getattr')
+    @patch(MOD.__name__ + '.import_module')
     def test_dispatcher(self, mocked_import, mocked_getattr, mocked_err):
         lightning_self = MOD.LightningServicer()
         lightning_func = unwrap(lightning_self.unexistent)
         request = pb.GetInfoRequest()
         response = pb.GetInfoResponse()
         # Correct case
-        settings.IMPLEMENTATION = ''
+        settings.IMPLEMENTATION = 'impl'
         mocked_import.return_value = 'module'
         grpc_server = MOD.LightningServicer()
         func = Mock()
         func.return_value = response
         mocked_getattr.return_value = func
         res = lightning_func(request, CTX)
-        mocked_import.assert_called_once_with('lighter.light_')
+        mocked_import.assert_called_once_with(proj_root + '.light_impl')
         mocked_getattr.assert_called_once_with('module', 'unexistent')
         assert not mocked_err().unimplemented_method.called
         self.assertEqual(res, response)
@@ -155,13 +157,12 @@ class LighterTests(TestCase):
         mocked_err().unimplemented_method.side_effect = Exception()
         with self.assertRaises(Exception):
             res = lightning_func(request, CTX)
-        mocked_import.assert_called_once_with('lighter.light_')
         mocked_getattr.assert_called_once_with('module', 'unexistent')
         mocked_err().unimplemented_method.assert_called_once_with(
             CTX, 'unexistent')
 
-    @patch('lighter.lighter.check_macaroons', autospec=True)
-    @patch('lighter.lighter.unary_unary_rpc_method_handler')
+    @patch(MOD.__name__ + '.check_macaroons', autospec=True)
+    @patch(MOD.__name__ + '.unary_unary_rpc_method_handler')
     def test_RuntimeInterceptor(self, mocked_rpc_handler, mocked_check_mac):
         settings.DISABLE_MACAROONS = False
         continuation = Mock()
@@ -204,7 +205,7 @@ class LighterTests(TestCase):
         assert not mocked_check_mac.called
         settings.DISABLE_MACAROONS = False
 
-    @patch('lighter.lighter.unary_unary_rpc_method_handler')
+    @patch(MOD.__name__ + '.unary_unary_rpc_method_handler')
     def test_UnlockerInterceptor(self, mocked_rpc_handler):
         interceptor = MOD.UnlockerInterceptor()
         continuation = Mock()
@@ -233,8 +234,8 @@ class LighterTests(TestCase):
         assert not continuation.called
         self.assertEqual(res, None)
 
-    @patch('lighter.lighter.ssl_server_credentials', autospec=True)
-    @patch('lighter.lighter.server', autospec=True)
+    @patch(MOD.__name__ + '.ssl_server_credentials', autospec=True)
+    @patch(MOD.__name__ + '.server', autospec=True)
     def test_create_server(self, mocked_server, mocked_creds):
         servicer = 'servicer'
         interceptors = ['interceptor']
@@ -262,7 +263,7 @@ class LighterTests(TestCase):
             b'KEY',
             b'CRT',), ))
         mocked_creds.return_value = creds
-        with patch('lighter.lighter.open', mopen):
+        with patch(MOD.__name__ + '.open', mopen):
             res = MOD._create_server(interceptors)
         assert mocked_server.called
         mopen.assert_called_with(settings.SERVER_CRT, 'rb')
@@ -271,11 +272,11 @@ class LighterTests(TestCase):
         mocked_server.return_value.add_secure_port.assert_called_with(
             settings.LIGHTER_ADDR, creds)
 
-    @patch('lighter.lighter._unlocker_wait', autospec=True)
-    @patch('lighter.lighter.LOGGER', autospec=True)
-    @patch('lighter.lighter._log_listening', autospec=True)
-    @patch('lighter.lighter.pb_grpc.add_UnlockerServicer_to_server')
-    @patch('lighter.lighter._create_server')
+    @patch(MOD.__name__ + '._unlocker_wait', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '._log_listening', autospec=True)
+    @patch(MOD.__name__ + '.pb_grpc.add_UnlockerServicer_to_server')
+    @patch(MOD.__name__ + '._create_server')
     def test_serve_unlocker(self, mocked_create_srv, mocked_add_unlocker,
                             mocked_log, mocked_logger, mocked_wait):
         grpc_server = Mock()
@@ -286,11 +287,11 @@ class LighterTests(TestCase):
             'Waiting for password to unlock Lightning service...')
         mocked_wait.assert_called_once_with(grpc_server)
 
-    @patch('lighter.lighter._lightning_wait', autospec=True)
-    @patch('lighter.lighter._log_listening', autospec=True)
-    @patch('lighter.lighter.pb_grpc.add_LockerServicer_to_server')
-    @patch('lighter.lighter.pb_grpc.add_LightningServicer_to_server')
-    @patch('lighter.lighter._create_server')
+    @patch(MOD.__name__ + '._lightning_wait', autospec=True)
+    @patch(MOD.__name__ + '._log_listening', autospec=True)
+    @patch(MOD.__name__ + '.pb_grpc.add_LockerServicer_to_server')
+    @patch(MOD.__name__ + '.pb_grpc.add_LightningServicer_to_server')
+    @patch(MOD.__name__ + '._create_server')
     def test_serve_runtime(self, mocked_create_srv, mocked_add_lightning,
                            mocked_add_locker, mocked_log, mocked_wait):
         grpc_server = Mock()
@@ -299,7 +300,7 @@ class LighterTests(TestCase):
         mocked_log.assert_called_once_with('Lightning service')
         mocked_wait.assert_called_once_with(grpc_server)
 
-    @patch('lighter.lighter.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
     def test_log_listening(self, mocked_logger):
         s_name = 'servicer_name'
         # Insecure connection
@@ -312,7 +313,7 @@ class LighterTests(TestCase):
         MOD._log_listening(s_name)
         assert mocked_logger.info.called
 
-    @patch('lighter.lighter.sleep', autospec=True)
+    @patch(MOD.__name__ + '.sleep', autospec=True)
     def test_unlocker_wait(self, mocked_sleep):
         settings.UNLOCKER_STOP = False
         grpc_server = Mock()
@@ -324,22 +325,22 @@ class LighterTests(TestCase):
         MOD._unlocker_wait(grpc_server)
         grpc_server.stop.assert_called_once_with(0)
 
-    @patch('lighter.lighter.sleep', autospec=True)
+    @patch(MOD.__name__ + '.sleep', autospec=True)
     def test_lightning_wait(self, mocked_sleep):
         grpc_server = Mock()
         mocked_sleep.side_effect = Exception()
         with self.assertRaises(Exception):
             MOD._lightning_wait(grpc_server)
 
-    @patch('lighter.lighter.LOGGER', autospec=True)
-    @patch('lighter.lighter._serve_runtime', autospec=True)
-    @patch('lighter.lighter._serve_unlocker', autospec=True)
-    @patch('lighter.lighter.Thread', autospec=True)
-    @patch('lighter.lighter.import_module')
-    @patch('lighter.lighter.is_db_ok', autospec=True)
-    @patch('lighter.lighter.session_scope', autospec=True)
-    @patch('lighter.lighter.init_db', autospec=True)
-    @patch('lighter.lighter.get_start_options', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '._serve_runtime', autospec=True)
+    @patch(MOD.__name__ + '._serve_unlocker', autospec=True)
+    @patch(MOD.__name__ + '.Thread', autospec=True)
+    @patch(MOD.__name__ + '.import_module')
+    @patch(MOD.__name__ + '.is_db_ok', autospec=True)
+    @patch(MOD.__name__ + '.session_scope', autospec=True)
+    @patch(MOD.__name__ + '.init_db', autospec=True)
+    @patch(MOD.__name__ + '.get_start_options', autospec=True)
     def test_start(self, mocked_get_start_opt, mocked_init_db, mocked_ses,
                    mocked_db_ok, mocked_import, mocked_thread,
                    mocked_serve_unlocker, mocked_serve_runtime, mocked_log):
@@ -356,7 +357,7 @@ class LighterTests(TestCase):
         settings.IMPLEMENTATION = 'asd'
         MOD.start()
         mocked_get_start_opt.assert_called_once_with(warning=True)
-        mocked_import.assert_called_once_with('lighter.light_asd')
+        mocked_import.assert_called_once_with(proj_root + '.light_asd')
         mocked_thread.assert_called_once_with(target=utils.check_connection)
         mocked_thread.return_value.start.assert_called_once_with()
         mocked_serve_runtime.assert_called_once_with()

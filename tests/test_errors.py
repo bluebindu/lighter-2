@@ -22,10 +22,12 @@ from unittest.mock import patch, Mock
 
 from grpc import StatusCode
 
-from lighter import errors, settings
-from lighter.errors import ERRORS
+from . import proj_root
 
-MOD = import_module('lighter.errors')
+errors = import_module(proj_root + '.errors')
+ERRORS = getattr(errors, 'ERRORS')
+settings = import_module(proj_root + '.settings')
+MOD = import_module(proj_root + '.errors')
 
 
 class ErrorsTests(TestCase):
@@ -50,13 +52,13 @@ class ErrorsTests(TestCase):
         res = MOD.Err().unexistent(context)
         assert not context.abort.called
 
-    @patch('lighter.errors.getattr')
+    @patch(MOD.__name__ + '.getattr')
     def test_report_error(self, mocked_getattr):
         # Mapped errors
         implementations = ['clightning', 'eclair', 'lnd']
         for impl in implementations:
             settings.IMPLEMENTATION = impl
-            module = import_module('lighter.light_{}'.format(impl))
+            module = import_module(proj_root + '.light_{}'.format(impl))
             # Mapped errors
             mocked_getattr.side_effect = Exception()
             for msg, act in module.ERRORS.items():

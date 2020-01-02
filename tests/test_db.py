@@ -20,9 +20,10 @@ from unittest.mock import call, MagicMock, Mock, patch
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from lighter import settings
+from . import proj_root
 
-MOD = import_module('lighter.db')
+settings = import_module(proj_root + '.settings')
+MOD = import_module(proj_root + '.db')
 CTX = 'context'
 SES = Mock()
 
@@ -30,9 +31,9 @@ SES = Mock()
 class DbTests(TestCase):
     """ Tests for the db module """
 
-    @patch('lighter.db.LOGGER', autospec=True)
-    @patch('lighter.db.system', autospec=True)
-    @patch('lighter.db.Path', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.system', autospec=True)
+    @patch(MOD.__name__ + '.Path', autospec=True)
     def test_get_db_url(self, mocked_path, mocked_system, mocked_log):
         # Linux case
         db_abspath = '/home/user/lighter-data/db/lighter.db'
@@ -80,12 +81,12 @@ class DbTests(TestCase):
         calls = [call(strict=True), call()]
         mocked_path().joinpath().resolve.assert_has_calls(calls)
 
-    @patch('lighter.db.stamp', autospec=True)
-    @patch('lighter.db.get_alembic_cfg', autospec=True)
-    @patch('lighter.db.Base', autospec=False)
-    @patch('lighter.db.sessionmaker', autospec=True)
-    @patch('lighter.db.create_engine', autospec=True)
-    @patch('lighter.db.get_db_url', autospec=True)
+    @patch(MOD.__name__ + '.stamp', autospec=True)
+    @patch(MOD.__name__ + '.get_alembic_cfg', autospec=True)
+    @patch(MOD.__name__ + '.Base', autospec=False)
+    @patch(MOD.__name__ + '.sessionmaker', autospec=True)
+    @patch(MOD.__name__ + '.create_engine', autospec=True)
+    @patch(MOD.__name__ + '.get_db_url', autospec=True)
     def test_init_db(self, mocked_url, mocked_engine, mocked_ses_mak,
                      mocked_base, mocked_a_cfg, mocked_stamp):
         # new_db=False (default case)
@@ -109,8 +110,8 @@ class DbTests(TestCase):
         mocked_a_cfg.assert_called_once_with(new)
         mocked_stamp.assert_called_once_with(mocked_a_cfg.return_value, 'head')
 
-    @patch('lighter.db.get_db_url', autospec=True)
-    @patch('lighter.db.Config', autospec=True)
+    @patch(MOD.__name__ + '.get_db_url', autospec=True)
+    @patch(MOD.__name__ + '.Config', autospec=True)
     def test_get_alembic_cfg(self, mocked_config, mocked_url):
         # new_db=False
         new = False
@@ -125,8 +126,8 @@ class DbTests(TestCase):
         MOD.get_alembic_cfg(new)
         mocked_url.assert_called_once_with(new)
 
-    @patch('lighter.db.Err')
-    @patch('lighter.db.Session', autospec=False)
+    @patch(MOD.__name__ + '.Err')
+    @patch(MOD.__name__ + '.Session', autospec=False)
     def test_session_scope(self, mocked_ses, mocked_err):
         # correct case
         with MOD.session_scope(CTX) as ses:
@@ -152,16 +153,16 @@ class DbTests(TestCase):
         mocked_ses.return_value.rollback.assert_called_once_with()
         mocked_ses.return_value.close.assert_called_once_with()
 
-    @patch('lighter.db.is_db_at_head', autospec=True)
-    @patch('lighter.db.get_alembic_cfg', autospec=True)
-    @patch('lighter.db.LOGGER', autospec=True)
-    @patch('lighter.db.get_mac_params_from_db', autospec=True)
-    @patch('lighter.db.get_token_from_db', autospec=True)
+    @patch(MOD.__name__ + '.is_db_at_head', autospec=True)
+    @patch(MOD.__name__ + '.get_alembic_cfg', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.get_mac_params_from_db', autospec=True)
+    @patch(MOD.__name__ + '.get_token_from_db', autospec=True)
     def test_is_db_ok(self, mocked_db_tok, mocked_db_mac, mocked_log,
                       mocked_a_cfg, mocked_db_head):
         settings.DISABLE_MACAROONS = False
         # correct case
-        with patch('lighter.db.ENGINE') as mocked_engine:
+        with patch(MOD.__name__ + '.ENGINE') as mocked_engine:
             mocked_engine.dialect.has_table.side_effect = \
                 [False, True, True, True]
             mocked_db_tok.return_value = b'access_token'
@@ -173,30 +174,30 @@ class DbTests(TestCase):
             mocked_db_head.assert_called_once_with(
                 mocked_a_cfg.return_value, mocked_engine)
         # missing token case
-        with patch('lighter.db.ENGINE') as mocked_engine:
+        with patch(MOD.__name__ + '.ENGINE') as mocked_engine:
             mocked_engine.dialect.has_table.side_effect = [False, False]
             res = MOD.is_db_ok(SES)
             self.assertEqual(res, False)
         # existing old salt table
-        with patch('lighter.db.ENGINE') as mocked_engine:
+        with patch(MOD.__name__ + '.ENGINE') as mocked_engine:
             mocked_engine.dialect.has_table.side_effect = [True]
             res = MOD.is_db_ok(SES)
             self.assertEqual(res, False)
         # missing macaroon
-        with patch('lighter.db.ENGINE') as mocked_engine:
+        with patch(MOD.__name__ + '.ENGINE') as mocked_engine:
             mocked_engine.dialect.has_table.side_effect = [False, True, False]
             res = MOD.is_db_ok(SES)
             self.assertEqual(res, False)
             assert mocked_log.error.called
         # missing implementation_secrets table
-        with patch('lighter.db.ENGINE') as mocked_engine:
+        with patch(MOD.__name__ + '.ENGINE') as mocked_engine:
             mocked_engine.dialect.has_table.side_effect = \
                 [False, True, True, False]
             res = MOD.is_db_ok(SES)
             self.assertEqual(res, False)
         # db revision not at head
         reset_mocks(vars())
-        with patch('lighter.db.ENGINE') as mocked_engine:
+        with patch(MOD.__name__ + '.ENGINE') as mocked_engine:
             mocked_engine.dialect.has_table.side_effect = \
                 [False, True, True, True]
             mocked_db_head.return_value = False
@@ -206,9 +207,9 @@ class DbTests(TestCase):
             mocked_db_head.assert_called_once_with(
                 mocked_a_cfg.return_value, mocked_engine)
 
-    @patch('lighter.db.migration', autospec=True)
-    @patch('lighter.db.getLogger', autospec=True)
-    @patch('lighter.db.ScriptDirectory', autospec=True)
+    @patch(MOD.__name__ + '.migration', autospec=True)
+    @patch(MOD.__name__ + '.getLogger', autospec=True)
+    @patch(MOD.__name__ + '.ScriptDirectory', autospec=True)
     def test_is_db_at_head(self, mocked_scr_dir, mocked_getlog, mocked_migr):
         a_cfg = 'alembic_cfg'
         con = 'connection'
@@ -236,7 +237,7 @@ class DbTests(TestCase):
         res = MOD.is_db_at_head(a_cfg, connectable)
         self.assertEqual(res, False)
 
-    @patch('lighter.db.AccessToken', autospec=True)
+    @patch(MOD.__name__ + '.AccessToken', autospec=True)
     def test_save_token_to_db(self, mocked_acc_tok):
         tok = b'token'
         par = b'scrypt_params'
@@ -261,7 +262,7 @@ class DbTests(TestCase):
         self.assertEqual(res_data, None)
         self.assertEqual(res_par, None)
 
-    @patch('lighter.db.MacRootKey', autospec=True)
+    @patch(MOD.__name__ + '.MacRootKey', autospec=True)
     def test_save_mac_params_to_db(self, mocked_mac):
         params = b'scrypt_params'
         MOD.save_mac_params_to_db(SES, params)
@@ -283,7 +284,7 @@ class DbTests(TestCase):
         res = MOD.get_mac_params_from_db(SES)
         self.assertEqual(res, None)
 
-    @patch('lighter.db.ImplementationSecret', autospec=True)
+    @patch(MOD.__name__ + '.ImplementationSecret', autospec=True)
     def test_save_secret_to_db(self, mocked_impl_sec):
         sec = b'secret'
         params = b'scrypt_params'
