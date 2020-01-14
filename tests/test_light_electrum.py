@@ -495,6 +495,31 @@ class LightElectrumTests(TestCase):
         MOD._handle_error(CTX, err_msg)
         mocked_err().report_error.assert_called_once_with(CTX, err_msg)
 
+    @patch(MOD.__name__ + '.RPCSession.call', autospec=True)
+    def test_ElectrumRPC(self, mocked_call):
+        settings.ECL_PASS = 'pass'
+        # Without params and timeout case
+        rpc_ele = MOD.ElectrumRPC()
+        self.assertEqual(rpc_ele._headers,
+                         {'content-type': 'application/json'})
+        res = rpc_ele.getinfo(CTX)
+        self.assertEqual(res, mocked_call.return_value)
+        payload = MOD.dumps(
+            {"id": rpc_ele._id_count, "method": 'getinfo',
+             "params": {}, "jsonrpc": '2.0'})
+        mocked_call.assert_called_once_with(
+            rpc_ele, CTX, payload, timeout=None)
+        # With params and timeout case
+        reset_mocks(vars())
+        params = {'unused': True}
+        timeout = 7
+        res = rpc_ele.listaddresses(CTX,params, timeout)
+        payload = MOD.dumps(
+            {"id": rpc_ele._id_count, "method": 'listaddresses',
+             "params": params, "jsonrpc": '2.0'})
+        mocked_call.assert_called_once_with(
+            rpc_ele, CTX, payload, timeout=timeout)
+
 
 def reset_mocks(params):
     for _key, value in params.items():

@@ -707,6 +707,26 @@ class LightEclairTests(TestCase):
             MOD._handle_error(CTX, ecl_res)
         mocked_err().report_error.assert_called_once_with(CTX, ecl_res)
 
+    @patch(MOD.__name__ + '.RPCSession.call', autospec=True)
+    @patch(MOD.__name__ + '.HTTPBasicAuth', autospec=True)
+    def test_EclairRPC(self, mocked_auth, mocked_call):
+        settings.ECL_PASS = 'pass'
+        # Without data and timeout case
+        url = settings.RPC_URL + '/getinfo'
+        rpc_ecl = MOD.EclairRPC()
+        self.assertEqual(rpc_ecl._auth, mocked_auth.return_value)
+        res = rpc_ecl.getinfo(CTX)
+        self.assertEqual(res, mocked_call.return_value)
+        mocked_call.assert_called_once_with(rpc_ecl, CTX, {}, url, None)
+        # With data and timeout case
+        reset_mocks(vars())
+        url = settings.RPC_URL + '/getreceivedinfo'
+        data = {'paymentHash': 'payment_hash'}
+        timeout = 7
+        res = rpc_ecl.getreceivedinfo(CTX, data, timeout)
+        mocked_call.assert_called_once_with(rpc_ecl, CTX, data, url, timeout)
+        settings.ECL_PASS = ''
+
 
 def reset_mocks(params):
     for _key, value in params.items():

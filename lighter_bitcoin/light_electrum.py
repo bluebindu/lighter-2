@@ -15,14 +15,16 @@
 
 """ Implementation of lighter.proto defined methods for electrum """
 
+from json import dumps
 from logging import getLogger
 
 from decimal import Decimal
 from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
-from .utils import check_req_params, convert, ElectrumRPC, Enforcer as Enf, \
-    get_address_type, get_channel_balances, has_amount_encoded, set_defaults
+from .utils import check_req_params, convert, Enforcer as Enf, \
+    get_address_type, get_channel_balances, has_amount_encoded, RPCSession, \
+    set_defaults
 
 LOGGER = getLogger(__name__)
 
@@ -316,3 +318,24 @@ def _get_channel_state(ele_chan):  # pylint: disable=too-many-return-statements
 def _handle_error(context, ele_res):
     """ Reports errors of an electrum rpc response """
     Err().report_error(context, ele_res)
+
+
+class ElectrumRPC(RPCSession):
+    """ Creates and mantains an RPC session with electrum """
+
+    def __init__(self):
+        super().__init__(headers={'content-type': 'application/json'})
+
+    def __getattr__(self, name):
+
+        def call_adapter(context, params=None, timeout=None):
+            if not params:
+                params = {}
+            payload = dumps(
+                {"id": self._id_count, "method": name,
+                 "params": params, "jsonrpc": self._jsonrpc_ver})
+            LOGGER.debug("request: %s", payload)
+            return super(ElectrumRPC, self).call(context, payload,
+                                                 timeout=timeout)
+
+        return call_adapter

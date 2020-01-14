@@ -22,12 +22,14 @@ from logging import getLogger
 from string import ascii_lowercase, digits  # pylint: disable=deprecated-module
 from time import time, sleep
 
+from requests.auth import HTTPBasicAuth
+
 from . import lighter_pb2 as pb
 from . import settings
 from .errors import Err
-from .utils import check_req_params, convert, EclairRPC, Enforcer as Enf, \
-    FakeContext, get_channel_balances, get_thread_timeout, \
-    get_node_timeout, handle_thread, has_amount_encoded, set_defaults
+from .utils import check_req_params, convert, Enforcer as Enf, FakeContext, \
+    get_channel_balances, get_thread_timeout, get_node_timeout, \
+    handle_thread, has_amount_encoded, RPCSession, set_defaults
 
 LOGGER = getLogger(__name__)
 
@@ -538,3 +540,21 @@ def _handle_error(context, ecl_res):
         Err().report_error(context, error)
     else:
         Err().report_error(context, ecl_res)
+
+
+class EclairRPC(RPCSession):
+    """ Creates and mantains an RPC session with eclair """
+
+    def __init__(self):
+        super().__init__(auth=HTTPBasicAuth('', settings.ECL_PASS))
+
+    def __getattr__(self, name):
+
+        def call_adapter(context, data=None, timeout=None):
+            url = '{}/{}'.format(settings.RPC_URL, name)
+            if data is None:
+                data = {}
+            LOGGER.debug("request: %s", data)
+            return super(EclairRPC, self).call(context, data, url, timeout)
+
+        return call_adapter

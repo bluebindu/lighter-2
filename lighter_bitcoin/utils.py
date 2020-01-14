@@ -37,7 +37,6 @@ from threading import current_thread
 from time import sleep, strftime, time
 
 from requests import Session as ReqSession
-from requests.auth import HTTPBasicAuth
 from requests.exceptions import ConnectionError as ReqConnectionErr, Timeout
 
 from . import lighter_pb2 as pb
@@ -385,45 +384,6 @@ class RPCSession():  # pylint: disable=too-few-public-methods
         if 'result' in json_response:
             return json_response['result'], is_error
         return json_response, is_error
-
-
-class EclairRPC(RPCSession):
-    """ Creates and mantains an RPC session with eclair """
-
-    def __init__(self):
-        super().__init__(auth=HTTPBasicAuth('', sett.ECL_PASS))
-
-    def __getattr__(self, name):
-
-        def call_adapter(context, data=None, timeout=None):
-            url = '{}/{}'.format(sett.RPC_URL, name)
-            if data is None:
-                data = {}
-            LOGGER.debug("request: %s", data)
-            return super(EclairRPC, self).call(context, data, url, timeout)
-
-        return call_adapter
-
-
-class ElectrumRPC(RPCSession):
-    """ Creates and mantains an RPC session with electrum """
-
-    def __init__(self):
-        super().__init__(headers={'content-type': 'application/json'})
-
-    def __getattr__(self, name):
-
-        def call_adapter(context, params=None, timeout=None):
-            if not params:
-                params = {}
-            payload = dumps(
-                {"id": self._id_count, "method": name,
-                 "params": params, "jsonrpc": self._jsonrpc_ver})
-            LOGGER.debug("request: %s", payload)
-            return super(ElectrumRPC, self).call(context, payload,
-                                                 timeout=timeout)
-
-        return call_adapter
 
 
 class Enforcer():  # pylint: disable=too-few-public-methods

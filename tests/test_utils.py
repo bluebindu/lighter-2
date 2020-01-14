@@ -18,7 +18,6 @@ from argparse import Namespace
 from codecs import encode
 from decimal import InvalidOperation
 from importlib import import_module
-from json import dumps
 from os import urandom
 from subprocess import PIPE, TimeoutExpired
 
@@ -519,51 +518,6 @@ class UtilsTests(TestCase):
             mocked_post.return_value.status_code,
             mocked_post.return_value.reason)
         mocked_err().node_error.assert_called_once_with(ctx, err_msg)
-
-    @patch(MOD.__name__ + '.RPCSession.call', autospec=True)
-    @patch(MOD.__name__ + '.HTTPBasicAuth', autospec=True)
-    def test_EclairRPC(self, mocked_auth, mocked_call):
-        settings.ECL_PASS = 'pass'
-        # Without data and timeout case
-        url = settings.RPC_URL + '/getinfo'
-        rpc_ecl = MOD.EclairRPC()
-        self.assertEqual(rpc_ecl._auth, mocked_auth.return_value)
-        res = rpc_ecl.getinfo(CTX)
-        self.assertEqual(res, mocked_call.return_value)
-        mocked_call.assert_called_once_with(rpc_ecl, CTX, {}, url, None)
-        # With data and timeout case
-        reset_mocks(vars())
-        url = settings.RPC_URL + '/getreceivedinfo'
-        data = {'paymentHash': 'payment_hash'}
-        timeout = 7
-        res = rpc_ecl.getreceivedinfo(CTX, data, timeout)
-        mocked_call.assert_called_once_with(rpc_ecl, CTX, data, url, timeout)
-        settings.ECL_PASS = ''
-
-    @patch(MOD.__name__ + '.RPCSession.call', autospec=True)
-    def test_ElectrumRPC(self, mocked_call):
-        settings.ECL_PASS = 'pass'
-        # Without params and timeout case
-        rpc_ele = MOD.ElectrumRPC()
-        self.assertEqual(rpc_ele._headers,
-                         {'content-type': 'application/json'})
-        res = rpc_ele.getinfo(CTX)
-        self.assertEqual(res, mocked_call.return_value)
-        payload = dumps(
-            {"id": rpc_ele._id_count, "method": 'getinfo',
-             "params": {}, "jsonrpc": '2.0'})
-        mocked_call.assert_called_once_with(
-            rpc_ele, CTX, payload, timeout=None)
-        # With params and timeout case
-        reset_mocks(vars())
-        params = {'unused': True}
-        timeout = 7
-        res = rpc_ele.listaddresses(CTX,params, timeout)
-        payload = dumps(
-            {"id": rpc_ele._id_count, "method": 'listaddresses',
-             "params": params, "jsonrpc": '2.0'})
-        mocked_call.assert_called_once_with(
-            rpc_ele, CTX, payload, timeout=timeout)
 
     @patch(MOD.__name__ + '.Err')
     def test_conversion(self, mocked_err):
