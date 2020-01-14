@@ -61,6 +61,8 @@ def init_common(help_msg, core=True, write_perms=False):
     get_start_options(config)
     if core:
         migrate()
+        # reupdating logger as migrate overrides configuration
+        update_logger(config)
 
 
 def update_logger(config=None):

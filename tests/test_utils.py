@@ -57,12 +57,15 @@ class UtilsTests(TestCase):
         msg = 'help message'
         MOD.init_common(msg)
         mocked_parse_args.assert_called_once_with(msg, False)
-        calls = [call(), call(mocked_get_config.return_value)]
+        calls = [call(), call(mocked_get_config.return_value),
+                 call(mocked_get_config.return_value)]
         mocked_update_log.assert_has_calls(calls)
+        self.assertEqual(mocked_update_log.call_count, 3)
         # core=False, write_perms=True
         reset_mocks(vars())
         MOD.init_common(msg, core=False, write_perms=True)
         mocked_parse_args.assert_called_once_with(msg, True)
+        self.assertEqual(mocked_update_log.call_count, 2)
         assert not mocked_init_tree.called
         assert not mocked_migrate.called
 
