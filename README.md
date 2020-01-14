@@ -35,7 +35,7 @@ Currently, it supports the main LN implementations <sup>1</sup>:
 - [eclair](https://github.com/ACINQ/eclair) (v0.3.2) by Acinq
 - [electrum](https://github.com/spesmilo/electrum) (unreleased <sup>3</sup>)
   by Thomas Voegtlin
-- [lnd](https://github.com/lightningnetwork/lnd) (v0.8.1-beta) by Lightning
+- [lnd](https://github.com/lightningnetwork/lnd) (v0.8.2-beta) by Lightning
   Labs
 
 ### How it works

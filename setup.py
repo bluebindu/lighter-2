@@ -43,7 +43,7 @@ L_PROTO = 'lighter.proto'
 CLI_NAME = 'cliter'
 SHELLS = ['bash', 'zsh']
 
-LND_REF = 'v0.8.1-beta'
+LND_REF = 'v0.8.2-beta'
 LND_PROTO = 'rpc.proto'
 GAPIS = 'googleapis'
 GAPIS_ZIP = GAPIS + '.zip'
