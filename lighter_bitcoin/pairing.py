@@ -134,7 +134,7 @@ def _get_connection_uri():
         for cert_line in cert_lines:
             if 'CERTIFICATE' in cert_line:
                 continue
-            cert += cert_line.strip()
+            cert += cert_line.strip().replace('/', '_').replace('+', '-')
         conn_uri = conn_uri + '?cert={}'.format(cert)
     else:
         print('\nWARNING: connection security disabled')
