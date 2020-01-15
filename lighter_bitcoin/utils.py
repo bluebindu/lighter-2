@@ -17,22 +17,20 @@
 
 import sys
 
-from argparse import ArgumentParser, FileType
+from argparse import ArgumentParser
 from configparser import ConfigParser
 from contextlib import suppress
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 from glob import glob
 from importlib import import_module
-from json import dumps, loads, JSONDecodeError
 from logging import getLogger
 from logging.config import dictConfig
 from marshal import dumps as mdumps, loads as mloads
-from os import mkdir, path
+from os import access, mkdir, path, R_OK, W_OK
 from pathlib import Path
 from shutil import copyfile
 from site import USER_BASE
-from subprocess import PIPE, Popen, TimeoutExpired
 from threading import current_thread
 from time import sleep, strftime, time
 
@@ -105,17 +103,22 @@ def log_outro():
 def parse_args(help_msg, write_perms):
     """ Parses command line arguments """
     parser = ArgumentParser(description=help_msg)
-    acc_mode = 'r'
+    acc_mode = R_OK
     if write_perms:
-        acc_mode = 'w'
+        acc_mode = W_OK
     parser.add_argument(
-        '--lighterdir', metavar='PATH', type=FileType(acc_mode),
+        '--lighterdir', metavar='PATH',
         help="Path containing config file and other data")
     args = vars(parser.parse_args())
     if 'lighterdir' in args and args['lighterdir'] is not None:
-        if not args['lighterdir']:
-            raise RuntimeError('Invalid lighterdir')
-        sett.L_DATA = args['lighterdir']
+        lighterdir = args['lighterdir']
+        if not lighterdir:
+            raise RuntimeError('Invalid lighterdir: empty path')
+        if not path.isdir(lighterdir):
+            raise RuntimeError('Invalid lighterdir: path is not a directory')
+        if not access(lighterdir, acc_mode):
+            raise RuntimeError('Invalid lighterdir: permission denied')
+        sett.L_DATA = lighterdir
         sett.L_CONFIG = path.join(sett.L_DATA, 'config')
 
 

@@ -105,27 +105,40 @@ class UtilsTests(TestCase):
         MOD.log_outro()
         self.assertEqual(mocked_logger.info.call_count, 2)
 
-    @patch(MOD.__name__ + '.FileType', autospec=True)
+    @patch(MOD.__name__ + '.access', autospec=True)
+    @patch(MOD.__name__ + '.path', autospec=True)
     @patch(MOD.__name__ + '.ArgumentParser', autospec=True)
-    def test_parse_args(self, mocked_argparse, mocked_filetype):
+    def test_parse_args(self, mocked_argparse, mocked_path, mocked_access):
         msg = 'help message'
         # without args
         MOD.parse_args(msg, False)
         mocked_argparse.assert_called_once_with(description=msg)
         mocked_argparse.return_value.add_argument.assert_called_once_with(
-            '--lighterdir', metavar='PATH', type=mocked_filetype.return_value,
+            '--lighterdir', metavar='PATH',
             help="Path containing config file and other data")
         mocked_argparse.return_value.parse_args.assert_called_once_with()
-        mocked_filetype.assert_called_once_with('r')
         # with args
         reset_mocks(vars())
+        mocked_path.isdir.return_value = True
+        mocked_access.return_value = True
         ldir = '/srv/lighter'
         mocked_argparse.return_value.parse_args.return_value = Namespace(
             lighterdir=ldir)
         MOD.parse_args(msg, True)
         self.assertEqual(settings.L_DATA, ldir)
-        mocked_filetype.assert_called_once_with('w')
-        # with invalid arg
+        mocked_path.isdir.assert_called_once_with(ldir)
+        mocked_access.assert_called_once_with(ldir, MOD.W_OK)
+        # with no access to path
+        reset_mocks(vars())
+        mocked_access.return_value = False
+        with self.assertRaises(RuntimeError):
+            MOD.parse_args(msg, False)
+        # with path that is not a directory
+        reset_mocks(vars())
+        mocked_path.isdir.return_value = False
+        with self.assertRaises(RuntimeError):
+            MOD.parse_args(msg, False)
+        # with empty path
         reset_mocks(vars())
         ldir = ''
         mocked_argparse.return_value.parse_args.return_value = Namespace(
