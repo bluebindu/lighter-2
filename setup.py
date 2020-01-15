@@ -20,9 +20,9 @@ import sys
 from distutils.command.build_py import build_py
 from distutils.command.clean import clean
 from importlib import import_module
-from os import chdir, chmod, path, remove, rename, stat, walk
+from os import chdir, chmod, path, remove, stat, walk
 from pathlib import Path
-from shutil import rmtree, which
+from shutil import move, rmtree, which
 from stat import S_IXGRP, S_IXOTH, S_IXUSR
 from subprocess import Popen, TimeoutExpired
 from urllib.request import urlretrieve
@@ -47,7 +47,9 @@ CL_VER = '0.8.0'
 
 LND_REF = 'v0.8.2-beta'
 LND_PROTO = 'rpc.proto'
+GOOGLE = 'google'
 GAPIS = 'googleapis'
+GAPIS_MASTER = GAPIS + '-master'
 GAPIS_ZIP = GAPIS + '.zip'
 
 CLEANUP_SUFFIXES = [
@@ -89,10 +91,14 @@ def _download_lnd_deps():
         'https://github.com/{}/{}/archive/master.zip'.format(GAPIS, GAPIS)
     urlretrieve(googleapis_url, GAPIS_ZIP)
     with ZipFile(GAPIS_ZIP, 'r') as zip_ref:
-        zip_ref.extractall('.')
+        start_member = GAPIS_MASTER + '/google/'
+        files = [n for n in zip_ref.namelist() if n.startswith(start_member) and not n.endswith('/')]
+        zip_ref.extractall('.', members=files)
     _try_rm(GAPIS_ZIP)
-    _try_rm(GAPIS)
-    rename(GAPIS + '-master', GAPIS)
+    if path.exists(GOOGLE):
+        rmtree(GOOGLE)
+    move(path.sep.join([GAPIS_MASTER, GOOGLE]), GOOGLE)
+    _try_rm(GAPIS_MASTER)
     chdir('..')
 
 
@@ -137,11 +143,11 @@ def _build_lighter():
     _gen_proto(opts)
     proto_include = resource_filename('grpc_tools', '_proto')
     opts = [__file__, '--proto_path=.', '--proto_path=' + L_DIR,
-            '--proto_path=' + path.sep.join([L_DIR, GAPIS]),
             '--proto_path=' + proto_include,
             '--python_out=.', '--grpc_python_out=.',
             path.sep.join([L_DIR, LND_PROTO])]
     _gen_proto(opts)
+    _try_rm(path.sep.join([L_DIR, GOOGLE]))
     chdir(E_DIR)
     _gen_cli_completion('bash')
     _gen_cli_completion('zsh')
@@ -165,13 +171,14 @@ class Clean(clean):
             _try_rm(path.sep.join([E_DIR, COMPLETION_SCRIPTS[shell]]))
         for report in Path('reports').glob('*.report'):
             _try_rm(report.as_posix())
-        _try_rm(path.sep.join([L_DIR, GAPIS]))
+        _try_rm(path.sep.join([L_DIR, GAPIS_MASTER]))
         _try_rm(path.sep.join([L_DIR, GAPIS_ZIP]))
+        _try_rm(path.sep.join([L_DIR, GOOGLE]))
         _try_rm(path.sep.join([L_DIR, LND_PROTO]))
         _try_rm('dist')
         _try_rm('.eggs')
         _try_rm('.coverage')
-        _try_rm('lighter_bitcoin.egg-info')
+        _try_rm(L_DIR + '.egg-info')
         _try_rm('.pytest_cache')
         clean.run(self)
 
@@ -181,8 +188,8 @@ class BuildPy(build_py):
 
     def run(self):
         """ Overrides default behavior """
-        _build_lighter()
         build_py.run(self)
+        _build_lighter()
 
 
 class Develop(develop):
@@ -190,8 +197,8 @@ class Develop(develop):
 
     def run(self):
         """ Overrides default behavior """
-        _build_lighter()
         super().run()
+        _build_lighter()
 
 
 class PyTest(TestCommand):
@@ -270,8 +277,10 @@ setup(
     install_requires=[
         'alembic~=1.2.1',
         'Click~=7.0',
-        'grpcio~=1.25.0',
+        'googleapis-common-protos~=1.6.0',
+        'grpcio~=1.26.0',
         'macaroonbakery~=1.2.3',
+        'protobuf~=3.11.2',
         'pylibscrypt~=1.8.0',
         'pyln-client==' + CL_VER,
         'pymacaroons~=0.13.0',
@@ -281,11 +290,11 @@ setup(
         'SQLAlchemy~=1.3.10',
     ],
     setup_requires=[
-        'googleapis-common-protos~=1.6.0',
-        'grpcio-tools~=1.25.0',
-        'protobuf~=3.10.0',
+        'grpcio-tools~=1.26.0',
     ],
-    tests_require=['pycodestyle', 'pylint', 'pytest', 'pytest-cov'],
+    tests_require=[
+        'pytest', 'pytest-cov',
+    ],
     entry_points={
         'console_scripts': [
             'cliter = {}.cliter:entrypoint'.format(L_DIR),

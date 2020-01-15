@@ -25,9 +25,14 @@ from sqlalchemy import pool
 cfg = context.config
 
 sec = 'lighter_log'
-env = {
-    'lighterlogfilename': cfg.get_section_option(sec, 'lighter'),
-    'migrationslogfilename': cfg.get_section_option(sec, 'migrations')}
+env = {}
+env['lighterlogfilename'] = 'lighter.log'
+if cfg.get_section_option(sec, 'lighter'):
+    env['lighterlogfilename'] = cfg.get_section_option(sec, 'lighter')
+env['migrationslogfilename'] = 'migrations.log'
+if cfg.get_section_option(sec, 'migrations'):
+    env['migrationslogfilename'] = cfg.get_section_option(sec, 'migrations')
+
 fileConfig(cfg.config_file_name, disable_existing_loggers=False, defaults=env)
 
 LOGGER = getLogger(__name__)

@@ -31,12 +31,7 @@ def migrate():
     if not path.exists(sett.DB_PATH):
         return
     alembic_cfg = get_alembic_cfg(False)
-    sec = 'lighter_log'
-    alembic_cfg.set_section_option(
-        sec, 'lighter', path.join(sett.LOGS_DIR, sett.LOGS_LIGHTER))
-    alembic_cfg.set_section_option(
-        sec, 'migrations', path.join(sett.LOGS_DIR, sett.LOGS_MIGRATIONS))
-    init_db()
+    init_db(alembic_cfg=alembic_cfg)
     from .db import ENGINE
     with ENGINE.begin() as connection:
         alembic_cfg.attributes['connection'] = connection

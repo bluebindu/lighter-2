@@ -17,6 +17,7 @@
 
 from contextlib import contextmanager
 from logging import getLogger
+from os import path
 from platform import system
 from pathlib import Path
 
@@ -71,8 +72,15 @@ ENGINE = None
 Session = None
 
 
-def init_db(new_db=False):
+def init_db(new_db=False, alembic_cfg=None):
     """ Initialize DB connection, creating missing tables if requested """
+    if not alembic_cfg:
+        alembic_cfg = get_alembic_cfg(new_db)
+    sec = 'lighter_log'
+    alembic_cfg.set_section_option(
+        sec, 'lighter', path.join(sett.LOGS_DIR, sett.LOGS_LIGHTER))
+    alembic_cfg.set_section_option(
+        sec, 'migrations', path.join(sett.LOGS_DIR, sett.LOGS_MIGRATIONS))
     global ENGINE  # pylint: disable=global-statement
     global Session  # pylint: disable=global-statement
     ENGINE = create_engine(get_db_url(new_db))
@@ -80,7 +88,7 @@ def init_db(new_db=False):
     if new_db:
         LOGGER.info('Creating database')
         Base.metadata.create_all(ENGINE)
-        stamp(get_alembic_cfg(new_db), 'head')
+        stamp(alembic_cfg, 'head')
 
 
 def get_alembic_cfg(new_db):

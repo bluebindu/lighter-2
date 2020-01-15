@@ -6,7 +6,7 @@
 *.swp
 *.zip
 /*/rpc.proto
-/*/googleapis
+/*/google*
 !/docker/Dockerfile.ci
 /examples/complete-*-*.sh
 /*.egg-info/
