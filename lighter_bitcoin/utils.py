@@ -76,7 +76,10 @@ def update_logger(config=None):
         sett.LOGS_DIR = get_path(config.get(sec, 'LOGS_DIR'))
         log_path = path.join(sett.LOGS_DIR, sett.LOGS_LIGHTER)
         sett.LOGGING['handlers']['file']['filename'] = log_path
-    dictConfig(sett.LOGGING)
+    try:
+        dictConfig(sett.LOGGING)
+    except (AttributeError, ImportError, TypeError, ValueError) as err:
+        raise RuntimeError('Logging configuration error: ' + str(err))
 
 
 def log_intro():

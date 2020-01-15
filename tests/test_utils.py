@@ -94,6 +94,11 @@ class UtilsTests(TestCase):
         MOD.update_logger()
         mocked_dictConfig.assert_called_once_with(settings.LOGGING)
         assert not mocked_get_path.called
+        # Error case
+        reset_mocks(vars())
+        mocked_dictConfig.side_effect = ValueError
+        with self.assertRaises(RuntimeError):
+            MOD.update_logger()
 
     @patch(MOD.__name__ + '.LOGGER', autospec=True)
     def test_log_intro(self, mocked_logger):
