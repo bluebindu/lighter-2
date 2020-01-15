@@ -23,7 +23,7 @@ from macaroonbakery.bakery import AuthInitError, Bakery, canonical_ops, \
     MemoryOpsStore, Op, PermissionDenied
 from macaroonbakery.checkers import context_with_operations, AuthContext
 from pymacaroons import Macaroon
-from pymacaroons.exceptions import MacaroonDeserializationException
+from pymacaroons.exceptions import MacaroonException
 
 from . import settings
 
@@ -56,7 +56,7 @@ def check_macaroons(metadata, method):
             try:
                 serialized_macaroon = decode(data.value, 'hex')
                 macaroon = Macaroon.deserialize(serialized_macaroon)
-            except (MacaroonDeserializationException, ValueError):
+            except (MacaroonException, ValueError):
                 LOGGER.error('- Cannot deserialize macaroon')
                 return False
     if num_mac != 1:
