@@ -531,33 +531,10 @@ def db_config_non_interactive(session, new, password):
                 secret[1], implementation=secret[3])
 
 
-@handle_keyboardinterrupt
 def secure():
-    """ Handles Lighter and implementation secrets """
-    global COLLECTING_INPUT
-    global DONE
-    global NEW_DB
-    global SEARCHING_ENTROPY
+    """ Secure entrypoint """
     try:
-        getLogger('lighter.errors').setLevel(CRITICAL)
-        init_common("Start Lighter's secure procedure", write_perms=True)
-        if not _rm_db():
-            NEW_DB = True
-        init_db(new_db=NEW_DB)
-        lighter_password = environ.get('lighter_password')
-        try:
-            if lighter_password:
-                sys.stdout = open(devnull, 'w')
-            with session_scope(FakeContext()) as session:
-                if lighter_password:
-                    db_config_non_interactive(session, NEW_DB, lighter_password)
-                else:
-                    db_config_interactive(session, NEW_DB)
-            DONE = True
-            print('All done!')
-        finally:
-            if lighter_password:
-                sys.stdout.close()
+        _secure()
     except RuntimeError as err:
         if str(err):
             LOGGER.error(str(err))
@@ -568,3 +545,31 @@ def secure():
         SEARCHING_ENTROPY = False
         if not DONE and NEW_DB:
             _remove_files()
+
+
+@handle_keyboardinterrupt
+def _secure():
+    """ Handles Lighter and implementation secrets """
+    global COLLECTING_INPUT
+    global DONE
+    global NEW_DB
+    global SEARCHING_ENTROPY
+    getLogger('lighter.errors').setLevel(CRITICAL)
+    init_common("Start Lighter's secure procedure", write_perms=True)
+    if not _rm_db():
+        NEW_DB = True
+    init_db(new_db=NEW_DB)
+    lighter_password = environ.get('lighter_password')
+    try:
+        if lighter_password:
+            sys.stdout = open(devnull, 'w')
+        with session_scope(FakeContext()) as session:
+            if lighter_password:
+                db_config_non_interactive(session, NEW_DB, lighter_password)
+            else:
+                db_config_interactive(session, NEW_DB)
+        DONE = True
+        print('All done!')
+    finally:
+        if lighter_password:
+            sys.stdout.close()

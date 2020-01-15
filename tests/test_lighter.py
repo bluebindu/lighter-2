@@ -346,9 +346,6 @@ class LighterTests(TestCase):
         with self.assertRaises(Exception):
             MOD._lightning_wait(grpc_server)
 
-    @patch(MOD.__name__ + '.log_outro', autospec=True)
-    @patch(MOD.__name__ + '._interrupt_threads', autospec=True)
-    @patch(MOD.__name__ + '.LOGGER', autospec=True)
     @patch(MOD.__name__ + '._serve_runtime', autospec=True)
     @patch(MOD.__name__ + '._serve_unlocker', autospec=True)
     @patch(MOD.__name__ + '.Thread', autospec=True)
@@ -358,56 +355,59 @@ class LighterTests(TestCase):
     @patch(MOD.__name__ + '.init_db', autospec=True)
     @patch(MOD.__name__ + '.log_intro', autospec=True)
     @patch(MOD.__name__ + '.init_common', autospec=True)
-    def test_start(self, mocked_init_common, mocked_logintro, mocked_init_db,
+    def test_start_lighter(self, mocked_init_common, mocked_logintro, mocked_init_db,
                    mocked_ses, mocked_db_ok, mocked_import, mocked_thread,
-                   mocked_serve_unlocker, mocked_serve_runtime, mocked_log,
-                   mocked_int_threads, mocked_logoutro):
+                   mocked_serve_unlocker, mocked_serve_runtime):
         # with secrets case
         mocked_db_ok.return_value = True
         config = Mock()
-        MOD.start()
+        MOD._start_lighter()
         msg = "Start Lighter's gRPC server"
         mocked_init_common.assert_called_once_with(msg)
         mocked_logintro.assert_called_once_with()
         mocked_init_db.assert_called_once_with()
         mocked_serve_unlocker.assert_called_once_with()
         mocked_serve_runtime.assert_called_once_with()
-        assert not mocked_log.error.called
         # no secrets case
         reset_mocks(vars())
         settings.IMPLEMENTATION = 'asd'
-        MOD.start()
+        MOD._start_lighter()
         mocked_import.assert_called_once_with('..light_asd', MOD.__name__)
         mocked_thread.assert_called_once_with(target=utils.check_connection)
         mocked_thread.return_value.start.assert_called_once_with()
         mocked_serve_runtime.assert_called_once_with()
-        assert not mocked_log.error.called
         # no encrypted token in db
         reset_mocks(vars())
         mocked_db_ok.return_value = False
         settings.DISABLE_MACAROONS = False
+        with self.assertRaises(RuntimeError):
+            MOD._start_lighter()
+
+    @patch(MOD.__name__ + '.log_outro', autospec=True)
+    @patch(MOD.__name__ + '._interrupt_threads', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '._start_lighter', autospec=True)
+    def test_start(self, mocked_start, mocked_log, mocked_int_threads,
+                   mocked_logoutro):
+        # Correct case
         MOD.start()
-        assert mocked_log.error.called
-        # old db version case
-        reset_mocks(vars())
-        mocked_db_ok.return_value = False
-        MOD.start()
-        assert mocked_log.error.called
-        # InterruptException case
-        reset_mocks(vars())
-        mocked_init_common.side_effect = MOD.InterruptException()
-        with self.assertRaises(SystemExit):
-            MOD.start()
-        mocked_int_threads.assert_called_once_with()
-        mocked_logoutro.assert_called_once_with()
+        mocked_start.assert_called_once_with()
         # Exceptions handling case
         reset_mocks(vars())
         exceptions = [ImportError, KeyError, RuntimeError, FileNotFoundError,
                       ConfigError]
         for exc in exceptions:
             reset_mocks(vars())
-            mocked_init_common.side_effect = exc('msg')
+            mocked_start.side_effect = exc('msg')
             MOD.start()
+            assert mocked_log.error.called
+        # InterruptException case
+        reset_mocks(vars())
+        mocked_start.side_effect = MOD.InterruptException()
+        with self.assertRaises(SystemExit):
+            MOD.start()
+        mocked_int_threads.assert_called_once_with()
+        mocked_logoutro.assert_called_once_with()
 
 
 def reset_mocks(params):

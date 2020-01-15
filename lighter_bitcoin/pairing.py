@@ -155,7 +155,7 @@ def _get_pairing_mode():
     return TEXT
 
 
-def pairing():
+def _pairing():
     """ Creates pairing images or texts """
     if not sett.INSECURE_CONNECTION:
         _check_file(sett.SERVER_CRT, 'certificate')
@@ -172,12 +172,10 @@ def pairing():
     _show_data(pair_mode, mac)
 
 
-@handle_keyboardinterrupt
 def start():
-    """ Initializes and starts pairing procedure """
+    """ Pairing entrypoint """
     try:
-        init_common("Start Lighter pairing procedure", core=False)
-        pairing()
+        _start()
     except RuntimeError as err:
         if str(err):
             _die(str(err))
@@ -185,3 +183,10 @@ def start():
         _die('Configuration error: ' + str(err))
     except InterruptException:
         _die('Exiting...')
+
+
+@handle_keyboardinterrupt
+def _start():
+    """ Initializes and starts pairing procedure """
+    init_common("Start Lighter pairing procedure", core=False)
+    _pairing()

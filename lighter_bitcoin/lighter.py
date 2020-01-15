@@ -305,7 +305,6 @@ def _interrupt_threads():
     LOGGER.info('All threads shutdown correctly')
 
 
-@handle_keyboardinterrupt
 def _unlocker_wait(grpc_server):
     """ Waits a signal to stop the UnlockerServicer """
     while not sett.UNLOCKER_STOP:
@@ -322,31 +321,38 @@ def _lightning_wait(_grpc_server):
 
 
 @handle_keyboardinterrupt
-def start():
+def _start_lighter():
     """
     Starts Lighter.
 
     Checks if a module for the requested implementation exists and imports it.
     Initializes Lighter and starts the Unlocker gRPC service.
+    """
+    init_common("Start Lighter's gRPC server")
+    log_intro()
+    init_db()
+    with session_scope(FakeContext()) as session:
+        if not is_db_ok(session):
+            raise RuntimeError(
+                'Your database configuration is incomplete or old. '
+                'Update it by running lighter-secure (and deleting db)')
+        sett.IMPLEMENTATION_SECRETS = detect_impl_secret(session)
+    import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
+    _serve_unlocker()
+    con_thread = Thread(target=check_connection)
+    con_thread.daemon = True
+    con_thread.start()
+    _serve_runtime()
+
+
+def start():
+    """
+    Lighter entrypoint.
 
     Any raised and uncaught exception will be handled here.
     """
     try:
-        init_common("Start Lighter's gRPC server")
-        log_intro()
-        init_db()
-        with session_scope(FakeContext()) as session:
-            if not is_db_ok(session):
-                raise RuntimeError(
-                    'Your database configuration is incomplete or old. '
-                    'Update it by running lighter-secure (and deleting db)')
-            sett.IMPLEMENTATION_SECRETS = detect_impl_secret(session)
-        import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
-        _serve_unlocker()
-        con_thread = Thread(target=check_connection)
-        con_thread.daemon = True
-        con_thread.start()
-        _serve_runtime()
+        _start_lighter()
     except ImportError as err:
         LOGGER.error(
             "Implementation '%s' is not supported", sett.IMPLEMENTATION)
