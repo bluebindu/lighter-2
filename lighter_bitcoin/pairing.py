@@ -171,8 +171,10 @@ def start():
     try:
         _start()
     except RuntimeError as err:
+        err_msg = ''
         if str(err):
-            die(str(err))
+            err_msg = str(err)
+        die(err_msg)
     except ConfigError as err:
         die('Configuration error: ' + str(err))
     except InterruptException:

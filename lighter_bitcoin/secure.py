@@ -530,15 +530,18 @@ def secure():
     try:
         _secure()
     except RuntimeError as err:
-        if str(err):
-            LOGGER.error(str(err))
+        die(str(err))
     except ConfigError as err:
-        LOGGER.error('Configuration error: %s', str(err))
+        err_msg = ''
+        if str(err):
+            err_msg = str(err)
+        die('Configuration error: ' + err_msg)
     except InterruptException:
         COLLECTING_INPUT = False
         SEARCHING_ENTROPY = False
         if not DONE and NEW_DB:
             _remove_files()
+        die()
 
 
 @handle_keyboardinterrupt

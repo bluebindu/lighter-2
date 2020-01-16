@@ -37,7 +37,7 @@ from .db import get_mac_params_from_db, init_db, is_db_ok, session_scope
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
 from .utils import check_connection, check_password, check_req_params, \
-    Crypter, detect_impl_secret, FakeContext, get_secret, \
+    Crypter, detect_impl_secret, die, FakeContext, get_secret, \
     handle_keyboardinterrupt, handle_logs, handle_sigterm, init_common, \
     InterruptException, log_intro, log_outro, ScryptParams
 
@@ -353,18 +353,26 @@ def start():
     """
     try:
         _start_lighter()
-    except ImportError as err:
+    except ImportError:
         LOGGER.error(
             "Implementation '%s' is not supported", sett.IMPLEMENTATION)
+        die()
     except KeyError as err:
-        LOGGER.error('%s environment variable needs to be set', err)
+        LOGGER.error("The environment variable '%s' needs to be set", err)
+        die()
     except RuntimeError as err:
         if str(err):
             LOGGER.error(str(err))
+        die()
     except FileNotFoundError as err:
         LOGGER.error(str(err))
+        die()
     except ConfigError as err:
-        LOGGER.error('Configuration error: %s', str(err))
+        err_msg = ''
+        if str(err):
+            err_msg = str(err)
+        LOGGER.error('Configuration error: %s', err_msg)
+        die()
     except InterruptException:
         _interrupt_threads()
         log_outro()
