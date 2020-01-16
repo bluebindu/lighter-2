@@ -290,6 +290,13 @@ def str2bool(string, force_true=False):
     return string.lower() in ('yes', 'true', 'y', '1')
 
 
+def die(message=None):
+    """ Prints message to stderr and exits with error code 1 """
+    if message:
+        sys.stderr.write(message + '\n')
+    sys.exit(1)
+
+
 class FakeContext():  # pylint: disable=too-few-public-methods
     """
     Simulates a grpc server context in order to (re)define abort()

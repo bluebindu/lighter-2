@@ -384,6 +384,19 @@ class UtilsTests(TestCase):
         res = MOD.str2bool('p', force_true=True)
         self.assertEqual(res, True)
 
+    @patch(MOD.__name__ + '.sys', autospec=True)
+    def test_die(self, mocked_sys):
+        # with message
+        msg = 'message'
+        MOD.die(msg)
+        mocked_sys.stderr.write.assert_called_once_with(msg + '\n')
+        mocked_sys.exit.assert_called_once_with(1)
+        # without message
+        reset_mocks(vars())
+        MOD.die()
+        assert not mocked_sys.stderr.write.called
+        mocked_sys.exit.assert_called_once_with(1)
+
     def test_FakeContext(self):
         # abort test
         with self.assertRaises(RuntimeError):

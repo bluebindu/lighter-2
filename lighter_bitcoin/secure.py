@@ -33,7 +33,7 @@ from . import settings as sett
 from .db import init_db, is_db_ok, save_mac_params_to_db, save_secret_to_db, \
     save_token_to_db, session_scope
 from .macaroons import get_baker, MACAROONS, MAC_VERSION
-from .utils import check_password, Crypter, FakeContext, get_secret, \
+from .utils import check_password, Crypter, die, FakeContext, get_secret, \
     handle_keyboardinterrupt, handle_sigterm, init_common, \
     InterruptException, ScryptParams, str2bool
 
@@ -69,12 +69,6 @@ IDLE_COUNTER = 1
 IDLE_LAST_DELAY = 15
 
 
-def _die(message):
-    """ Prints message to stderr and exits with error code 1 """
-    sys.stderr.write(message + '\n')
-    sys.exit(1)
-
-
 def _consume_bytes(consumable, num):
     """ Consume num elements from a byte string and returns them """
     consumable = list(consumable)
@@ -103,7 +97,7 @@ def _get_eclair_password():
         if data:
             more_data = getpass('Insert eclair password again: ')
             if data != more_data:
-                _die('Passwords do not match')
+                die('Passwords do not match')
             return data.encode()
 
 
@@ -114,7 +108,7 @@ def _get_electrum_password():
         if data:
             more_data = getpass('Insert electrum password again: ')
             if data != more_data:
-                _die('Passwords do not match')
+                die('Passwords do not match')
             return data.encode()
 
 
@@ -126,7 +120,7 @@ def _get_lnd_macaroon(mac_path=None):
             with open(mac_path, 'rb') as file:
                 return file.read()
         except OSError as err:
-            _die('Cannot read macaroon file: ' + str(err))
+            die('Cannot read macaroon file: ' + str(err))
     if mac_path:
         return _read_macaroon(mac_path)
     mac_path = input('If your lnd instance requires a macaroon for '
@@ -147,7 +141,7 @@ def _get_lnd_password():
     if data:
         more_data = getpass('Insert lnd password again: ')
         if data != more_data:
-            _die('Passwords do not match')
+            die('Passwords do not match')
         return data.encode()
     return None
 
@@ -254,7 +248,7 @@ def _recover_secrets(session, password):
         lnd_pass = get_secret(
             FakeContext(), session, password, 'lnd', 'password')
     except RuntimeError as err:
-        _die(err)
+        die(err)
     return ecl_pass, ele_pass, lnd_mac, lnd_pass
 
 
@@ -334,7 +328,7 @@ def _read(source, num_bytes):
                           "os.urandom? [Y/n] ")
         if str2bool(use_urand, force_true=True):
             return
-        _die("No way to retrieve the amount of available entropy")
+        die("No way to retrieve the amount of available entropy")
 
 
 def _gen_random_data(num_bytes):
@@ -358,7 +352,7 @@ def _gen_random_data(num_bytes):
                               "[Y/n] ")
             if str2bool(use_urand, force_true=True):
                 return urandom(num_bytes)
-            _die("No Random Numbers Generator available")
+            die("No Random Numbers Generator available")
         except TimeoutErrFut:
             print("This call might take long depending on the "
                   "available entropy.\nIf this happens you can:\n"
@@ -454,17 +448,17 @@ def db_config_interactive(session, new):
                                  'for verification: ')
         if password != password_check:
             _remove_files()
-            _die("Passwords do not match")
+            die("Passwords do not match")
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
         _save_token(session, password, scrypt_params)
     else:
         if not is_db_ok(session):
-            _die('Detected an incomplete configuration. Delete database.')
+            die('Detected an incomplete configuration. Delete database.')
         password = getpass("Insert Lighter's password: ")
         try:
             check_password(FakeContext(), session, password)
         except RuntimeError:
-            _die('Wrong password')
+            die('Wrong password')
         ecl_pass, ele_pass, lnd_mac, lnd_pass = _recover_secrets(
             session, password)
         seed = _gen_random_data(_get_req_salt_len(new))
@@ -498,11 +492,11 @@ def db_config_non_interactive(session, new, password):
         _save_token(session, password, scrypt_params)
     else:
         if not is_db_ok(session):
-            _die('Detected an incomplete configuration. Delete database.')
+            die('Detected an incomplete configuration. Delete database.')
         try:
             check_password(FakeContext(), session, password)
         except RuntimeError:
-            _die('Wrong password')
+            die('Wrong password')
         ecl_pass, ele_pass, lnd_mac, lnd_pass = \
             _recover_secrets(session, password)
         seed = _gen_random_data(_get_req_salt_len(new, interactive=False))

@@ -31,8 +31,8 @@ from requests import get
 
 from . import settings as sett
 from .macaroons import MACAROONS
-from .utils import handle_keyboardinterrupt, handle_sigterm, init_common, \
-    InterruptException
+from .utils import die, handle_keyboardinterrupt, handle_sigterm, \
+    init_common, InterruptException
 
 signal(SIGTERM, handle_sigterm)
 
@@ -43,16 +43,10 @@ TEXT = 2
 def _check_file(file_path, file_name):
     """ Checks if a file exists and is readable """
     if not path.exists(file_path):
-        _die('Could not find {} in specified path'.format(file_name))
+        die('Could not find {} in specified path'.format(file_name))
     if not access(file_path, R_OK):
-        _die('Could not read {} in specified path (hint: check file '
-             'permissions)'.format(file_name))
-
-
-def _die(message):
-    """ Prints message to stderr and exits with error code 1 """
-    sys.stderr.write(message + '\n')
-    sys.exit(1)
+        die('Could not read {} in specified path (hint: check file '
+            'permissions)'.format(file_name))
 
 
 def _select_opts(opts, question):
@@ -121,9 +115,9 @@ def _get_connection_uri():
         try:
             i_port = int(i_port)
         except ValueError:
-            _die('Invalid port')
+            die('Invalid port')
         if i_port < 1 or i_port > 65535:
-            _die('Invalid port')
+            die('Invalid port')
     port = i_port if i_port else int(sett.PORT)
     conn_uri = 'lighterconnect://{}:{}'.format(host, port)
     if not sett.INSECURE_CONNECTION:
@@ -178,11 +172,11 @@ def start():
         _start()
     except RuntimeError as err:
         if str(err):
-            _die(str(err))
+            die(str(err))
     except ConfigError as err:
-        _die('Configuration error: ' + str(err))
+        die('Configuration error: ' + str(err))
     except InterruptException:
-        _die('Exiting...')
+        die('Exiting...')
 
 
 @handle_keyboardinterrupt
