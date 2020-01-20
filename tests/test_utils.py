@@ -278,15 +278,16 @@ class UtilsTests(TestCase):
         reset_mocks(vars())
         settings.IMPLEMENTATION_SECRETS = False
         ins_conn = 1
-        config = Mock()
-        config.get.side_effect = [impl, ins_conn, dis_mac, port, db_dir]
+        config.get.side_effect = [impl, ins_conn, dis_mac, port, server_key,
+                                  server_crt, mac_dir, db_dir]
         MOD.get_start_options(config)
         self.assertEqual(settings.INSECURE_CONNECTION, True)
         self.assertEqual(settings.DISABLE_MACAROONS, True)
         # No secrets case (with warning)
         reset_mocks(vars())
         dis_mac = 1
-        config.get.side_effect = [impl, ins_conn, dis_mac, port, db_dir]
+        config.get.side_effect = [impl, ins_conn, dis_mac, port, server_key,
+                                  server_crt, mac_dir, db_dir]
         MOD.get_start_options(config)
 
     @patch(MOD.__name__ + '.get_secret_from_db', autospec=True)

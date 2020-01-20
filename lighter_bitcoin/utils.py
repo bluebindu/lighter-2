@@ -210,14 +210,12 @@ def get_start_options(config):
     sett.LIGHTER_ADDR = '{}:{}'.format(sett.HOST, sett.PORT)
     if sett.INSECURE_CONNECTION:
         sett.DISABLE_MACAROONS = True
-    else:
-        sett.SERVER_KEY = get_path(config.get(sec, 'SERVER_KEY'))
-        sett.SERVER_CRT = get_path(config.get(sec, 'SERVER_CRT'))
+    sett.SERVER_KEY = get_path(config.get(sec, 'SERVER_KEY'))
+    sett.SERVER_CRT = get_path(config.get(sec, 'SERVER_CRT'))
     if sett.DISABLE_MACAROONS:
         LOGGER.warning('Disabling macaroons is not safe, '
                        'do not disable them in production')
-    else:
-        sett.MACAROONS_DIR = get_path(config.get(sec, 'MACAROONS_DIR'))
+    sett.MACAROONS_DIR = get_path(config.get(sec, 'MACAROONS_DIR'))
     sett.DB_DIR = get_path(config.get(sec, 'DB_DIR'))
     sett.DB_PATH = path.join(sett.DB_DIR, sett.DB_NAME)
     module = import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
