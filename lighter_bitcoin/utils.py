@@ -19,12 +19,12 @@ import sys
 
 from argparse import ArgumentParser
 from configparser import ConfigParser
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 from glob import glob
 from importlib import import_module
-from logging import getLogger
+from logging import CRITICAL, disable, getLogger, NOTSET
 from logging.config import dictConfig
 from marshal import dumps as mdumps, loads as mloads
 from os import access, mkdir, path, R_OK, W_OK
@@ -295,6 +295,20 @@ def die(message=None):
     sys.exit(1)
 
 
+@contextmanager
+def disable_logger():
+    """
+    Disables logging
+
+    Warning: do not nest calls to this method
+    """
+    disable(CRITICAL)
+    try:
+        yield
+    finally:
+        disable(NOTSET)
+
+
 class FakeContext():  # pylint: disable=too-few-public-methods
     """
     Simulates a grpc server context in order to (re)define abort()
@@ -325,7 +339,12 @@ class RPCSession():  # pylint: disable=too-few-public-methods
         self._id_count = 0
 
     def call(self, context, data=None, url=None, timeout=None):
-        """ Makes an RPC call using the opened session """
+        """
+        Makes an RPC call using the opened session.
+
+        It returns the response message and a boolean to signal if it
+        contains an error.
+        """
         self._id_count += 1
         if url is None:
             url = sett.RPC_URL
@@ -335,16 +354,16 @@ class RPCSession():  # pylint: disable=too-few-public-methods
         while True:
             try:
                 response = self._session.post(
-                    url, data=data, auth=self._auth,
+                    url, data=data, auth=self._auth, headers=self._headers,
                     timeout=(sett.RPC_CONN_TIMEOUT, timeout))
             except ReqConnectionErr:
                 tries -= 1
                 if tries == 0:
                     Err().node_error(
                         context, 'RPC call failed: max retries reached')
-                LOGGER.info(
-                    'Connection failed, sleeping for %d secs (%d tries left)',
-                    sett.RPC_SLEEP, tries)
+                LOGGER.debug(
+                    'Connection failed, sleeping for %.1f secs (%d tries '
+                    'left)', sett.RPC_SLEEP, tries)
                 sleep(sett.RPC_SLEEP)
             except Timeout:
                 Err().node_error(context, 'RPC call timed out')
@@ -354,17 +373,18 @@ class RPCSession():  # pylint: disable=too-few-public-methods
             err_msg = 'RPC call failed: {} {}'.format(
                 response.status_code, response.reason)
             Err().node_error(context, err_msg)
-        is_error = response.status_code == 500
         json_response = response.json()
-        LOGGER.debug('response: %s', json_response)
         if 'error' in json_response and json_response['error'] is not None:
             err = json_response['error']
             if 'message' in err:
                 err = json_response['error']['message']
-            return err, is_error
+            LOGGER.debug('RPC err: %s', err)
+            return err, True
         if 'result' in json_response:
-            return json_response['result'], is_error
-        return json_response, is_error
+            LOGGER.debug('RPC res: %s', json_response['result'])
+            return json_response['result'], False
+        LOGGER.debug('RPC res: %s', json_response)
+        return json_response, response.status_code == 500
 
 
 class Enforcer():  # pylint: disable=too-few-public-methods

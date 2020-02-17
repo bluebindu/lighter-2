@@ -19,7 +19,7 @@ from ast import literal_eval
 from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
 from datetime import datetime
-from logging import CRITICAL, getLogger
+from logging import getLogger
 from os import path
 
 from pyln.client import LightningRpc, RpcError as ClightningRpcError
@@ -634,20 +634,20 @@ class ClightningRPC():  # pylint: disable=too-few-public-methods
     """ Creates and mantains an RPC session with c-lightning """
 
     def __init__(self):
-        pyln_logger = getLogger('pyln.client.lightning')
-        pyln_logger.setLevel(CRITICAL)
-        self._session = LightningRpc(settings.RPC_URL, logger=pyln_logger)
+        self._session = LightningRpc(settings.RPC_URL)
 
     def __getattr__(self, name):
 
         def call_adapter(context, params=None):
-            LOGGER.debug("method: %s, params: %s", name, params)
+            if not params:
+                params = {}
+            LOGGER.debug("RPC req: '%s' '%s'", name, params)
             try:
-                if params:
-                    return getattr(self._session, name)(**params), False
-                return getattr(self._session, name)(), False
+                res = getattr(self._session, name)(**params)
+                LOGGER.debug('RPC res: %s', res)
+                return res, False
             except ClightningRpcError as err:
-                LOGGER.debug("error: %s", err.error['message'])
+                LOGGER.debug("RPC err: %s", err.error['message'])
                 return err.error['message'], True
             except OSError as err:
                 Err().node_error(context, str(err))

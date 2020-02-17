@@ -879,18 +879,12 @@ class LightClightningTests(TestCase):
 
     @patch(MOD.__name__ + '.Err')
     @patch(MOD.__name__ + '.getattr')
-    @patch(MOD.__name__ + '.getLogger', autospec=True)
     @patch(MOD.__name__ + '.LightningRpc', autospec=True)
-    def test_ClightningRPC(self, mocked_lrpc, mocked_getlog, mocked_getattr,
-                           mocked_err):
+    def test_ClightningRPC(self, mocked_lrpc, mocked_getattr, mocked_err):
         mocked_err().node_error.side_effect = Exception()
         # Without data
         rpc_cl = MOD.ClightningRPC()
-        mocked_lrpc.assert_called_once_with(
-            settings.RPC_URL, logger=mocked_getlog.return_value)
-        mocked_getlog.return_value.setLevel.assert_called_once_with(
-            MOD.CRITICAL)
-        mocked_getlog.assert_called_once_with('pyln.client.lightning')
+        mocked_lrpc.assert_called_once_with(settings.RPC_URL)
         res = rpc_cl.getinfo(CTX)
         self.assertEqual(rpc_cl._session, mocked_lrpc.return_value)
         self.assertEqual(res,

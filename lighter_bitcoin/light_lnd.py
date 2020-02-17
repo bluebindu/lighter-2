@@ -201,7 +201,7 @@ def _metadata_callback(context, callback):  # pylint: disable=unused-argument
 
 
 def _handle_rpc_errors(func):
-    """ Decorator to add more context to RPC errors """
+    """ Decorator to catch RPC errors """
 
     @wraps(func)
     def wrapper(*args, **kwargs):

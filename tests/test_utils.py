@@ -398,6 +398,13 @@ class UtilsTests(TestCase):
         assert not mocked_sys.stderr.write.called
         mocked_sys.exit.assert_called_once_with(1)
 
+    @patch(MOD.__name__ + '.disable', autospec=True)
+    def test_disable_logger(self, mocked_disable):
+        with MOD.disable_logger():
+            pass
+        calls = [call(MOD.CRITICAL), call(MOD.NOTSET)]
+        mocked_disable.assert_has_calls(calls)
+
     def test_FakeContext(self):
         # abort test
         with self.assertRaises(RuntimeError):
@@ -418,16 +425,17 @@ class UtilsTests(TestCase):
         ctx = Mock()
         auth = Mock()
         mocked_err().node_error.side_effect = Exception()
-        rpc_ses = MOD.RPCSession(auth=auth)
+        headers = {'content-type': 'application/json'}
+        rpc_ses = MOD.RPCSession(auth=auth, headers=headers)
         mocked_post = rpc_ses._session.post
-        # With url, timeout, auth and data case
+        # With url, timeout, auth, headers and data case
         mocked_post.return_value.status_code = 200
         json_response = {'result': 'lighter'}
         mocked_post.return_value.json.return_value = json_response
         data = {}
         res, is_err = rpc_ses.call(ctx, data, url, timeout)
         mocked_post.assert_called_once_with(
-            url, data=data, auth=auth,
+            url, data=data, auth=auth, headers=headers,
             timeout=(settings.RPC_CONN_TIMEOUT, timeout))
         self.assertEqual(res, 'lighter')
         self.assertEqual(is_err, False)
@@ -437,7 +445,7 @@ class UtilsTests(TestCase):
         mocked_post = rpc_ses._session.post
         rpc_ses.call(ctx)
         mocked_post.assert_called_once_with(
-            settings.RPC_URL, data=None, auth=None,
+            settings.RPC_URL, data=None, auth=None, headers=None,
             timeout=(settings.RPC_CONN_TIMEOUT, mocked_time.return_value))
         # Connection error case
         reset_mocks(vars())
@@ -445,7 +453,7 @@ class UtilsTests(TestCase):
         with self.assertRaises(Exception):
             rpc_ses.call(ctx)
         self.assertEqual(mocked_sleep.call_count, settings.RPC_TRIES - 1)
-        self.assertEqual(mocked_log.info.call_count, settings.RPC_TRIES - 1)
+        self.assertEqual(mocked_log.debug.call_count, settings.RPC_TRIES - 1)
         mocked_sleep.assert_called_with(settings.RPC_SLEEP)
         mocked_err().node_error.assert_called_once_with(
             ctx, 'RPC call failed: max retries reached')

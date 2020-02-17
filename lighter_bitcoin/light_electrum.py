@@ -334,7 +334,7 @@ class ElectrumRPC(RPCSession):
             payload = dumps(
                 {"id": self._id_count, "method": name,
                  "params": params, "jsonrpc": self._jsonrpc_ver})
-            LOGGER.debug("request: %s", payload)
+            LOGGER.debug("RPC req: %s", payload)
             return super(ElectrumRPC, self).call(context, payload,
                                                  timeout=timeout)
 

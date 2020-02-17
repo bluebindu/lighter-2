@@ -554,7 +554,7 @@ class EclairRPC(RPCSession):
             url = '{}/{}'.format(settings.RPC_URL, name)
             if data is None:
                 data = {}
-            LOGGER.debug("request: %s", data)
+            LOGGER.debug("RPC req: %s", data)
             return super(EclairRPC, self).call(context, data, url, timeout)
 
         return call_adapter
