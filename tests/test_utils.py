@@ -23,7 +23,7 @@ from subprocess import PIPE, TimeoutExpired
 
 from nacl.exceptions import CryptoError
 from unittest import TestCase, skip
-from unittest.mock import call, Mock, mock_open, patch
+from unittest.mock import call, MagicMock, Mock, mock_open, patch
 from requests.exceptions import ConnectionError as ReqConnectionErr, Timeout
 
 from tests import fixtures_utils as fix
@@ -152,11 +152,13 @@ class UtilsTests(TestCase):
             MOD.parse_args(msg, False)
 
     @patch(MOD.__name__ + '.sleep', autospec=True)
+    @patch(MOD.__name__ + '.disable_logger', autospec=True)
     @patch(MOD.__name__ + '.LOGGER', autospec=True)
     @patch(MOD.__name__ + '.getattr')
     @patch(MOD.__name__ + '.import_module')
     def test_check_connection(self, mocked_import, mocked_getattr,
-                              mocked_logger, mocked_sleep):
+                              mocked_logger, mocked_dis_log, mocked_sleep):
+        lock = MagicMock()
         # Correct case (with version)
         settings.IMPLEMENTATION = 'imp'
         mocked_import.return_value = 'mod'
@@ -164,21 +166,30 @@ class UtilsTests(TestCase):
         func.return_value = pb.GetInfoResponse(
             identity_pubkey='777', version='v1')
         mocked_getattr.return_value = func
-        MOD.check_connection()
+        MOD.check_connection(lock)
+        lock.acquire.assert_called_once_with(blocking=False)
         mocked_import.assert_called_once_with('..light_imp', MOD.__name__)
+        mocked_dis_log.assert_called_once_with()
+        lock.release.assert_called_once_with()
         # Correct case (no version)
         reset_mocks(vars())
-        settings.IMPLEMENTATION = 'imp'
         mocked_import.return_value = 'mod'
         info = pb.GetInfoResponse(identity_pubkey='777')
         func = Mock()
         func.return_value = info
         mocked_getattr.return_value = func
-        MOD.check_connection()
+        MOD.check_connection(lock)
+        # lock not acquired
+        reset_mocks(vars())
+        lock.acquire.return_value = False
+        MOD.check_connection(lock)
+        assert not mocked_import.called
+        assert not lock.release.called
+        lock.acquire.return_value = True
         # No response case
         reset_mocks(vars())
         mocked_getattr.side_effect = [RuntimeError(), func]
-        MOD.check_connection()
+        MOD.check_connection(lock)
         assert mocked_logger.error.called
 
     @patch(MOD.__name__ + '.set_defaults', autospec=True)

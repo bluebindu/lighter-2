@@ -362,13 +362,16 @@ class LighterTests(TestCase):
     @patch(MOD.__name__ + '._serve_unlocker', autospec=True)
     def test_start_services(self, mocked_srv_unlocker, mocked_thread,
                             mocked_srv_runtime):
-        MOD._start_services()
+        lock = Mock()
+        MOD._start_services(lock)
         mocked_srv_unlocker.assert_called_once_with()
-        mocked_thread.assert_called_once_with(target=MOD.check_connection)
+        mocked_thread.assert_called_once_with(
+            target=MOD.check_connection, args=(lock,))
         mocked_thread.return_value.start.assert_called_once_with()
         mocked_srv_runtime.assert_called_once_with()
 
     @patch(MOD.__name__ + '._start_services', autospec=True)
+    @patch(MOD.__name__ + '.Lock', autospec=True)
     @patch(MOD.__name__ + '.is_db_ok', autospec=True)
     @patch(MOD.__name__ + '.session_scope', autospec=True)
     @patch(MOD.__name__ + '.FakeContext', autospec=True)
@@ -377,8 +380,9 @@ class LighterTests(TestCase):
     @patch(MOD.__name__ + '.init_common', autospec=True)
     def test_start_lighter(self, mocked_init_common, mocked_logintro,
                            mocked_init_db, mocked_fake_ctx, mocked_ses,
-                           mocked_db_ok, mocked_start_serv):
+                           mocked_db_ok, mocked_lock, mocked_start_serv):
         mocked_start_serv.side_effect = Exception()
+        settings.IMPLEMENTATION = 'asd'
         # with secrets case
         mocked_db_ok.return_value = True
         config = Mock()
@@ -390,13 +394,13 @@ class LighterTests(TestCase):
         mocked_init_db.assert_called_once_with()
         mocked_fake_ctx.assert_called_once_with()
         mocked_ses.assert_called_once_with(mocked_fake_ctx.return_value)
-        mocked_start_serv.assert_called_once_with()
+        mocked_lock.assert_called_once_with()
+        mocked_start_serv.assert_called_once_with(mocked_lock.return_value)
         # no secrets case
         reset_mocks(vars())
-        settings.IMPLEMENTATION = 'asd'
         with self.assertRaises(Exception):
             MOD._start_lighter()
-        mocked_start_serv.assert_called_once_with()
+        mocked_start_serv.assert_called_once_with(mocked_lock.return_value)
         # no encrypted token in db
         reset_mocks(vars())
         mocked_db_ok.return_value = False

@@ -125,30 +125,42 @@ def parse_args(help_msg, write_perms):
         sett.L_CONFIG = path.join(sett.L_DATA, 'config')
 
 
-def check_connection():
+def check_connection(lock):
     """
     Calls a GetInfo in order to check if connection to node is successful
     """
-    request = pb.GetInfoRequest()
-    module = import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
-    info = None
-    LOGGER.info('Checking connection to %s node...', sett.IMPLEMENTATION)
-    while not info:
-        try:
-            info = getattr(module, 'GetInfo')(request, FakeContext())
-        except RuntimeError as err:
-            LOGGER.error('Connection to LN node failed: %s', str(err).strip())
-        if not info:
-            sleep(3)
-            continue
-        if info.identity_pubkey:
-            LOGGER.info(
-                'Connection to node "%s" successful', info.identity_pubkey)
-        if info.version:
-            LOGGER.info(
-                'Using %s version %s', sett.IMPLEMENTATION, info.version)
-        else:
-            LOGGER.info('Using %s', sett.IMPLEMENTATION)
+    try:
+        acquired = lock.acquire(blocking=False)
+        if not acquired:
+            return
+        request = pb.GetInfoRequest()
+        module = import_module(
+            '..light_{}'.format(sett.IMPLEMENTATION), __name__)
+        info = None
+        LOGGER.info('Checking connection to %s node...', sett.IMPLEMENTATION)
+        attempts = 0
+        while not info:
+            try:
+                with disable_logger():
+                    info = getattr(module, 'GetInfo')(request, FakeContext())
+            except RuntimeError as err:
+                LOGGER.error(
+                    'Connection to LN node failed: %s', str(err).strip())
+            attempts += 1
+            if not info:
+                sleep(min(attempts * 2, 60 * 60))
+                continue
+            if info.identity_pubkey:
+                LOGGER.info(
+                    'Connection to node "%s" successful', info.identity_pubkey)
+            if info.version:
+                LOGGER.info(
+                    'Using %s version %s', sett.IMPLEMENTATION, info.version)
+            else:
+                LOGGER.info('Using %s', sett.IMPLEMENTATION)
+    finally:
+        if acquired:
+            lock.release()
 
 
 def get_config_parser():

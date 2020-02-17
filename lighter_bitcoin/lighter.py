@@ -24,7 +24,7 @@ from importlib import import_module
 from logging import getLogger
 from os import environ
 from signal import signal, SIGTERM
-from threading import active_count, Thread
+from threading import active_count, Thread, Lock
 from time import sleep
 
 from grpc import server, ServerInterceptor, ssl_server_credentials, \
@@ -317,10 +317,10 @@ def _runtime_wait(grpc_server):
     sett.RUNTIME_STOP = False
 
 
-def _start_services():
+def _start_services(lock):
     """ Handles the unlocker and the runtime servers start """
     _serve_unlocker()
-    con_thread = Thread(target=check_connection)
+    con_thread = Thread(target=check_connection, args=(lock,))
     con_thread.daemon = True
     con_thread.start()
     _serve_runtime()
@@ -343,8 +343,9 @@ def _start_lighter():
                 'Your database configuration is incomplete or old. '
                 'Update it by running lighter-secure (and deleting db)')
         sett.IMPLEMENTATION_SECRETS = detect_impl_secret(session)
+    lock = Lock()
     while True:
-        _start_services()
+        _start_services(lock)
 
 
 def start():
