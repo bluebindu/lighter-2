@@ -218,6 +218,7 @@ def get_start_options(config):
     sett.MACAROONS_DIR = get_path(config.get(sec, 'MACAROONS_DIR'))
     sett.DB_DIR = get_path(config.get(sec, 'DB_DIR'))
     sett.DB_PATH = path.join(sett.DB_DIR, sett.DB_NAME)
+    # Checks if implementation is supported, could throw an ImportError
     module = import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
     getattr(module, 'get_settings')(config, sett.IMPLEMENTATION)
 

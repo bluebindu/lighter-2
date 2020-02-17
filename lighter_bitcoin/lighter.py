@@ -69,7 +69,6 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
         """
         check_req_params(context, request, 'password')
         password = request.password
-        # Checks if implementation is supported, could throw an ImportError
         mod = import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
         plain_secret = None
         with session_scope(context) as session:
@@ -123,14 +122,11 @@ class LockerServicer(pb_grpc.LockerServicer):
         password = request.password
         with session_scope(context) as session:
             check_password(context, session, password)
-        sett.RUNTIME_SERVER.stop(sett.GRPC_GRACE_TIME)
-        restart_thread = Thread(target=start)
-        restart_thread.daemon = True
-        restart_thread.start()
         sett.MAC_ROOT_KEY = None
         sett.RUNTIME_BAKER = None
         sett.ECL_PASS = None
         sett.LND_MAC = None
+        sett.RUNTIME_STOP = True
         return pb.LockLighterResponse()
 
 
@@ -277,7 +273,7 @@ def _serve_runtime():
     sett.RUNTIME_SERVER = grpc_server
     grpc_server.start()
     _log_listening('Lightning service')
-    _lightning_wait(grpc_server)
+    _runtime_wait(grpc_server)
 
 
 def _log_listening(servicer_name):
@@ -313,11 +309,21 @@ def _unlocker_wait(grpc_server):
     sett.UNLOCKER_STOP = False
 
 
-@handle_keyboardinterrupt
-def _lightning_wait(_grpc_server):
-    """ Keeps the LightningServicer on until a KeyboardInterrupt occurs """
-    while True:
-        sleep(sett.ONE_DAY_IN_SECONDS)
+def _runtime_wait(grpc_server):
+    """ Waits a signal to stop the runtime server """
+    while not sett.RUNTIME_STOP:
+        sleep(1)
+    grpc_server.stop(0)
+    sett.RUNTIME_STOP = False
+
+
+def _start_services():
+    """ Handles the unlocker and the runtime servers start """
+    _serve_unlocker()
+    con_thread = Thread(target=check_connection)
+    con_thread.daemon = True
+    con_thread.start()
+    _serve_runtime()
 
 
 @handle_keyboardinterrupt
@@ -337,12 +343,8 @@ def _start_lighter():
                 'Your database configuration is incomplete or old. '
                 'Update it by running lighter-secure (and deleting db)')
         sett.IMPLEMENTATION_SECRETS = detect_impl_secret(session)
-    import_module('..light_{}'.format(sett.IMPLEMENTATION), __name__)
-    _serve_unlocker()
-    con_thread = Thread(target=check_connection)
-    con_thread.daemon = True
-    con_thread.start()
-    _serve_runtime()
+    while True:
+        _start_services()
 
 
 def start():

@@ -66,10 +66,10 @@ DB_PATH = ''
 ALEMBIC_CFG = path.join(path.dirname(__file__), 'migrations/alembic.ini')
 
 # Server settings
-ONE_DAY_IN_SECONDS = 60 * 60 * 24
 GRPC_WORKERS = 10
 GRPC_GRACE_TIME = 40
 UNLOCKER_STOP = False
+RUNTIME_STOP = False
 RUNTIME_SERVER = None
 THREADS = []
 

@@ -113,20 +113,26 @@ class LighterTests(TestCase):
         assert not executor.shutdown.called
         assert not mocked_log.called
 
-    @patch(MOD.__name__ + '.Thread', autospec=True)
     @patch(MOD.__name__ + '.check_password', autospec=True)
     @patch(MOD.__name__ + '.session_scope', autospec=True)
     @patch(MOD.__name__ + '.check_req_params', autospec=True)
     def test_LockLighter(self, mocked_check_par, mocked_ses,
-                         mocked_check_password, mocked_thread):
+                         mocked_check_pass):
         password = 'password'
         settings.RUNTIME_SERVER = Mock()
         request = pb.LockLighterRequest(password=password)
         lock_self = MOD.LockerServicer()
         lock_func = unwrap(lock_self.LockLighter)
         res = lock_func(lock_self, request, CTX)
-        settings.RUNTIME_SERVER.stop.assert_called_once_with(
-            settings.GRPC_GRACE_TIME)
+        mocked_check_par.assert_called_once_with(CTX, request, 'password')
+        mocked_ses.assert_called_once_with(CTX)
+        mocked_check_pass.assert_called_once_with(
+            CTX, mocked_ses.return_value.__enter__.return_value, password)
+        self.assertEqual(settings.MAC_ROOT_KEY, None)
+        self.assertEqual(settings.RUNTIME_BAKER, None)
+        self.assertEqual(settings.ECL_PASS, None)
+        self.assertEqual(settings.LND_MAC, None)
+        self.assertEqual(settings.RUNTIME_STOP, True)
         self.assertEqual(res, pb.LockLighterResponse())
 
     @patch(MOD.__name__ + '.Err')
@@ -287,7 +293,7 @@ class LighterTests(TestCase):
             'Waiting for password to unlock Lightning service...')
         mocked_wait.assert_called_once_with(grpc_server)
 
-    @patch(MOD.__name__ + '._lightning_wait', autospec=True)
+    @patch(MOD.__name__ + '._runtime_wait', autospec=True)
     @patch(MOD.__name__ + '._log_listening', autospec=True)
     @patch(MOD.__name__ + '.pb_grpc.add_LockerServicer_to_server')
     @patch(MOD.__name__ + '.pb_grpc.add_LightningServicer_to_server')
@@ -340,42 +346,57 @@ class LighterTests(TestCase):
         grpc_server.stop.assert_called_once_with(0)
 
     @patch(MOD.__name__ + '.sleep', autospec=True)
-    def test_lightning_wait(self, mocked_sleep):
+    def test_runtime_wait(self, mocked_sleep):
+        settings.RUNTIME_STOP = False
         grpc_server = Mock()
-        mocked_sleep.side_effect = Exception()
-        with self.assertRaises(Exception):
-            MOD._lightning_wait(grpc_server)
+
+        def unlock(*args):
+            settings.RUNTIME_STOP = True
+
+        mocked_sleep.side_effect = unlock
+        MOD._runtime_wait(grpc_server)
+        grpc_server.stop.assert_called_once_with(0)
 
     @patch(MOD.__name__ + '._serve_runtime', autospec=True)
-    @patch(MOD.__name__ + '._serve_unlocker', autospec=True)
     @patch(MOD.__name__ + '.Thread', autospec=True)
-    @patch(MOD.__name__ + '.import_module')
+    @patch(MOD.__name__ + '._serve_unlocker', autospec=True)
+    def test_start_services(self, mocked_srv_unlocker, mocked_thread,
+                            mocked_srv_runtime):
+        MOD._start_services()
+        mocked_srv_unlocker.assert_called_once_with()
+        mocked_thread.assert_called_once_with(target=MOD.check_connection)
+        mocked_thread.return_value.start.assert_called_once_with()
+        mocked_srv_runtime.assert_called_once_with()
+
+    @patch(MOD.__name__ + '._start_services', autospec=True)
     @patch(MOD.__name__ + '.is_db_ok', autospec=True)
     @patch(MOD.__name__ + '.session_scope', autospec=True)
+    @patch(MOD.__name__ + '.FakeContext', autospec=True)
     @patch(MOD.__name__ + '.init_db', autospec=True)
     @patch(MOD.__name__ + '.log_intro', autospec=True)
     @patch(MOD.__name__ + '.init_common', autospec=True)
-    def test_start_lighter(self, mocked_init_common, mocked_logintro, mocked_init_db,
-                   mocked_ses, mocked_db_ok, mocked_import, mocked_thread,
-                   mocked_serve_unlocker, mocked_serve_runtime):
+    def test_start_lighter(self, mocked_init_common, mocked_logintro,
+                           mocked_init_db, mocked_fake_ctx, mocked_ses,
+                           mocked_db_ok, mocked_start_serv):
+        mocked_start_serv.side_effect = Exception()
         # with secrets case
         mocked_db_ok.return_value = True
         config = Mock()
-        MOD._start_lighter()
+        with self.assertRaises(Exception):
+            MOD._start_lighter()
         msg = "Start Lighter's gRPC server"
         mocked_init_common.assert_called_once_with(msg)
         mocked_logintro.assert_called_once_with()
         mocked_init_db.assert_called_once_with()
-        mocked_serve_unlocker.assert_called_once_with()
-        mocked_serve_runtime.assert_called_once_with()
+        mocked_fake_ctx.assert_called_once_with()
+        mocked_ses.assert_called_once_with(mocked_fake_ctx.return_value)
+        mocked_start_serv.assert_called_once_with()
         # no secrets case
         reset_mocks(vars())
         settings.IMPLEMENTATION = 'asd'
-        MOD._start_lighter()
-        mocked_import.assert_called_once_with('..light_asd', MOD.__name__)
-        mocked_thread.assert_called_once_with(target=utils.check_connection)
-        mocked_thread.return_value.start.assert_called_once_with()
-        mocked_serve_runtime.assert_called_once_with()
+        with self.assertRaises(Exception):
+            MOD._start_lighter()
+        mocked_start_serv.assert_called_once_with()
         # no encrypted token in db
         reset_mocks(vars())
         mocked_db_ok.return_value = False
