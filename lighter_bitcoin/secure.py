@@ -29,6 +29,8 @@ from time import time, sleep
 from os import devnull, environ, path, remove, urandom
 from signal import signal, SIGTERM
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from . import settings as sett
 from .db import init_db, is_db_ok, save_mac_params_to_db, save_secret_to_db, \
     save_token_to_db, session_scope
@@ -536,6 +538,11 @@ def secure():
         if str(err):
             err_msg = str(err)
         die('Configuration error: ' + err_msg)
+    except SQLAlchemyError as err:
+        err_msg = ''
+        if str(err):
+            err_msg = str(err)
+        die('DB error: ' + err_msg)
     except InterruptException:
         COLLECTING_INPUT = False
         SEARCHING_ENTROPY = False

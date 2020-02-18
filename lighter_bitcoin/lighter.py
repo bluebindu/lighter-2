@@ -29,6 +29,7 @@ from time import sleep
 
 from grpc import server, ServerInterceptor, ssl_server_credentials, \
     StatusCode, unary_unary_rpc_method_handler
+from sqlalchemy.exc import SQLAlchemyError
 
 from . import lighter_pb2_grpc as pb_grpc
 from . import lighter_pb2 as pb
@@ -375,6 +376,12 @@ def start():
         if str(err):
             err_msg = str(err)
         LOGGER.error('Configuration error: %s', err_msg)
+        die()
+    except SQLAlchemyError as err:
+        err_msg = ''
+        if str(err):
+            err_msg = str(err)
+        LOGGER.error('DB error: %s', err_msg)
         die()
     except InterruptException:
         _interrupt_threads()

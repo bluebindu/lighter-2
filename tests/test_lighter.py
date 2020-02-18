@@ -422,7 +422,7 @@ class LighterTests(TestCase):
         # Exceptions handling case
         reset_mocks(vars())
         exceptions = [ImportError, KeyError, RuntimeError, FileNotFoundError,
-                      ConfigError]
+                      ConfigError, MOD.SQLAlchemyError]
         for exc in exceptions:
             reset_mocks(vars())
             mocked_start.side_effect = exc('msg')
