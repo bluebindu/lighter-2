@@ -190,6 +190,13 @@ class DbTests(TestCase):
             res = MOD.is_db_ok(SES)
             self.assertEqual(res, False)
             assert mocked_log.error.called
+        # missing macaroon but configuring=True
+        reset_mocks(vars())
+        with patch(MOD.__name__ + '.ENGINE') as mocked_engine:
+            mocked_engine.dialect.has_table.side_effect = [False, True, True]
+            res = MOD.is_db_ok(SES, configuring=True)
+            self.assertEqual(res, True)
+            assert not mocked_log.error.called
         # missing implementation_secrets table
         with patch(MOD.__name__ + '.ENGINE') as mocked_engine:
             mocked_engine.dialect.has_table.side_effect = \

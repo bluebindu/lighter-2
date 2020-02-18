@@ -117,7 +117,7 @@ def session_scope(context):
         session.close()
 
 
-def is_db_ok(session):
+def is_db_ok(session, configuring=False):
     """
     It returns whether the DB is ok (not containing old data nor missing
     essential data)
@@ -131,7 +131,7 @@ def is_db_ok(session):
             not get_token_from_db(session):
         return False
     # checking if macaroon root key exists
-    if not sett.DISABLE_MACAROONS:
+    if not configuring and not sett.DISABLE_MACAROONS:
         if not ENGINE.dialect.has_table(ENGINE, MacRootKey.__tablename__) or \
                 not get_mac_params_from_db(session):
             LOGGER.error('Please make sure you have generated macaroon at '

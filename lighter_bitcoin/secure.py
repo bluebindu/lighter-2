@@ -454,7 +454,7 @@ def db_config_interactive(session, new):
         scrypt_params = ScryptParams(_consume_bytes(seed, sett.SALT_LEN))
         _save_token(session, password, scrypt_params)
     else:
-        if not is_db_ok(session):
+        if not is_db_ok(session, configuring=True):
             die('Detected an incomplete configuration. Delete database.')
         password = getpass("Insert Lighter's password: ")
         try:
