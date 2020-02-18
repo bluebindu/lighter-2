@@ -48,7 +48,7 @@ SHELLS = ['bash', 'zsh']
 
 CL_VER = '0.8.0'
 
-LND_REF = 'v0.8.2-beta'
+LND_REF = 'v0.9.0-beta'
 LND_PROTO = 'rpc.proto'
 GOOGLE = 'google'
 GAPIS = 'googleapis'

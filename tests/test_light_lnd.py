@@ -491,13 +491,14 @@ class LightLndTests(TestCase):
         desc = "description"
         fa = "fallback_address"
         exp = 3600
+        phash = b'apaymenthash'
         # Correct case: filled
         request = pb.CreateInvoiceRequest(
             amount_bits=amt, description=desc, expiry_time=exp,
             min_final_cltv_expiry=amt, fallback_addr=fa)
         mocked_check_val.return_value = True
         mocked_conv.return_value = amt
-        lnd_res = ln.AddInvoiceResponse(r_hash=b'r_hash')
+        lnd_res = ln.AddInvoiceResponse(r_hash=phash)
         stub.AddInvoice.return_value = lnd_res
         lnd_res = ln.Invoice(creation_date=1534971310, expiry=exp)
         stub.LookupInvoice.return_value = lnd_res
@@ -512,11 +513,12 @@ class LightLndTests(TestCase):
             memo=desc, expiry=exp, fallback_addr=fa, value=amt, cltv_expiry=amt)
         stub.AddInvoice.assert_called_once_with(
             req, timeout=time)
-        lnd_req = ln.PaymentHash(r_hash_str='725f68617368')
-        stub.LookupInvoice.assert_called_once_with(
-            lnd_req, timeout=time)
+        lnd_req = ln.PaymentHash(r_hash=stub.AddInvoice.return_value.r_hash)
+        stub.LookupInvoice.assert_called_once_with(lnd_req, timeout=time)
         assert not mocked_handle.called
-        self.assertEqual(res.payment_hash, '725f68617368')
+        self.assertEqual(
+            res.payment_hash,
+            MOD.hexlify(stub.AddInvoice.return_value.r_hash).decode())
         self.assertEqual(res.expires_at, 1534974910)
         # Correct case: empty request
         reset_mocks(vars())
@@ -551,15 +553,15 @@ class LightLndTests(TestCase):
         stub = mocked_connect.return_value.__enter__.return_value
         time = 10
         mocked_get_time.return_value = 10
+        phash = encode(b'apaymenthash', 'hex')
         # Correct case: paid invoice
         mocked_inv_st.return_value = pb.PAID
-        request = pb.CheckInvoiceRequest(payment_hash='a_payment_hash')
+        request = pb.CheckInvoiceRequest(payment_hash=phash)
         lnd_res = ln.Invoice(state=ln.Invoice.SETTLED)
         stub.LookupInvoice.return_value = lnd_res
         res = MOD.CheckInvoice(request, CTX)
-        lnd_req = ln.PaymentHash(r_hash_str='a_payment_hash')
-        stub.LookupInvoice.assert_called_once_with(
-            lnd_req, timeout=time)
+        lnd_req = ln.PaymentHash(r_hash=MOD.unhexlify(phash))
+        stub.LookupInvoice.assert_called_once_with(lnd_req, timeout=time)
         self.assertEqual(res.settled, True)
         # Correct case: unpaid invoice
         mocked_inv_st.return_value = pb.PENDING

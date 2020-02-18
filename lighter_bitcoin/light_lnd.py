@@ -15,7 +15,7 @@
 
 """ Implementation of lighter.proto defined methods for lnd """
 
-from binascii import hexlify
+from binascii import hexlify, unhexlify
 from codecs import encode
 from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
@@ -118,6 +118,9 @@ ERRORS = {
     'payment hash must': {
         'fun': 'invalid',
         'params': 'payment_hash'
+    },
+    'received funding error from': {
+        'fun': 'openchannel_failed'
     },
     'signature mismatch': {
         'fun': 'node_error'
@@ -472,7 +475,7 @@ def CreateInvoice(request, context):
             payment_hash=payment_hash_str,
             payment_request=lnd_res.payment_request)
         if payment_hash_str:
-            lnd_req = ln.PaymentHash(r_hash_str=payment_hash_str)
+            lnd_req = ln.PaymentHash(r_hash=lnd_res.r_hash)
             lnd_res = stub.LookupInvoice(
                 lnd_req, timeout=get_node_timeout(context))
             response.expires_at = lnd_res.creation_date + lnd_res.expiry
@@ -484,7 +487,7 @@ def CheckInvoice(request, context):
     """ Checks if a LN invoice has been paid """
     check_req_params(context, request, 'payment_hash')
     response = pb.CheckInvoiceResponse()
-    lnd_req = ln.PaymentHash(r_hash_str=request.payment_hash)
+    lnd_req = ln.PaymentHash(r_hash=unhexlify(request.payment_hash))
     with _connect(context) as stub:
         lnd_res = stub.LookupInvoice(
             lnd_req, timeout=get_node_timeout(context))
@@ -785,7 +788,7 @@ def _add_payment(context, response, lnd_payment):
         response.payments.add(
             payment_hash=lnd_payment.payment_hash,
             amount_bits=convert(context, Enf.MSATS, lnd_payment.value_msat),
-            timestamp=lnd_payment.creation_date,
+            timestamp=int(lnd_payment.creation_time_ns / 10 ** 9),
             fee_base_msat=lnd_payment.fee_msat,
             payment_preimage=lnd_payment.payment_preimage)
 
