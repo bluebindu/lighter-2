@@ -1,5 +1,12 @@
 FROM debian:buster-slim
 
+ENV APP_DIR="/srv/app" L_DIR="lighter_bitcoin" USER="lighter"
+ENV LANG="C.UTF-8" PYTHONUNBUFFERED=1 PYTHONIOENCODING="UTF-8"
+
+RUN adduser --home $APP_DIR --shell /bin/bash --disabled-login \
+        --gecos "$USER user" $USER \
+    && mkdir -p $APP_DIR/$L_DIR
+
 COPY unix_helper.sh /srv/app/
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \
@@ -12,15 +19,6 @@ RUN apt-get update \
             && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; \
         fi \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-ARG VERSION
-ENV APP_DIR="/srv/app" VERSION=$VERSION
-ENV L_DIR="lighter_bitcoin" USER="lighter"
-ENV LANG="C.UTF-8" PYTHONUNBUFFERED=1 PYTHONIOENCODING="UTF-8"
-
-RUN adduser --home $APP_DIR --shell /bin/bash --disabled-login \
-        --gecos "$USER user" $USER \
-    && mkdir -p $APP_DIR/$L_DIR
 
 WORKDIR $APP_DIR
 
@@ -40,16 +38,20 @@ RUN chown -R $USER /srv/app
 ARG DEVELOPMENT
 ENV DEVELOPMENT=$DEVELOPMENT OPTS="--user --no-warn-script-location"
 USER $USER
-RUN pip3 install $OPTS --upgrade setuptools wheel \
+RUN mkdir -p ~/.local/share/bash-completion/completions/ \
+    && pip3 install $OPTS --upgrade setuptools wheel \
     && if [ "$DEVELOPMENT" = '1' ]; then \
-           echo "Development mode ON" && \
-           pip3 install $OPTS --editable . && \
-           pip3 install $OPTS pycodestyle pylint pytest pytest-cov ; \
-       else pip3 install $OPTS .; fi \
-    && echo 'PATH="$PATH:$APP_DIR/.local/bin"' >> $HOME/.bashrc \
-    && mkdir -p ~/.local/share/bash-completion/completions/ \
-    && cp ~/.local/share/doc/lighter_bitcoin/examples/complete-cliter-bash.sh \
-          ~/.local/share/bash-completion/completions/
+           echo "Development mode ON" \
+           && pip3 install $OPTS --editable . \
+           && pip3 install $OPTS pycodestyle pylint pytest pytest-cov \
+           && cp ~/examples/complete-cliter-bash.sh \
+                 ~/.local/share/bash-completion/completions/ ; \
+       else \
+           pip3 install $OPTS . \
+           && cp ~/.local/share/doc/lighter_bitcoin/examples/complete-cliter-bash.sh \
+                 ~/.local/share/bash-completion/completions/ ; \
+       fi \
+    && echo 'PATH="$PATH:$APP_DIR/.local/bin"' >> $HOME/.bashrc
 
 USER root
 

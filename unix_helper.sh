@@ -18,11 +18,8 @@
 NAME='lighter'
 PKG_NAME='lighter_bitcoin'
 
-VERSION=$(python3 -c "from ${PKG_NAME} import __version__; print(__version__)")
-
 DOCKER_NS='inbitcoin'
 DOCKER_REPO=${DOCKER_NS}/${NAME}
-DOCKER_TAG=${DOCKER_REPO}:${VERSION}
 DOCKER_DIR='docker'
 
 me=$(basename "$0")
@@ -93,11 +90,14 @@ help() {
 }
 
 docker_build() {
+    version=$(version)
+    docker_tag=${DOCKER_REPO}:${version}
     get_host_tag_arch > /dev/null
     dockerfile="${DOCKER_DIR}/Dockerfile"
     echo "Building docker image for ${host_tag_arch}..."
-    [ "${DEVELOPMENT}" = 1 ] && opts="--build-arg DEVELOPMENT=1"
-    CMD=$(echo docker build -f "${dockerfile}" -t "${DOCKER_TAG}" ${opts} .)
+    [ "${DEVELOPMENT}" = 1 ] && opts="--build-arg DEVELOPMENT=1" \
+        docker_tag=${DOCKER_REPO}:${version}-dev
+    CMD=$(echo docker build -f "${dockerfile}" -t "${docker_tag}" ${opts} .)
     echo "> ${CMD}" && eval "${CMD}"
 }
 
@@ -116,7 +116,8 @@ test() {
 }
 
 version() {
-    echo "${VERSION}"
+    ver=$(python3 -c "from ${PKG_NAME} import __version__; print(__version__)")
+    echo "${ver}"
 }
 
 # Calls the set called function with the set params passed as a single word
