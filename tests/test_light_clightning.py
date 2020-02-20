@@ -630,12 +630,13 @@ class LightClightningTests(TestCase):
         mocked_err().connect_failed.side_effect = Exception()
         # Filled
         request = pb.OpenChannelRequest(
-            funding_bits=amt, node_uri=fix.NODE_URI,
+            funding_bits=amt, node_uri=fix.NODE_URI, push_bits=amt,
             private=True)
         ses.connect.return_value = (fix.CONNECT, False)
         ses.fundchannel.return_value = (fix.FUNDCHANNEL, False)
         MOD.OpenChannel(request, CTX)
         assert not mocked_err().unimplemented_parameter.called
+        self.assertEqual(mocked_conv.call_count, 2)
         # invalid node_uri case
         reset_mocks(vars())
         request = pb.OpenChannelRequest(funding_bits=amt, node_uri='wrong')
@@ -649,14 +650,7 @@ class LightClightningTests(TestCase):
         with self.assertRaises(Exception):
             MOD.OpenChannel(request, CTX)
         assert not ses.connect.called
-        # Unimplemented push_bits case
-        reset_mocks(vars())
         mocked_check_par.side_effect = None
-        request = pb.OpenChannelRequest(
-            node_uri=fix.NODE_URI, funding_bits=amt, push_bits=amt)
-        with self.assertRaises(Exception):
-            MOD.OpenChannel(request, CTX)
-        assert not ses.connect.called
         # Connect failed case
         reset_mocks(vars())
         request = pb.OpenChannelRequest(
@@ -880,11 +874,16 @@ class LightClightningTests(TestCase):
     @patch(MOD.__name__ + '.Err')
     @patch(MOD.__name__ + '.getattr')
     @patch(MOD.__name__ + '.LightningRpc', autospec=True)
-    def test_ClightningRPC(self, mocked_lrpc, mocked_getattr, mocked_err):
+    @patch(MOD.__name__ + '.getLogger', autospec=True)
+    def test_ClightningRPC(self, mocked_logger, mocked_lrpc, mocked_getattr,
+                           mocked_err):
         mocked_err().node_error.side_effect = Exception()
+        logger = mocked_logger.return_value
         # Without data
         rpc_cl = MOD.ClightningRPC()
-        mocked_lrpc.assert_called_once_with(settings.RPC_URL)
+        mocked_logger.return_value.setLevel.assert_called_once_with(
+            MOD.CRITICAL)
+        mocked_lrpc.assert_called_once_with(settings.RPC_URL, logger=logger)
         res = rpc_cl.getinfo(CTX)
         self.assertEqual(rpc_cl._session, mocked_lrpc.return_value)
         self.assertEqual(res,

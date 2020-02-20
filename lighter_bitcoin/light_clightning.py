@@ -19,7 +19,7 @@ from ast import literal_eval
 from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
 from datetime import datetime
-from logging import getLogger
+from logging import CRITICAL, getLogger
 from os import path
 
 from pyln.client import LightningRpc, RpcError as ClightningRpcError
@@ -428,8 +428,6 @@ def OpenChannel(request, context):
     rpc_cl = ClightningRPC()
     response = pb.OpenChannelResponse()
     check_req_params(context, request, 'node_uri', 'funding_bits')
-    if request.push_bits:
-        Err().unimplemented_parameter(context, 'push_bits')
     try:
         pubkey, _host = request.node_uri.split("@")
     except ValueError:
@@ -443,6 +441,9 @@ def OpenChannel(request, context):
     cl_req = {'node_id': pubkey, 'amount': amt}
     if request.private:
         cl_req['announce'] = 'false'
+    if request.push_bits:
+        cl_req['push_msat'] = convert(context, Enf.MSATS, request.push_bits,
+                                      enforce=Enf.PUSH_MSAT)
     cl_res, is_err = rpc_cl.fundchannel(context, cl_req)
     if is_err:
         _handle_error(context, cl_res)
@@ -635,7 +636,9 @@ class ClightningRPC():  # pylint: disable=too-few-public-methods
     """ Creates and mantains an RPC session with c-lightning """
 
     def __init__(self):
-        self._session = LightningRpc(settings.RPC_URL)
+        logger = getLogger(self.__class__.__name__)
+        logger.setLevel(CRITICAL)
+        self._session = LightningRpc(settings.RPC_URL, logger=logger)
 
     def __getattr__(self, name):
 

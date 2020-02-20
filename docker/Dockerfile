@@ -10,7 +10,7 @@ RUN adduser --home $APP_DIR --shell /bin/bash --disabled-login \
 COPY unix_helper.sh /srv/app/
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \
-        bash-completion gosu libscrypt0 python3-pip \
+        bash-completion git gosu libscrypt0 python3-pip \
     && host_tag_arch=$(/srv/app/unix_helper.sh get_host_tag_arch) \
     && if [ "$host_tag_arch" = "arm32v7" ]; then \
             apt-get update \

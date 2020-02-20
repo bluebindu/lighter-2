@@ -46,7 +46,7 @@ CLI_NAME = 'cliter'
 CLI_ENTRY = '{0} = {1}.{0}:entrypoint'.format(CLI_NAME, L_DIR)
 SHELLS = ['bash', 'zsh']
 
-CL_VER = '0.8.0'
+CL_VER = '0.8.1'
 
 LND_REF = 'v0.9.0-beta'
 LND_PROTO = 'rpc.proto'
@@ -344,7 +344,8 @@ setup(
         'macaroonbakery~=1.2.3',
         'protobuf~=3.11.2',
         'pylibscrypt~=1.8.0',
-        'pyln-client==' + CL_VER,
+        'pyln-client @ git+https://github.com/ElementsProject/lightning'
+        '@v{}#egg=pyln-client&subdirectory=contrib/pyln-client'.format(CL_VER),
         'pymacaroons~=0.13.0',
         'pynacl~=1.3.0',
         'qrcode~=6.1',
