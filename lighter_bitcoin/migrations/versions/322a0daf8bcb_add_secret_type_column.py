@@ -28,7 +28,8 @@ def upgrade():
     op.execute('UPDATE implementation_secrets '
                'SET secret_type = "password" WHERE implementation IS "eclair"')
     op.rename_table('implementation_secrets', 'tmp_table')
-    op.create_table('implementation_secrets',
+    op.create_table(
+        'implementation_secrets',
         sa.Column('implementation', sa.String, primary_key=True),
         sa.Column('secret_type', sa.String, primary_key=True),
         sa.Column('active', sa.Boolean),

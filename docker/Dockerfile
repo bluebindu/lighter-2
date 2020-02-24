@@ -10,7 +10,7 @@ RUN adduser --home $APP_DIR --shell /bin/bash --disabled-login \
 COPY unix_helper.sh /srv/app/
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \
-        gosu libscrypt0 python3-pip \
+        bash-completion gosu libscrypt0 python3-pip \
     && host_tag_arch=$(/srv/app/unix_helper.sh get_host_tag_arch) \
     && if [ "$host_tag_arch" = "arm32v7" ]; then \
             apt-get update \
@@ -40,17 +40,17 @@ ARG DEVELOPMENT
 ENV DEVELOPMENT=$DEVELOPMENT OPTS="--user --no-warn-script-location"
 USER $USER
 RUN mkdir -p ~/.local/share/bash-completion/completions/ \
-    && pip3 install $OPTS --upgrade setuptools wheel \
+    && python3 -m pip install $OPTS --upgrade setuptools wheel \
     && if [ "$DEVELOPMENT" = '1' ]; then \
            echo "Development mode ON" \
-           && pip3 install $OPTS --editable . \
-           && pip3 install $OPTS pycodestyle pylint pytest pytest-cov \
+           && python3 -m pip install $OPTS --editable . \
+           && python3 -m pip install $OPTS pycodestyle pylint pytest pytest-cov \
            && cp ~/examples/complete-cliter-bash.sh \
-                 ~/.local/share/bash-completion/completions/ ; \
+                 ~/.local/share/bash-completion/completions/cliter ; \
        else \
-           pip3 install $OPTS . \
+           python3 -m pip install $OPTS . \
            && cp ~/.local/share/doc/lighter_bitcoin/examples/complete-cliter-bash.sh \
-                 ~/.local/share/bash-completion/completions/ ; \
+                 ~/.local/share/bash-completion/completions/cliter ; \
        fi \
     && echo 'PATH="$PATH:$APP_DIR/.local/bin"' >> $HOME/.bashrc
 

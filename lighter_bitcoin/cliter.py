@@ -20,6 +20,8 @@ Implementation of a CLI (Command Line Interface) to command Lighter
 - Exits with code 1 when a general client-side error occurs
 - Exits with code 64 + <gRPC status code> when a gRPC error is raised by server
 (https://github.com/grpc/grpc/blob/master/doc/statuscodes.md)
+
+WARNING: new imports might require updating the package build system
 """
 
 import sys
@@ -41,8 +43,6 @@ from grpc import channel_ready_future, composite_channel_credentials, \
 
 from . import __version__, lighter_pb2 as pb, lighter_pb2_grpc as pb_grpc, \
     settings as sett
-from .utils.misc import get_config_parser, get_data_files_path, get_path, \
-    set_defaults, str2bool
 
 
 class AddressType(ParamType):
@@ -112,6 +112,7 @@ def _check_rpcserver_addr():
 
 def _get_cli_options():
     """ Sets CLI options """
+    from .utils.misc import get_config_parser, get_path, set_defaults, str2bool
     config = get_config_parser()
     c_values = ['RPCSERVER', 'TLSCERT', 'MACAROON', 'INSECURE', 'NO_MACAROON']
     set_defaults(config, c_values)
@@ -248,6 +249,7 @@ def entrypoint(ctx, config, rpcserver, tlscert, macaroon, insecure,
                 _die('Incompatible options')
 
     if config is not None:
+        from .utils.misc import get_data_files_path, str2bool
         if not config:
             _die('Invalid configuration file')
         if not path.exists(config):
