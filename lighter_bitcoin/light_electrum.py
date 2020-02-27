@@ -15,16 +15,16 @@
 
 """ Implementation of lighter.proto defined methods for electrum """
 
+from decimal import Decimal
 from json import dumps
 from logging import getLogger
 
-from decimal import Decimal
-from . import lighter_pb2 as pb
-from . import settings
+from . import lighter_pb2 as pb, settings
 from .errors import Err
-from .utils import check_req_params, convert, Enforcer as Enf, \
-    get_address_type, get_channel_balances, has_amount_encoded, RPCSession, \
-    set_defaults
+from .utils.bitcoin import convert, Enforcer as Enf, get_address_type, \
+    get_channel_balances, has_amount_encoded
+from .utils.misc import set_defaults
+from .utils.network import check_req_params, RPCSession
 
 LOGGER = getLogger(__name__)
 

@@ -13,7 +13,12 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Configuration settings module for Lighter """
+"""
+Settings module for Lighter
+
+WARNING: only Python's core module imports here, to avoid breaking build system
+         and import loops
+"""
 
 from os import path
 from pathlib import Path

@@ -238,6 +238,7 @@ DOC = [path.as_posix() for path in Path('.').glob('*.md')] + \
 
 MIGRATIONS_DIR = path.sep.join([L_DIR, 'migrations'])
 MGR_VERSIONS_DIR = path.sep.join([MIGRATIONS_DIR, 'versions'])
+U_DIR = path.sep.join([L_DIR, 'utils'])
 
 setup(
     name=PIP_NAME,
@@ -264,7 +265,7 @@ setup(
     author='inbitcoin',
     author_email='lightning@inbitcoin.it',
     license='AGPLv3',
-    packages=[L_DIR, MIGRATIONS_DIR, MGR_VERSIONS_DIR],
+    packages=[L_DIR, MIGRATIONS_DIR, MGR_VERSIONS_DIR, U_DIR],
     include_package_data=True,
     package_data={
         L_DIR: ['migrations/alembic.ini', L_PROTO],

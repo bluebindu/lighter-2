@@ -12,6 +12,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """ Tests for light_lnd module """
 
 from codecs import encode
@@ -22,26 +23,27 @@ from unittest.mock import call, Mock, mock_open, patch
 
 from grpc import FutureTimeoutError, RpcError
 
-from tests import fixtures_lnd as fix
+from . import fixtures_lnd as fix, proj_root
 
-from . import proj_root
-
+CTX = 'context'
+Enf = getattr(import_module(proj_root + '.utils.bitcoin'), 'Enforcer')
 ln = import_module(proj_root + '.rpc_pb2')
-Enf = getattr(import_module(proj_root + '.utils'), 'Enforcer')
-pb = import_module(proj_root + '.lighter_pb2')
-settings = import_module(proj_root + '.settings')
 LND_LN_TX = getattr(import_module(proj_root + '.light_lnd'), 'LND_LN_TX')
 LND_PAYREQ = getattr(import_module(proj_root + '.light_lnd'), 'LND_PAYREQ')
+pb = import_module(proj_root + '.lighter_pb2')
+settings = import_module(proj_root + '.settings')
+
 MOD = import_module(proj_root + '.light_lnd')
-CTX = 'context'
 
 
 class LightLndTests(TestCase):
     """ Tests for light_lnd module """
 
     @patch(MOD.__name__ + '.ssl_channel_credentials')
+    @patch(MOD.__name__ + '.get_path', autospec=True)
     @patch(MOD.__name__ + '.set_defaults')
-    def test_get_settings(self, mocked_set_def, mocked_ssl_chan):
+    def test_get_settings(self, mocked_set_def, mocked_get_path,
+                          mocked_ssl_chan):
         # Correct case: with macaroons
         lnd_host = 'lnd'
         lnd_port = '10009'
@@ -51,6 +53,7 @@ class LightLndTests(TestCase):
         config.get.side_effect = \
             [lnd_host, lnd_port, lnd_tls_cert_dir, lnd_tls_cert]
         mocked_ssl_chan.return_value = 'cert_creds'
+        mocked_get_path.return_value = lnd_tls_cert_dir
         mopen = mock_open(read_data='cert')
         with patch(MOD.__name__ + '.open', mopen):
             MOD.get_settings(config, 'lnd')

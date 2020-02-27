@@ -15,20 +15,16 @@
 
 """ Tests for macaroons module """
 
-from codecs import decode, encode
 from importlib import import_module
-from macaroonbakery.bakery import Bakery
 from os import urandom
-from pymacaroons import Macaroon
-from unittest import TestCase, skip
-from unittest.mock import Mock, mock_open, patch
+from unittest import TestCase
+from unittest.mock import Mock, patch
 
-from tests import fixtures_macaroons as fix
-
-from . import proj_root
+from . import fixtures_macaroons as fix, proj_root
 
 MACAROONS = getattr(import_module(proj_root + '.macaroons'), 'MACAROONS')
 settings = import_module(proj_root + '.settings')
+
 MOD = import_module(proj_root + '.macaroons')
 
 
@@ -73,13 +69,13 @@ class MacaroonsTests(TestCase):
         # Valid macaroon
         print('sdMAC AD', fix.ADMIN_MAC)
 
-        value = decode(fix.ADMIN_MAC, 'hex')
-        mac = Macaroon.deserialize(value)
+        value = MOD.decode(fix.ADMIN_MAC, 'hex')
+        mac = MOD.Macaroon.deserialize(value)
         res = MOD._validate_macaroon(mac, settings.ALL_PERMS[method])
         self.assertEqual(res, True)
         # Valid macaroon but operation not allowed
-        value = decode(fix.READ_MAC, 'hex')
-        mac = Macaroon.deserialize(value)
+        value = MOD.decode(fix.READ_MAC, 'hex')
+        mac = MOD.Macaroon.deserialize(value)
         res = MOD._validate_macaroon(mac, settings.ALL_PERMS[method])
         self.assertEqual(res, False)
         # Invalid root_key
@@ -92,10 +88,10 @@ class MacaroonsTests(TestCase):
         # Without ops
         root_key = urandom(32)
         res = MOD.get_baker(root_key)
-        self.assertTrue(isinstance(res, Bakery))
+        self.assertTrue(isinstance(res, MOD.Bakery))
         # Putting ops
         res = MOD.get_baker(root_key, put_ops=True)
-        self.assertTrue(isinstance(res, Bakery))
+        self.assertTrue(isinstance(res, MOD.Bakery))
         for permitted_ops in MACAROONS.values():
             entity = res.oven.ops_entity(permitted_ops)
             ops = res.oven.ops_store.get_ops(entity)

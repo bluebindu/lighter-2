@@ -32,12 +32,13 @@ from signal import signal, SIGTERM
 from sqlalchemy.exc import SQLAlchemyError
 
 from . import settings as sett
-from .db import init_db, is_db_ok, save_mac_params_to_db, save_secret_to_db, \
-    save_token_to_db, session_scope
 from .macaroons import get_baker, MACAROONS, MAC_VERSION
-from .utils import check_password, Crypter, die, FakeContext, get_secret, \
-    handle_keyboardinterrupt, handle_sigterm, init_common, \
-    InterruptException, ScryptParams, str2bool
+from .utils.db import init_db, is_db_ok, save_mac_params_to_db, save_secret_to_db, \
+    save_token_to_db, session_scope
+from .utils.exceptions import InterruptException
+from .utils.misc import check_password, Crypter, die, FakeContext, get_secret, \
+    handle_keyboardinterrupt, handle_sigterm, init_common, str2bool
+from .utils.security import ScryptParams
 
 signal(SIGTERM, handle_sigterm)
 

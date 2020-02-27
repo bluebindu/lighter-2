@@ -17,23 +17,37 @@
 
 from concurrent.futures import TimeoutError as TimeoutFutError
 from configparser import Error as ConfigError
-from grpc import ssl_server_credentials, StatusCode
 from importlib import import_module
 from inspect import unwrap
-from unittest import TestCase, skip
+from unittest import TestCase
 from unittest.mock import Mock, mock_open, patch
 
-from . import proj_root
+from grpc import ssl_server_credentials, StatusCode
 
-pb = import_module(proj_root + '.lighter_pb2')
-utils = import_module(proj_root + '.utils')
-settings = import_module(proj_root + '.settings')
-MOD = import_module(proj_root + '.lighter')
+from . import fixtures_utils as fix, proj_root
+
 CTX = 'context'
+pb = import_module(proj_root + '.lighter_pb2')
+settings = import_module(proj_root + '.settings')
+utils = import_module(proj_root + '.utils')
+
+MOD = import_module(proj_root + '.lighter')
 
 
 class LighterTests(TestCase):
     """ Tests for lighter module """
+
+    def test_handle_logs(self):
+        req = pb.GetInfoRequest()
+        ctx = Mock()
+        ctx.peer.return_value = 'ipv4:0.0.0.0'
+        ctx.invocation_metadata.return_value = fix.METADATA
+        response = pb.GetInfoResponse()
+        func = Mock(return_value=response)
+        wrapped = MOD._handle_logs(func)
+        res = wrapped('self', req, ctx)
+        self.assertEqual(res, response)
+        self.assertEqual(func.call_count, 1)
 
     @patch(MOD.__name__ + '.LOGGER', autospec=True)
     @patch(MOD.__name__ + '.ThreadPoolExecutor', autospec=True)
@@ -357,6 +371,17 @@ class LighterTests(TestCase):
         MOD._runtime_wait(grpc_server)
         grpc_server.stop.assert_called_once_with(0)
 
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    def test_log_intro(self, mocked_logger):
+        MOD._log_intro()
+        self.assertEqual(mocked_logger.info.call_count, 11)
+
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    def test_log_outro(self, mocked_logger):
+        MOD._log_outro()
+        self.assertEqual(mocked_logger.info.call_count, 2)
+
+
     @patch(MOD.__name__ + '._serve_runtime', autospec=True)
     @patch(MOD.__name__ + '.Thread', autospec=True)
     @patch(MOD.__name__ + '._serve_unlocker', autospec=True)
@@ -376,7 +401,7 @@ class LighterTests(TestCase):
     @patch(MOD.__name__ + '.session_scope', autospec=True)
     @patch(MOD.__name__ + '.FakeContext', autospec=True)
     @patch(MOD.__name__ + '.init_db', autospec=True)
-    @patch(MOD.__name__ + '.log_intro', autospec=True)
+    @patch(MOD.__name__ + '._log_intro', autospec=True)
     @patch(MOD.__name__ + '.init_common', autospec=True)
     def test_start_lighter(self, mocked_init_common, mocked_logintro,
                            mocked_init_db, mocked_fake_ctx, mocked_ses,
@@ -408,7 +433,7 @@ class LighterTests(TestCase):
         with self.assertRaises(RuntimeError):
             MOD._start_lighter()
 
-    @patch(MOD.__name__ + '.log_outro', autospec=True)
+    @patch(MOD.__name__ + '._log_outro', autospec=True)
     @patch(MOD.__name__ + '._interrupt_threads', autospec=True)
     @patch(MOD.__name__ + '.die', autospec=True)
     @patch(MOD.__name__ + '.LOGGER', autospec=True)

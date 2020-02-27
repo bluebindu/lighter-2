@@ -29,16 +29,16 @@ from grpc import channel_ready_future, composite_channel_credentials, \
     FutureTimeoutError, metadata_call_credentials, RpcError, secure_channel, \
     ssl_channel_credentials
 
-from . import rpc_pb2 as ln
-from . import rpc_pb2_grpc as lnrpc
-from . import lighter_pb2 as pb
-from . import settings
-from .db import session_scope
+from . import rpc_pb2 as ln, rpc_pb2_grpc as lnrpc, lighter_pb2 as pb, \
+    settings
 from .errors import Err
-from .utils import check_password, check_req_params, convert, \
-    Enforcer as Enf, FakeContext, get_channel_balances, get_path, get_secret, \
-    get_thread_timeout, get_node_timeout, handle_thread, has_amount_encoded, \
-    set_defaults
+from .utils.bitcoin import convert, Enforcer as Enf, get_channel_balances, \
+    has_amount_encoded
+from .utils.db import session_scope
+from .utils.misc import get_path, handle_thread, set_defaults
+from .utils.network import check_req_params, FakeContext, get_thread_timeout, \
+    get_node_timeout
+from .utils.security import check_password, get_secret
 
 LOGGER = getLogger(__name__)
 

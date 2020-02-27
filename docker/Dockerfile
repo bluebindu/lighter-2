@@ -24,9 +24,10 @@ WORKDIR $APP_DIR
 
 COPY $L_DIR/__init__.py $L_DIR/settings.py $L_DIR/
 COPY $L_DIR/db.py $L_DIR/lighter.py $L_DIR/macaroons.py $L_DIR/
-COPY $L_DIR/utils.py $L_DIR/migrate.py $L_DIR/errors.py $L_DIR/
+COPY $L_DIR/migrate.py $L_DIR/errors.py $L_DIR/
 COPY $L_DIR/lighter.proto $L_DIR/light_*.py $L_DIR/
 COPY $L_DIR/cliter.py $L_DIR/secure.py $L_DIR/pairing.py $L_DIR/
+COPY $L_DIR/utils $L_DIR/utils
 COPY $L_DIR/migrations $L_DIR/migrations
 COPY AUTHORS.md CHANGELOG.md CONTRIBUTING.md LICENSE.md README.md ./
 COPY MANIFEST.in setup.py ./

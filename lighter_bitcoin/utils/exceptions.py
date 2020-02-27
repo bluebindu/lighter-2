@@ -13,26 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Handles alembic DB migration """
-
-from logging import getLogger
-from os import path
-
-from alembic import command
-
-from . import settings as sett
-from .utils.db import get_alembic_cfg, init_db
-
-LOGGER = getLogger(__name__)
+""" Exceptions module """
 
 
-def migrate():
-    """ Handles DB migration """
-    if not path.exists(sett.DB_PATH):
-        return
-    alembic_cfg = get_alembic_cfg(False)
-    init_db(alembic_cfg=alembic_cfg)
-    from .utils.db import ENGINE
-    with ENGINE.begin() as connection:
-        alembic_cfg.attributes['connection'] = connection
-        command.upgrade(alembic_cfg, 'head')
+class InterruptException(Exception):
+    """ Raised to interrupt Lighter """

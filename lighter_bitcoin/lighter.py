@@ -20,27 +20,30 @@ import sys
 from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
 from configparser import Error as ConfigError
+from contextlib import suppress
+from functools import wraps
 from importlib import import_module
 from logging import getLogger
 from os import environ
 from signal import signal, SIGTERM
 from threading import active_count, Thread, Lock
-from time import sleep
+from time import sleep, strftime, time
 
 from grpc import server, ServerInterceptor, ssl_server_credentials, \
     StatusCode, unary_unary_rpc_method_handler
 from sqlalchemy.exc import SQLAlchemyError
 
-from . import lighter_pb2_grpc as pb_grpc
-from . import lighter_pb2 as pb
-from . import settings as sett
-from .db import get_mac_params_from_db, init_db, is_db_ok, session_scope
+from . import __version__, lighter_pb2 as pb, lighter_pb2_grpc as pb_grpc, \
+    settings as sett
 from .errors import Err
 from .macaroons import check_macaroons, get_baker
-from .utils import check_connection, check_password, check_req_params, \
-    Crypter, detect_impl_secret, die, FakeContext, get_secret, \
-    handle_keyboardinterrupt, handle_logs, handle_sigterm, init_common, \
-    InterruptException, log_intro, log_outro, ScryptParams
+from .utils.db import detect_impl_secret, get_mac_params_from_db, init_db, \
+    is_db_ok, session_scope
+from .utils.exceptions import InterruptException
+from .utils.misc import die, handle_keyboardinterrupt, handle_sigterm, \
+    init_common
+from .utils.network import check_connection, check_req_params, FakeContext
+from .utils.security import check_password, Crypter, get_secret, ScryptParams
 
 signal(SIGTERM, handle_sigterm)
 
@@ -49,6 +52,37 @@ LOGGER = getLogger(__name__)
 environ["GRPC_SSL_CIPHER_SUITES"] = (
     "HIGH+ECDSA:"
     "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384")
+
+
+def _handle_logs(func):
+    """ Logs gRPC call request and response """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time()
+        peer = user_agent = 'unknown'
+        request = args[0]
+        context = args[1]
+        if len(args) == 3:
+            request = args[1]
+            context = args[2]
+        with suppress(ValueError):
+            peer = context.peer().split(':', 1)[1]
+        for data in context.invocation_metadata():
+            if data.key == 'user-agent':
+                user_agent = data.value
+        LOGGER.info('< %-24s %s %s',
+                    request.DESCRIPTOR.name, peer, user_agent)
+        response = func(*args, **kwargs)
+        response_name = response.DESCRIPTOR.name
+        stop_time = time()
+        call_time = round(stop_time - start_time, 3)
+        LOGGER.info('> %-24s %s %2.3fs',
+                    response_name, peer, call_time)
+        LOGGER.debug('Full response: %s', str(response).replace('\n', ' '))
+        return response
+
+    return wrapper
 
 
 class UnlockerServicer(pb_grpc.UnlockerServicer):
@@ -61,7 +95,7 @@ class UnlockerServicer(pb_grpc.UnlockerServicer):
 
     # pylint: disable=too-few-public-methods
 
-    @handle_logs
+    @_handle_logs
     def UnlockLighter(self, request, context):
         """
         If password is correct, unlocks Lighter database, checks connection
@@ -112,7 +146,7 @@ class LockerServicer(pb_grpc.LockerServicer):
 
     # pylint: disable=too-few-public-methods
 
-    @handle_logs
+    @_handle_logs
     def LockLighter(self, request, context):
         """
         Locks Lighter on correct password, stops runtime server
@@ -142,7 +176,7 @@ class LightningServicer():  # pylint: disable=too-few-public-methods
     def __getattr__(self, name):
         """ Dispatches gRPC request dynamically. """
 
-        @handle_logs
+        @_handle_logs
         def dispatcher(request, context):
             # Importing module for specific implementation
             module = import_module('..light_{}'.format(sett.IMPLEMENTATION),
@@ -318,6 +352,27 @@ def _runtime_wait(grpc_server):
     sett.RUNTIME_STOP = False
 
 
+def _log_intro():
+    """ Prints a booting boilerplate to ease run distinction """
+    LOGGER.info(' '*72)
+    LOGGER.info(' '*72)
+    LOGGER.info(' '*72)
+    LOGGER.info('*'*72)
+    LOGGER.info(' '*72)
+    LOGGER.info('Lighter')
+    LOGGER.info('version %s', __version__)
+    LOGGER.info(' '*72)
+    LOGGER.info('booting up at %s', strftime(sett.LOG_TIMEFMT))
+    LOGGER.info(' '*72)
+    LOGGER.info('*'*72)
+
+
+def _log_outro():
+    """ Prints a quitting boilerplate to ease run distinction """
+    LOGGER.info('stopping at %s', strftime(sett.LOG_TIMEFMT))
+    LOGGER.info('*'*37)
+
+
 def _start_services(lock):
     """ Handles the unlocker and the runtime servers start """
     _serve_unlocker()
@@ -336,7 +391,7 @@ def _start_lighter():
     Initializes Lighter and starts the Unlocker gRPC service.
     """
     init_common("Start Lighter's gRPC server")
-    log_intro()
+    _log_intro()
     init_db()
     with session_scope(FakeContext()) as session:
         if not is_db_ok(session):
@@ -385,5 +440,5 @@ def start():
         die()
     except InterruptException:
         _interrupt_threads()
-        log_outro()
+        _log_outro()
         sys.exit(0)

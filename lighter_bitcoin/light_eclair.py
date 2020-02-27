@@ -24,12 +24,14 @@ from time import time, sleep
 
 from requests.auth import HTTPBasicAuth
 
-from . import lighter_pb2 as pb
-from . import settings
+from . import lighter_pb2 as pb, settings
 from .errors import Err
-from .utils import check_req_params, convert, Enforcer as Enf, FakeContext, \
-    get_channel_balances, get_thread_timeout, get_node_timeout, \
-    handle_thread, has_amount_encoded, RPCSession, set_defaults
+from .utils.bitcoin import convert, Enforcer as Enf, get_channel_balances, \
+    has_amount_encoded
+from .utils.misc import handle_thread, set_defaults
+from .utils.network import check_req_params, FakeContext, get_thread_timeout, \
+    get_node_timeout, RPCSession
+
 
 LOGGER = getLogger(__name__)
 

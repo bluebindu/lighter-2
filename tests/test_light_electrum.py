@@ -12,21 +12,21 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """ Tests for light_electrum module """
 
 from importlib import import_module
 from unittest import TestCase
 from unittest.mock import call, Mock, patch
 
-from tests import fixtures_electrum as fix
+from . import fixtures_electrum as fix, proj_root
 
-from . import proj_root
-
-Enf = getattr(import_module(proj_root + '.utils'), 'Enforcer')
-MOD = import_module(proj_root + '.light_electrum')
+CTX = 'context'
+Enf = getattr(import_module(proj_root + '.utils.bitcoin'), 'Enforcer')
 pb = import_module(proj_root + '.lighter_pb2')
 settings = import_module(proj_root + '.settings')
-CTX = 'context'
+
+MOD = import_module(proj_root + '.light_electrum')
 
 
 class LightElectrumTests(TestCase):

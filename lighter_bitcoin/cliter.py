@@ -39,11 +39,9 @@ from grpc import channel_ready_future, composite_channel_credentials, \
     FutureTimeoutError, insecure_channel, metadata_call_credentials, \
     RpcError, secure_channel, ssl_channel_credentials
 
-from . import lighter_pb2 as pb
-from . import lighter_pb2_grpc as pb_grpc
-
-from . import __version__, settings as sett
-from .utils import get_config_parser, get_data_files_path, get_path, \
+from . import __version__, lighter_pb2 as pb, lighter_pb2_grpc as pb_grpc, \
+    settings as sett
+from .utils.misc import get_config_parser, get_data_files_path, get_path, \
     set_defaults, str2bool
 
 

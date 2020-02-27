@@ -31,8 +31,9 @@ from requests import get
 
 from . import settings as sett
 from .macaroons import MACAROONS
-from .utils import die, handle_keyboardinterrupt, handle_sigterm, \
-    init_common, InterruptException
+from .utils.exceptions import InterruptException
+from .utils.misc import die, handle_keyboardinterrupt, handle_sigterm, \
+    init_common
 
 signal(SIGTERM, handle_sigterm)
 
