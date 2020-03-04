@@ -412,7 +412,8 @@ def start():
     """
     try:
         _start_lighter()
-    except ImportError:
+    except ImportError as err:
+        LOGGER.debug('Import error: %s', str(err))
         LOGGER.error(
             "Implementation '%s' is not supported", sett.IMPLEMENTATION)
         die()

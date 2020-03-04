@@ -532,6 +532,11 @@ def secure():
     """ Secure entrypoint """
     try:
         _secure()
+    except ImportError as err:
+        LOGGER.debug('Import error: %s', str(err))
+        LOGGER.error(
+            "Implementation '%s' is not supported", sett.IMPLEMENTATION)
+        die()
     except RuntimeError as err:
         die(str(err))
     except ConfigError as err:

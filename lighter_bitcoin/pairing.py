@@ -171,6 +171,8 @@ def start():
     """ Pairing entrypoint """
     try:
         _start()
+    except ImportError:
+        die("Implementation '{}' is not supported".format(sett.IMPLEMENTATION))
     except RuntimeError as err:
         err_msg = ''
         if str(err):
