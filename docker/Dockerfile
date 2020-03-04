@@ -14,7 +14,7 @@ RUN apt-get update \
     && host_tag_arch=$(/srv/app/unix_helper.sh get_host_tag_arch) \
     && if [ "$host_tag_arch" = "arm32v7" ]; then \
             apt-get update \
-            && apt-get -y install g++ libffi-dev python3-dev \
+            && apt-get -y install g++ libffi-dev make python3-dev \
             && apt-get clean \
             && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; \
         fi \
@@ -35,22 +35,24 @@ COPY doc doc
 COPY examples/config.sample examples/
 
 # Install Lighter on user's PATH
-RUN chown -R $USER /srv/app
+ENV L_DATA="$APP_DIR/.lighter"
+RUN chown -R $USER:$USER $APP_DIR
 ARG DEVELOPMENT
 ENV DEVELOPMENT=$DEVELOPMENT OPTS="--user --no-warn-script-location"
 USER $USER
-RUN mkdir -p ~/.local/share/bash-completion/completions/ \
+RUN mkdir -p $L_DATA/certs $L_DATA/db $L_DATA/logs $L_DATA/macaroons \
+    && mkdir -p $APP_DIR/.local/share/bash-completion/completions/ \
     && python3 -m pip install $OPTS --upgrade setuptools wheel \
     && if [ "$DEVELOPMENT" = '1' ]; then \
            echo "Development mode ON" \
            && python3 -m pip install $OPTS --editable . \
            && python3 -m pip install $OPTS pycodestyle pylint pytest pytest-cov \
-           && cp ~/examples/complete-cliter-bash.sh \
-                 ~/.local/share/bash-completion/completions/cliter ; \
+           && cp $APP_DIR/examples/complete-cliter-bash.sh \
+                 $APP_DIR/.local/share/bash-completion/completions/cliter ; \
        else \
            python3 -m pip install $OPTS . \
-           && cp ~/.local/share/doc/lighter_bitcoin/examples/complete-cliter-bash.sh \
-                 ~/.local/share/bash-completion/completions/cliter ; \
+           && cp $APP_DIR/.local/share/doc/lighter_bitcoin/examples/complete-cliter-bash.sh \
+                 $APP_DIR/.local/share/bash-completion/completions/cliter ; \
        fi \
     && echo 'PATH="$PATH:$APP_DIR/.local/bin"' >> $HOME/.bashrc
 
@@ -59,6 +61,6 @@ USER root
 COPY docker/start-lighter.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/start-lighter.sh
 
-VOLUME $APP_DIR/.lighter/logs/
+VOLUME $L_DATA/logs/
 EXPOSE 1708
 ENTRYPOINT ["/usr/local/bin/start-lighter.sh"]

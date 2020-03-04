@@ -71,14 +71,13 @@ get_host_tag_arch() {
     case $(uname) in
         Linux  ) _get_linux_arch ;;
         Darwin ) _get_darwin_arch ;;
-        *      ) echo "Your OS may be unsupported" ;;
+        *      ) _echoerr "Your OS may be unsupported" ;;
     esac
     if [ -z "${host_tag_arch}" ]; then
-        echo "Your architecture may be unsupported"
+        _echoerr "Your architecture may be unsupported"
         export host_tag_arch="amd64"
-    else
-        echo "Architecture detected: ${host_tag_arch}"
     fi
+    echo "${host_tag_arch}"
 }
 
 clean() {
