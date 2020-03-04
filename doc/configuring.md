@@ -9,15 +9,33 @@ The configuration file along with other data will be stored in a single
 directory, `~/.lighter` by default (use `--lighterdir` option to override).
 Paths specified in the configuration file are relative to this directory.
 
+#### Bare-minimum
+For Lighter to work, you will need to set the following options:
+* `implementation`
+* `server_key` and `server_crt` (unless `insecure_connection` is `1`)
+and then configure the section for the chosen implementation.
+
+You can request TLS certificates from CAs (e.g. letsencrypt) or you can
+generate your own. The certificate must include the host names or IP addresses
+you will use to contact Lighter or certificate validation will fail (in at
+least some cases).
+
+Example one-liner to generate a self-signed TLS certificate <sup>1</sup>:
+```
+openssl req -newkey rsa:2048 -nodes -keyout server.key -x509 -days 365 -out server.crt -subj "/CN=node.example.com" -extensions SAN -config <(cat /etc/ssl/openssl.cnf <(printf "\n[SAN]\nsubjectAltName=DNS:node.example.com,DNS:lighter,DNS:localhost,IP:127.0.0.1,IP:::1"))
+```
+
+
+
 ### lighter section
 
 | Variable                      | Description                                                                |
 | ----------------------------- | -------------------------------------------------------------------------- |
-| `implementation` <sup>1</sup> | Implementation to use (possible values: `clightning`, `eclair`, `electrum`, `lnd`; no default) |
+| `implementation` <sup>2</sup> | Implementation to use (possible values: `clightning`, `eclair`, `electrum`, `lnd`; no default) |
 | `insecure_connection`         | Set to `1` to make Lighter listen in cleartext (default `0`). Implies disabling macaroons. |
 | `port`                        | Lighter's listening port (default `1708`)                                  |
-| `server_key` <sup>2</sup>     | Private key path (default `./certs/server.key`)                            |
-| `server_crt` <sup>2</sup>     | Certificate (chain) path (default `./certs/server.crt`)                    |
+| `server_key`                  | Private key path (default `./certs/server.key`)                            |
+| `server_crt`                  | Certificate (chain) path (default `./certs/server.crt`)                    |
 | `logs_dir`                    | Location <sup>4</sup> to hold log files (default `./logs`)                 |
 | `logs_level`                  | Desired console log level (possible values: `critical`, `error`, `warning`, `info`, `debug`; default `info`) |
 | `db_dir`                      | Location to hold the database (default `./db`)                             |
@@ -68,9 +86,9 @@ Paths specified in the configuration file are relative to this directory.
 
 #### Notes
 
-1. _implementation value is case-insensitive_
-2. _example self-signed TLS certificate generation one-liner:_
-   `openssl req -newkey rsa:2048 -nodes -keyout server.key -x509 -days 365 -out server.crt -subj "/CN=node.example.com" -extensions SAN -config <(cat /etc/ssl/openssl.cnf <(printf "\n[SAN]\nsubjectAltName=DNS:node.example.com,DNS:lighter,DNS:localhost,IP:127.0.0.1,IP:::1"))`
+1. _requires the package_ `openssl` _to be installed, which provides_
+   `/etc/ssl/openssl.cnf`
+2. _implementation value is case-insensitive_
 3. _running Lighter on mainnet with macaroons disabled has severe security
    implications and is highly discouraged, don't do this unless you know
    what you're doing_
