@@ -31,7 +31,7 @@ from configparser import Error as ConfigError
 from contextlib import contextmanager
 from functools import wraps
 from json import dumps
-from os import path
+from os import getcwd, path
 from shutil import copyfile
 
 from click import argument, echo, group, option, ParamType, pass_context, \
@@ -113,7 +113,7 @@ def _check_rpcserver_addr():
 def _get_cli_options():
     """ Sets CLI options """
     from .utils.misc import get_config_parser, get_path, set_defaults, str2bool
-    config = get_config_parser()
+    config = get_config_parser(interactive=True)
     c_values = ['RPCSERVER', 'TLSCERT', 'MACAROON', 'INSECURE', 'NO_MACAROON']
     set_defaults(config, c_values)
     sec = 'cliter'
@@ -249,22 +249,10 @@ def entrypoint(ctx, config, rpcserver, tlscert, macaroon, insecure,
                 _die('Incompatible options')
 
     if config is not None:
-        from .utils.misc import get_data_files_path, str2bool
         if not config:
             _die('Invalid configuration file')
-        if not path.exists(config):
-            copy = str2bool(input('Missing configuration file, do you want a '
-                                  'copy of config.sample in the location by '
-                                  'you specified? [Y/n] '), force_true=True)
-            if not copy:
-                _die()
-        sett.L_CONFIG = config
-        sample = get_data_files_path(
-            'share/doc/' + sett.PKG_NAME, 'examples/config.sample')
-        try:
-            copyfile(sample, sett.L_CONFIG)
-        except OSError as err:
-            _die('Error copying sample file: ' + str(err))
+        from .utils.misc import get_path
+        sett.L_CONFIG = get_path(config, base_path=getcwd())
     if rpcserver is not None:
         sett.CLI_RPCSERVER = rpcserver
         _check_rpcserver_addr()

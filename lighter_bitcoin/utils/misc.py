@@ -83,6 +83,28 @@ def disable_logger():
         disable(NOTSET)
 
 
+def copy_config_sample(interactive):
+    """ Copies (or asks to copy) config.sample and exits """
+    if interactive:
+        copy = str2bool(
+            input('Missing configuration file, do you want a copy of '
+                  'config.sample in the specified location '
+                  '({})? [Y/n] '.format(sett.L_CONFIG)),
+            force_true=True)
+        if not copy:
+            die("You'll need to manually create a configuration file")
+    else:
+        LOGGER.error('Missing config file, copying sample to "%s", '
+                     'read doc/configuring.md for details', sett.L_CONFIG)
+    sample = get_data_files_path(
+        'share/doc/' + sett.PKG_NAME, 'examples/config.sample')
+    try:
+        copyfile(sample, sett.L_CONFIG)
+    except OSError as err:
+        die('Error copying sample file: ' + str(err))
+    die('Please configure lighter')
+
+
 def die(message=None):
     """ Prints message to stderr and exits with error code 1 """
     if message:
@@ -90,17 +112,14 @@ def die(message=None):
     sys.exit(1)
 
 
-def get_config_parser():
+def get_config_parser(interactive=False):
     """
     Reads config file, settings default values, and returns its parser.
-    When config is missing, it copies config.sample in its expected location.
+    When config is missing, it copies config.sample in its expected location
+    and terminates.
     """
     if not path.exists(sett.L_CONFIG):
-        LOGGER.error('Missing config file, copying sample to "%s", '
-                     'read doc/configuring.md for details', sett.L_CONFIG)
-        sample = get_data_files_path(
-            'share/doc/' + sett.PKG_NAME, 'examples/config.sample')
-        copyfile(sample, sett.L_CONFIG)
+        copy_config_sample(interactive)
     config = ConfigParser()
     config.read(sett.L_CONFIG)
     l_values = ['INSECURE_CONNECTION', 'PORT', 'SERVER_KEY', 'SERVER_CRT',
@@ -153,8 +172,7 @@ def init_common(help_msg, core=True, write_perms=False):
     """ Initializes common entrypoints calls """
     _update_logger()
     _parse_args(help_msg, write_perms)
-    if core:
-        _init_tree()
+    _init_tree()
     config = get_config_parser()
     _update_logger(config)
     _get_start_options(config)

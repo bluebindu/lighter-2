@@ -64,6 +64,59 @@ class UtilsMiscTests(TestCase):
         calls = [call(MOD.CRITICAL), call(MOD.NOTSET)]
         mocked_disable.assert_has_calls(calls)
 
+    @patch(MOD.__name__ + '.copyfile', autospec=True)
+    @patch(MOD.__name__ + '.get_data_files_path', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.die', autospec=True)
+    @patch(MOD.__name__ + '.str2bool', autospec=True)
+    @patch(MOD.__name__ + '.input')
+    def test_copy_config_sample(self, mocked_input, mocked_str2bool,
+                                mocked_die, mocked_logger, mocked_get_df,
+                                mocked_copy):
+        mocked_die.side_effect = Exception()
+        # interactive copy - user wants copy
+        mocked_str2bool.return_value = True
+        with self.assertRaises(Exception):
+            MOD.copy_config_sample(True)
+        mocked_str2bool.assert_called_once_with(
+            mocked_input.return_value, force_true=True)
+        assert not mocked_logger.error.called
+        mocked_get_df.assert_called_once_with(
+            'share/doc/' + settings.PKG_NAME, 'examples/config.sample')
+        mocked_copy.assert_called_once_with(
+            mocked_get_df.return_value, settings.L_CONFIG)
+        assert mocked_die.called
+        # interactive copy - user doesn't want copy
+        reset_mocks(vars())
+        mocked_str2bool.return_value = False
+        with self.assertRaises(Exception):
+            MOD.copy_config_sample(True)
+        assert mocked_die.called
+        assert not mocked_get_df.called
+        # not interactive copy
+        reset_mocks(vars())
+        with self.assertRaises(Exception):
+            MOD.copy_config_sample(False)
+        assert mocked_logger.error.called
+        assert not mocked_str2bool.called
+        mocked_get_df.assert_called_once_with(
+            'share/doc/' + settings.PKG_NAME, 'examples/config.sample')
+        mocked_copy.assert_called_once_with(
+            mocked_get_df.return_value, settings.L_CONFIG)
+        assert mocked_die.called
+        # not interactive copy - failure on copy
+        reset_mocks(vars())
+        mocked_copy.side_effect = OSError
+        with self.assertRaises(Exception):
+            MOD.copy_config_sample(False)
+        assert mocked_logger.error.called
+        assert not mocked_str2bool.called
+        mocked_get_df.assert_called_once_with(
+            'share/doc/' + settings.PKG_NAME, 'examples/config.sample')
+        mocked_copy.assert_called_once_with(
+            mocked_get_df.return_value, settings.L_CONFIG)
+        assert mocked_die.called
+
     @patch(MOD.__name__ + '.sys', autospec=True)
     def test_die(self, mocked_sys):
         # with message
@@ -79,20 +132,17 @@ class UtilsMiscTests(TestCase):
 
     @patch(MOD.__name__ + '.set_defaults', autospec=True)
     @patch(MOD.__name__ + '.ConfigParser', autospec=True)
-    @patch(MOD.__name__ + '.copyfile', autospec=True)
-    @patch(MOD.__name__ + '.get_data_files_path', autospec=True)
-    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.copy_config_sample', autospec=True)
     @patch(MOD.__name__ + '.path', autospec=True)
-    def test_get_config_parser(self, mocked_path, mocked_logger,
-                               mocked_get_df, mocked_copy, mocked_config,
-                               mocked_set_def):
+    def test_get_config_parser(self, mocked_path, mocked_copy_cfg,
+                               mocked_config, mocked_set_def):
         l_values = ['INSECURE_CONNECTION', 'PORT', 'SERVER_KEY', 'SERVER_CRT',
                     'LOGS_DIR', 'LOGS_LEVEL', 'DB_DIR', 'MACAROONS_DIR',
                     'DISABLE_MACAROONS']
         # config exists
         mocked_path.exists.return_value = True
         res = MOD.get_config_parser()
-        assert not mocked_logger.error.called
+        assert not mocked_copy_cfg.called
         mocked_config.assert_called_once_with()
         mocked_config.return_value.read.assert_called_once_with(
             settings.L_CONFIG)
@@ -102,12 +152,8 @@ class UtilsMiscTests(TestCase):
         # config not exists
         reset_mocks(vars())
         mocked_path.exists.return_value = False
-        res = MOD.get_config_parser()
-        assert mocked_logger.error.called
-        mocked_get_df.assert_called_once_with(
-            'share/doc/' + settings.PKG_NAME, 'examples/config.sample')
-        mocked_copy.assert_called_once_with(
-            mocked_get_df.return_value, settings.L_CONFIG)
+        res = MOD.get_config_parser(interactive=True)
+        mocked_copy_cfg.assert_called_once_with(True)
         self.assertEqual(res, mocked_config.return_value)
 
     @patch(MOD.__name__ + '.glob', autospec=True)
@@ -179,12 +225,15 @@ class UtilsMiscTests(TestCase):
                  call(mocked_get_config.return_value)]
         mocked_update_log.assert_has_calls(calls)
         self.assertEqual(mocked_update_log.call_count, 3)
+        mocked_init_tree.assert_called_once_with()
+        mocked_get_start_opt.assert_called_once_with(
+            mocked_get_config.return_value)
         # core=False, write_perms=True
         reset_mocks(vars())
         MOD.init_common(msg, core=False, write_perms=True)
         mocked_parse_args.assert_called_once_with(msg, True)
         self.assertEqual(mocked_update_log.call_count, 2)
-        assert not mocked_init_tree.called
+        mocked_init_tree.assert_called_once_with()
         assert not mocked_migrate.called
 
     @patch(MOD.__name__ + '.dictConfig')
