@@ -132,10 +132,10 @@ class UtilsBitcoinTests(TestCase):
         channels = fix.LISTCHANNELRESPONSE.channels
         res = MOD.get_channel_balances(CTX, channels)
         self.assertEqual(res.balance, 3824.3)
-        self.assertEqual(res.out_tot_now, 3158.3)
+        self.assertEqual(res.out_tot_now, 3157.24)
         self.assertEqual(res.out_max_now, 3110.71)
         self.assertEqual(res.in_tot, 1244.71)
-        self.assertEqual(res.in_tot_now, 689.71)
+        self.assertEqual(res.in_tot_now, 682.81)
         self.assertEqual(res.in_max_now, 659.34)
         # Empty channel list case
         reset_mocks(vars())

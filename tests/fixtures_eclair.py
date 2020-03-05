@@ -95,7 +95,7 @@ CHANNEL_MUTUAL = {
                   },
                   "dustLimitSatoshis": 546,
                   "maxHtlcValueInFlightMsat": 5000000000,
-                  "channelReserveSatoshis": 3400,
+                  "channelReserve": 3400,
                   "htlcMinimumMsat": 1,
                   "toSelfDelay": 720,
                   "maxAcceptedHtlcs": 30,
@@ -108,7 +108,7 @@ CHANNEL_MUTUAL = {
                   "nodeId": "0214cdb3d4ee57bce1cdbe66b7447f66eea13d9d49e35c02eb7ed22ce1ff374dcd",
                   "dustLimitSatoshis": 546,
                   "maxHtlcValueInFlightMsat": 5000000000,
-                  "channelReserveSatoshis": 3400,
+                  "channelReserve": 3400,
                   "htlcMinimumMsat": 1,
                   "toSelfDelay": 720,
                   "maxAcceptedHtlcs": 30,
@@ -126,8 +126,8 @@ CHANNEL_MUTUAL = {
                   "spec": {
                     "htlcs": [],
                     "feeratePerKw": 45000,
-                    "toLocalMsat": 340000000,
-                    "toRemoteMsat": 0
+                    "toLocal": 340000000,
+                    "toRemote": 0
                   },
                   "publishableTxs": {
                     "commitTx": {
@@ -142,8 +142,8 @@ CHANNEL_MUTUAL = {
                   "spec": {
                     "htlcs": [],
                     "feeratePerKw": 45000,
-                    "toLocalMsat": 0,
-                    "toRemoteMsat": 340000000
+                    "toLocal": 0,
+                    "toRemote": 340000000
                   },
                   "txid": "5b1090081f25dbd2b43f4f116cdb910caf772fcc8a0bd5a8dff04f6bd9f24383",
                   "remotePerCommitmentPoint": "035d86c8a9d4e03766df7113b7801d40eb2f7c9ca2cf999c968ce6ddbc6bd721ff"
@@ -192,72 +192,72 @@ CHANNEL_MUTUAL = {
 
 
 CHANNEL_NORMAL = {
-    "nodeId": "02863805414e5baddc6f2ccd174cc18f766b174939070ed973b4b94a4a96fe31f8",
-    "channelId": "4315857d58ec84f44ba6a0b2531c8324ac7dd2fe691af94e7a9324c26c46a252",
+    "nodeId": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+    "channelId": "56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e",
     "state": "NORMAL",
     "data": {
       "commitments": {
         "localParams": {
-          "nodeId": "02f96a28d05560ddbd70ce655e1e0c52fe300b41889ebe4fc2b1321322039296fe",
+          "nodeId": "036d65409c41ab7380a43448f257809e7496b52bf92057c09c4f300cbd61c50d96",
           "channelKeyPath": {
             "path": [
-              573467763,
-              1626995395,
-              334466227,
-              2805826895
+              698411009,
+              4289979314,
+              8627192,
+              3309856639
             ]
           },
-          "dustLimitSatoshis": 546,
-          "maxHtlcValueInFlightMsat": 5000000000,
-          "channelReserveSatoshis": 2000,
-          "htlcMinimumMsat": 1,
-          "toSelfDelay": 720,
+          "dustLimit": 546,
+          "maxHtlcValueInFlight": 5000000000,
+          "channelReserve": 2300,
+          "htlcMinimum": 1,
+          "toSelfDelay": 144,
           "maxAcceptedHtlcs": 30,
-          "isFunder": False,
-          "defaultFinalScriptPubKey": "a91498fbca2ebc60897b6e21083f23e7bcd7d432361887",
+          "isFunder": True,
+          "defaultFinalScriptPubKey": "a9148852d917c2f8cdf3eacea8015c35bfe57e98eede87",
+          "globalFeatures": "",
+          "localFeatures": "82"
+        },
+        "remoteParams": {
+          "nodeId": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+          "dustLimit": 546,
+          "maxHtlcValueInFlight": 5000000000,
+          "channelReserve": 2300,
+          "htlcMinimum": 1,
+          "toSelfDelay": 144,
+          "maxAcceptedHtlcs": 30,
+          "fundingPubKey": "030110991e6e23961f4c013fa70f76317bc75cf38df33ff7b448b510d1c7b09c94",
+          "revocationBasepoint": "02a5a32c4dc63d0bb98a8fac8a57fd9d494b1ac843b87db3863d76b7c4bebd9026",
+          "paymentBasepoint": "0304db8d9e0a46788e14f19a0be20e33eb198dc7e652f50de53e835a7d82f9a0f7",
+          "delayedPaymentBasepoint": "03a5c1e85d9c21f21e8e0d15a44bc7240b7d3ec4469b042e4724a9a36293792351",
+          "htlcBasepoint": "037bb6e277a1ab4d242a6e7969bad81055999946f2e7f87daac90c309680c14104",
           "globalFeatures": "",
           "localFeatures": "8a"
         },
-        "remoteParams": {
-          "nodeId": "02863805414e5baddc6f2ccd174cc18f766b174939070ed973b4b94a4a96fe31f8",
-          "dustLimitSatoshis": 573,
-          "maxHtlcValueInFlightMsat": 198000000,
-          "channelReserveSatoshis": 2000,
-          "htlcMinimumMsat": 1000,
-          "toSelfDelay": 144,
-          "maxAcceptedHtlcs": 483,
-          "fundingPubKey": "0344202ff1a7f595b425f3a10e5b57698f1905651f068aefd0378917066dcd7fe2",
-          "revocationBasepoint": "02333073744b193defff254422fe534f7f0f141809c81d548c7f1ee8c2460e8327",
-          "paymentBasepoint": "0226dd82c2adb3584acfcbc55fa07ca3ae2eb40ed85d0a7a261f1f39f56d714d0e",
-          "delayedPaymentBasepoint": "022829cefc491df808886de503b157d6340c424befc9c803bf2efea296f1473990",
-          "htlcBasepoint": "03aa6f026558a8052dd0dbe2c36737397b303aa2339df69dcf02823187b4b08559",
-          "globalFeatures": "",
-          "localFeatures": "81"
-        },
         "channelFlags": 0,
         "localCommit": {
-          "index": 0,
+          "index": 181,
           "spec": {
             "htlcs": [],
-            "feeratePerKw": 253,
-            "toLocalMsat": 50000000,
-            "toRemoteMsat": 150000000
+            "feeratePerKw": 2382,
+            "toLocal": 227599428,
+            "toRemote": 2400572
           },
           "publishableTxs": {
-            "commitTx": "020000000001014315857d58ec84f44ba6a0b2531c8324ac7dd2fe691af94e7a9324c26c46a2530100000000d04e56800250c30000000000002200204148d0610bb8a9e0a63d7689b1205a07da4f5c4e1cc672b6523120fc3bbfd035394902000000000016001424dd951156abf4066e6f2ea7365703ca3e305d1d0400473044022071ffe796e0316193e308c1de8661f4f57cfffb97bcc23d7fb94137a9b91907800220106ed0c7c6e8ff9c353b5aafe28cf3ad0cd379c3a555a9d600adeb4eee1e8d0b01483045022100f0a95481fb3a465b091fb1433e45dc7a0f876fc132907de307fb309b7075024c02206e9bf7f234d15522c44e60e98eb153e1ce88aa392d2bacaf2a6d875558bcade001475221032547ebd34572f922f1d82f8233bd6f037848219bef93b6a50a2c10842cea0708210344202ff1a7f595b425f3a10e5b57698f1905651f068aefd0378917066dcd7fe252aef4c06a20",
+            "commitTx": "0200000000010156d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e0000000000ea5719800260090000000000001600148109e081865b9bc47082ebfc52fe17de92ec4fe25372030000000000220020b3e40418334e76872523d3a5cc98ae9a50399408bfe111890be710652c51937b04004830450221008894cb338bf8c7064d5bb8c08099deae980d204c4c888af2c85d6c35e3db6010022057de8f44ea1fec571461ef6517baa25d649edd583e675b2a9a80478eff635b0e01483045022100eecf61753bffeb1ba617c3085fb34fb15e9130c2b8eaf030c40d8bf9e4e7f36e0220197aebae5873b0a64a03c36d00c5108761d4f0b07f730803b3981978c672ee2d01475221030110991e6e23961f4c013fa70f76317bc75cf38df33ff7b448b510d1a7b09c942103647d13a308e012100c9e4a9512065f2c3048f8f0160c665952a8f4f077798a5d52ae2a261420",
             "htlcTxsAndSigs": []
           }
         },
         "remoteCommit": {
-          "index": 0,
+          "index": 181,
           "spec": {
             "htlcs": [],
-            "feeratePerKw": 253,
-            "toLocalMsat": 150000000,
-            "toRemoteMsat": 50000000
+            "feeratePerKw": 2382,
+            "toLocal": 2400572,
+            "toRemote": 227599428
           },
-          "txid": "1ee64847bb0b067887e4ef1b794b307485153c07f8ae993f656caabf8646c1b0",
-          "remotePerCommitmentPoint": "03e81bc3fc9a3c8101b8708662a743e971c0018216b0accf6a9f74189a5edb4994"
+          "txid": "b11f1947175ce1fc05a1f60378f5cec6345d9acb04763d526c762a2c18892bf8",
+          "remotePerCommitmentPoint": "03128d3be2764bf853e19732135f6f2c8b348b1317051c8ea704b25468bbf373db"
         },
         "localChanges": {
           "proposed": [],
@@ -269,44 +269,44 @@ CHANNEL_NORMAL = {
           "acked": [],
           "signed": []
         },
-        "localNextHtlcId": 0,
-        "remoteNextHtlcId": 0,
+        "localNextHtlcId": 82,
+        "remoteNextHtlcId": 1,
         "originChannels": {},
-        "remoteNextCommitInfo": "038013796b5d8d2bfd562b35db09f3d17649b8f47e64399e64510ab60f3ae5a435",
+        "remoteNextCommitInfo": "03a8ce1a067e9f0467f8d34f7d6ac25f90b31518bd3ce724f0a8448f2b8a745c92",
         "commitInput": {
-          "outPoint": "53a2466cc224937a4ef91a69fed27dac24831c53b2a0a64bf484ec587d851543:1",
-          "amountSatoshis": 200000
+          "outPoint": "0e7d63ce98dbaccd9c3061509e93b45adbeaf10997c4708213804da0edd6d756:0",
+          "amountSatoshis": 230000
         },
         "remotePerCommitmentSecrets": None,
-        "channelId": "4315857d58ec84f44ba6a0b2531c8324ac7dd2fe691af94e7a9324c26c46a252"
+        "channelId": "56d7d6eda04d80138270c49709f1eadb5ab4939e5061309ccdacdb98ce637d0e"
       },
-      "shortChannelId": "1515559x114x1",
+      "shortChannelId": "565779x2711x0",
       "buried": True,
       "channelAnnouncement": {
-        "nodeSignature1": "30440220108229951e5a78293418f94689fdabdca60d48514c1ca6eca774b867064b2680022027539d49efd189312d963919c31497eef3b68c8418e2e7b38593d188cc60008e01",
-        "nodeSignature2": "304402200f53c1f281f1ae3cca3ff158f08c9fb586811866d7d8acdc9b9da1214819631d02202acc97b0c569ce8362533709b403823c2758e13fa62fdfb7e79c8d6b59833b8101",
-        "bitcoinSignature1": "3045022100f66aa4f46792c7acaa0cb1ffaa3f0080260448e789f140bb15c0d2ff6467a118022017517835887a772e7f6e10c977e68e2da5ff858b784fa4bd20ac16314509f34101",
-        "bitcoinSignature2": "304402201f0ce6892644a72e280cb1d912b8f5b237f356b6cbef8a6e17e3848291856327022005173ddbcd9b9ac1cd8c148b63ccc6a3a1f3d83d5866dba12cd6437f035be69801",
+        "nodeSignature1": "304502210085c10f513c26cfe195ff52bce9e309b6fc3f351194a3de64efc25e299bbca1b802207fcba062c4e14f5b49889a5a220a1a189958a484cf2ee51445fea9359e25e44401",
+        "nodeSignature2": "30440220791753edd31a391806fdfa02c45560a54aa548fd1d3d8f3b05ca04420fe19dce0220109be60b94346dfb52d9f52187f890e9f04ef701a232ccdbcd99d4c05dabb90b01",
+        "bitcoinSignature1": "3045022100a27439d43ba6907cd135a3349ce48dd864f5189b3d42937911fe282fafd703cb0220614388e3e06a7f228c25452e9425d4357bd0363fde9838bed575711bf5e8f4fe01",
+        "bitcoinSignature2": "3045022100c8ec9d01fed71d91dc5161b06b4913b79c628c5d19d0c44cecf463a67d3fc0a5022051bd86094a17de9de0cf925ab62d58f39322d0363cb9be0aa7a28fd33a0854a301",
         "features": "",
-        "chainHash": "43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000",
-        "shortChannelId": "1515559x114x1",
-        "nodeId1": "02863805414e5baddc6f2ccd174cc18f766b174939070ed973b4b94a4a96fe31f8",
-        "nodeId2": "02f96a28d05560ddbd70ce655e1e0c52fe300b41889ebe4fc2b1321322039296fe",
-        "bitcoinKey1": "0344202ff1a7f595b425f3a10e5b57698f1905651f068aefd0378917066dcd7fe2",
-        "bitcoinKey2": "032547ebd34572f922f1d82f8233bd6f037848219bef93b6a50a2c10842cea0708"
+        "chainHash": "6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000",
+        "shortChannelId": "565779x2711x0",
+        "nodeId1": "036d65409c41ab7380a43448f257809e7496b52bf92057c09c4f300cbd61c50d96",
+        "nodeId2": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+        "bitcoinKey1": "03647d13a308e012100c9e4a9512065f2c3048f8f0160c665952a8f4f077798a5d",
+        "bitcoinKey2": "030110991e6e23961f4c013fa70f76317bc75cf38df33ff7b448b510d1c7b09c94"
       },
       "channelUpdate": {
-        "signature": "3044022043714b773ae7ed7b4162a667300914564a84e5a2797b8fb79d58383fc8df569d0220765623feba30fbc6fcb45bfacacde312cc2fcedb3683504b4a1e6de373480b2301",
-        "chainHash": "43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000",
-        "shortChannelId": "1515559x114x1",
-        "timestamp": 1557752335,
+        "signature": "3045022100eef406f8282b1115d4122f0e18c3b280378ef5fe1b827dd50fee627deeed986e0220629839a7425185d053d958037ee3817ba67fe6c74ead3ddc4ddb6fb3b5934f1001",
+        "chainHash": "6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000",
+        "shortChannelId": "565779x2711x0",
+        "timestamp": 1553521796,
         "messageFlags": 1,
-        "channelFlags": 1,
+        "channelFlags": 0,
         "cltvExpiryDelta": 144,
-        "htlcMinimumMsat": 1000,
+        "htlcMinimumMsat": 1,
         "feeBaseMsat": 1000,
         "feeProportionalMillionths": 100,
-        "htlcMaximumMsat": 200000000
+        "htlcMaximumMsat": 230000000
       }
     }
 }
@@ -330,7 +330,7 @@ CHANNEL_WAITING_FUNDING = {
           },
           "dustLimitSatoshis": 546,
           "maxHtlcValueInFlightMsat": 5000000000,
-          "channelReserveSatoshis": 100000,
+          "channelReserve": 100000,
           "htlcMinimumMsat": 1,
           "toSelfDelay": 720,
           "maxAcceptedHtlcs": 30,
@@ -343,7 +343,7 @@ CHANNEL_WAITING_FUNDING = {
           "nodeId": "02a68237add204623021d09b0334c4992c132eb3c9dcfcb8f3cf8a57386775538e",
           "dustLimitSatoshis": 573,
           "maxHtlcValueInFlightMsat": 9900000000,
-          "channelReserveSatoshis": 100000,
+          "channelReserve": 100000,
           "htlcMinimumMsat": 1000,
           "toSelfDelay": 1201,
           "maxAcceptedHtlcs": 483,
@@ -361,8 +361,8 @@ CHANNEL_WAITING_FUNDING = {
           "spec": {
             "htlcs": [],
             "feeratePerKw": 750,
-            "toLocalMsat": 10000000000,
-            "toRemoteMsat": 0
+            "toLocal": 10000000000,
+            "toRemote": 0
           },
           "publishableTxs": {
             "commitTx": "02000000000101aa03b917bf32f7393b0b08b9b31a34a88b5bbcb68858857955dd3239d7b3cde000000000006553e580016194980000000000220020f25fd0bc73a9a374f31e7b4e16bd40a50beea9d11de87ac08307e305888575cf040047304402204a9b90a2c3c3c6d4ca4cf9ecdb373cc14e6ebddb1ca960e42559df4d1fc43d170220480fa27e0e144951defa82ba12fb51c81dd969bb71aedf689a6ab37cbde5c9250147304402203d2d346ecf4c8ef58b784f367ab1ab470201a3727c92717c0dca61756b333c0d02205af622efb6b3263899cbb1f043fa4571a8c75d756f53abb47788a1d4daa9b1f501475221030362289cb0b20a48fb169534d9a0b7f609be3524683c9c72dea9c293faa3d738210337ab18506d37aebc93a00bbe38a14bf2219c60670786c1793a81b8f0bce1ea8d52aedc743020",
@@ -374,8 +374,8 @@ CHANNEL_WAITING_FUNDING = {
           "spec": {
             "htlcs": [],
             "feeratePerKw": 750,
-            "toLocalMsat": 0,
-            "toRemoteMsat": 10000000000
+            "toLocal": 0,
+            "toRemote": 10000000000
           },
           "txid": "3f2f78e4073fbd2579ea0c516ec446aa2f709f697025f73e70f6b10cf245d3c8",
           "remotePerCommitmentPoint": "03a69a2cb30c540f0f34dadaee86dd19ed6a008164d9bfcf0f8f48edcc54793b89"

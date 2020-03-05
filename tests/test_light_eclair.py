@@ -449,8 +449,9 @@ class LightEclairTests(TestCase):
         ses.open.return_value = (fix.OPEN, False)
         ses.channel.return_value = (fix.CHANNEL_NORMAL, False)
         res = MOD.OpenChannel(request, CTX)
-        self.assertEqual(res.funding_txid,
-            '53a2466cc224937a4ef91a69fed27dac24831c53b2a0a64bf484ec587d851543')
+        outpoint = fix.CHANNEL_NORMAL['data']['commitments']['commitInput']\
+            ['outPoint']
+        self.assertEqual(res.funding_txid, outpoint.split(':')[0])
         # Error in opening channel case
         reset_mocks(vars())
         request = pb.OpenChannelRequest(
@@ -569,9 +570,10 @@ class LightEclairTests(TestCase):
         mocked_conv.side_effect = [0, 20000]
         mocked_state.return_value = pb.OPEN
         res = MOD._add_channel(CTX, response, fix.CHANNEL_NORMAL, False)
+        spec = fix.CHANNEL_NORMAL['data']['commitments']['localCommit']['spec']
         calls = [
-            call(CTX, Enf.MSATS, 50000000),
-            call(CTX, Enf.MSATS, 150000000)
+            call(CTX, Enf.MSATS, spec['toLocal']),
+            call(CTX, Enf.MSATS, spec['toRemote'])
         ]
         mocked_conv.assert_has_calls(calls)
         self.assertEqual(res, None)

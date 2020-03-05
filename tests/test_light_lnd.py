@@ -938,19 +938,28 @@ class LightLndTests(TestCase):
 
     @patch(MOD.__name__ + '.convert', autospec=True)
     def test_add_channel(self, mocked_conv):
+        capacity_bits = 77778.54
+        loc_bal_bits = 66666.66
+        rem_bal_bits = 11111.11
+        commit_fee_bits = 0.77
+        capacity_sat = int(capacity_bits * 100)
+        loc_bal_sat = int(loc_bal_bits * 100)
+        rem_bal_sat = int(rem_bal_bits * 100)
+        commit_fee_sat = int(commit_fee_bits * 100)
         # Active: empty
         response = pb.ListChannelsResponse()
         lnd_chan = ln.Channel()
         MOD._add_channel(CTX, response, lnd_chan, pb.OPEN, open_chan=True)
         assert not mocked_conv.called
         self.assertEqual(response, pb.ListChannelsResponse())
-        # Active: filled
+        # Active: filled, initiator=True
         reset_mocks(vars())
+        response = pb.ListChannelsResponse()
+        mocked_conv.side_effect = [
+            capacity_bits, loc_bal_bits, rem_bal_bits, commit_fee_bits]
         lnd_chan = ln.Channel(
-            chan_id=123,
-            capacity=7777777,
-            local_balance=6666666,
-            remote_balance=1111111)
+            chan_id=123, capacity=capacity_sat, local_balance=loc_bal_sat,
+            remote_balance=rem_bal_sat, commit_fee=commit_fee_sat, initiator=True)
         MOD._add_channel(CTX, response, lnd_chan, pb.OPEN, open_chan=True)
         calls = [
             call(CTX, Enf.SATS, lnd_chan.capacity),
@@ -959,6 +968,25 @@ class LightLndTests(TestCase):
         ]
         mocked_conv.assert_has_calls(calls)
         self.assertEqual(response.channels[0].channel_id, '123')
+        self.assertEqual(response.channels[0].local_balance, 66667.43)
+        # Active: filled, initiator=False
+        reset_mocks(vars())
+        response = pb.ListChannelsResponse()
+        mocked_conv.side_effect = [
+            capacity_bits, loc_bal_bits, rem_bal_bits, commit_fee_bits]
+        lnd_chan = ln.Channel(
+            chan_id=123, capacity=capacity_sat, local_balance=loc_bal_sat,
+            remote_balance=rem_bal_sat, commit_fee=commit_fee_sat, initiator=False)
+        MOD._add_channel(CTX, response, lnd_chan, pb.OPEN, open_chan=True)
+        calls = [
+            call(CTX, Enf.SATS, lnd_chan.capacity),
+            call(CTX, Enf.SATS, lnd_chan.local_balance),
+            call(CTX, Enf.SATS, lnd_chan.remote_balance)
+        ]
+        mocked_conv.assert_has_calls(calls)
+        self.assertEqual(response.channels[0].channel_id, '123')
+        self.assertEqual(response.channels[0].remote_balance, 11111.88)
+        mocked_conv.side_effect = None
         # Pending: empty
         reset_mocks(vars())
         response = pb.ListChannelsResponse()
@@ -968,11 +996,12 @@ class LightLndTests(TestCase):
         self.assertEqual(response, pb.ListChannelsResponse())
         # Pending: filled
         reset_mocks(vars())
+        mocked_conv.side_effect = [capacity_bits, loc_bal_bits, rem_bal_bits]
         lnd_chan = ln.PendingChannelsResponse.PendingChannel(
             remote_node_pub='abc',
-            capacity=7777777,
-            local_balance=6666666,
-            remote_balance=1111111)
+            capacity=capacity_sat,
+            local_balance=loc_bal_sat,
+            remote_balance=rem_bal_sat)
         MOD._add_channel(CTX, response, lnd_chan, pb.PENDING_MUTUAL_CLOSE)
         calls = [
             call(CTX, Enf.SATS, lnd_chan.capacity),
@@ -986,9 +1015,9 @@ class LightLndTests(TestCase):
         response = pb.ListChannelsResponse()
         lnd_chan = ln.Channel(
             chan_id=123,
-            capacity=7777777,
-            local_balance=6666666,
-            remote_balance=1111111,
+            capacity=capacity_sat,
+            local_balance=loc_bal_sat,
+            remote_balance=rem_bal_sat,
             active=False)
         MOD._add_channel(CTX, response, lnd_chan, pb.OPEN, True)
         self.assertEqual(response, pb.ListChannelsResponse())

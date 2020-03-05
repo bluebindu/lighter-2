@@ -416,26 +416,26 @@ def _add_channel(context, response, ecl_chan, active_only):
                 local_params = commitments['localParams']
                 if _def(local_params, 'toSelfDelay'):
                     grpc_chan.to_self_delay = local_params['toSelfDelay']
-                if _def(local_params, 'channelReserveSatoshis'):
+                if _def(local_params, 'channelReserve'):
                     grpc_chan.local_reserve_sat = \
-                        local_params['channelReserveSatoshis']
+                        local_params['channelReserve']
             if _def(commitments, 'remoteParams'):
                 remote_params = commitments['remoteParams']
-                if _def(remote_params, 'channelReserveSatoshis'):
+                if _def(remote_params, 'channelReserve'):
                     grpc_chan.remote_reserve_sat = \
-                        remote_params['channelReserveSatoshis']
+                        remote_params['channelReserve']
             if _def(commitments, 'localCommit'):
                 local_commit = commitments['localCommit']
                 if _def(local_commit, 'spec'):
                     spec = local_commit['spec']
                     local_balance = remote_balance = False
-                    if _def(spec, 'toLocalMsat'):
+                    if _def(spec, 'toLocal'):
                         grpc_chan.local_balance = convert(
-                            context, Enf.MSATS, spec['toLocalMsat'])
+                            context, Enf.MSATS, spec['toLocal'])
                         local_balance = True
-                    if _def(spec, 'toRemoteMsat'):
+                    if _def(spec, 'toRemote'):
                         grpc_chan.remote_balance = convert(
-                            context, Enf.MSATS, spec['toRemoteMsat'])
+                            context, Enf.MSATS, spec['toRemote'])
                         remote_balance = True
                     if local_balance and remote_balance:
                         grpc_chan.capacity = \

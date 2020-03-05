@@ -21,6 +21,7 @@ from concurrent.futures import TimeoutError as TimeoutFutError, \
     ThreadPoolExecutor
 from contextlib import contextmanager, ExitStack, suppress
 from datetime import datetime
+from decimal import Decimal
 from functools import wraps
 from logging import getLogger
 from os import path
@@ -667,15 +668,24 @@ def _add_channel(context, response, lnd_chan, state, active_only=False,
     if active_only and not lnd_chan.active:
         return
     if lnd_chan.ListFields():
+        capacity = Decimal(str(convert(context, Enf.SATS, lnd_chan.capacity)))
+        local_balance = Decimal(str(convert(
+            context, Enf.SATS, lnd_chan.local_balance)))
+        remote_balance = Decimal(str(convert(
+            context, Enf.SATS, lnd_chan.remote_balance)))
         channel = response.channels.add(
             funding_txid=lnd_chan.channel_point.split(':')[0],
-            capacity=convert(context, Enf.SATS, lnd_chan.capacity),
-            local_balance=convert(context, Enf.SATS, lnd_chan.local_balance),
-            remote_balance=convert(context, Enf.SATS, lnd_chan.remote_balance),
+            capacity=capacity,
             state=state,
             local_reserve_sat=lnd_chan.local_chan_reserve_sat,
             remote_reserve_sat=lnd_chan.remote_chan_reserve_sat)
         if open_chan:
+            commit_fee = Decimal(str(convert(
+                context, Enf.SATS, lnd_chan.commit_fee)))
+            if lnd_chan.initiator:
+                local_balance += commit_fee
+            else:
+                remote_balance += commit_fee
             channel.remote_pubkey = lnd_chan.remote_pubkey
             channel.channel_id = str(lnd_chan.chan_id)
             channel.to_self_delay = lnd_chan.csv_delay
@@ -684,6 +694,9 @@ def _add_channel(context, response, lnd_chan, state, active_only=False,
         else:
             channel.remote_pubkey = lnd_chan.remote_node_pub
             channel.active = False
+        if capacity == local_balance + remote_balance:
+            channel.local_balance = local_balance
+            channel.remote_balance = remote_balance
     # pylint: enable=too-many-arguments
 
 

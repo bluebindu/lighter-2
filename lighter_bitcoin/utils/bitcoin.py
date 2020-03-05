@@ -81,15 +81,19 @@ def get_channel_balances(context, channels):
         in_tot += chan.remote_balance
         if not chan.active:
             continue
-        out_tot_now += chan.local_balance
-        in_tot_now += chan.remote_balance
         local_reserve = convert(context, Enforcer.SATS, chan.local_reserve_sat)
-        if chan.local_balance - local_reserve > out_max_now:
-            out_max_now = chan.local_balance - local_reserve
         remote_reserve = convert(
             context, Enforcer.SATS, chan.remote_reserve_sat)
+        out_tot_now += \
+            Decimal(str(chan.local_balance)) - Decimal(str(local_reserve))
+        in_tot_now += \
+            Decimal(str(chan.remote_balance)) - Decimal(str(remote_reserve))
+        if chan.local_balance - local_reserve > out_max_now:
+            out_max_now = \
+                Decimal(str(chan.local_balance)) - Decimal(str(local_reserve))
         if chan.remote_balance - remote_reserve > in_max_now:
-            in_max_now = chan.remote_balance - remote_reserve
+            in_max_now = Decimal(str(chan.remote_balance)) - \
+                Decimal(str(remote_reserve))
     return pb.ChannelBalanceResponse(
         balance=out_tot, out_tot_now=out_tot_now, out_max_now=out_max_now,
         in_tot=in_tot, in_tot_now=in_tot_now, in_max_now=in_max_now)
