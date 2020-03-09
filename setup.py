@@ -17,6 +17,7 @@
 
 import sys
 
+from contextlib import suppress
 from distutils.command.build_py import build_py
 from distutils.command.clean import clean
 from importlib import import_module
@@ -35,19 +36,32 @@ from setuptools.command.develop import develop
 from setuptools.command.sdist import sdist
 from setuptools.command.test import test as TestCommand
 
+# directories
 L_DIR = 'lighter_bitcoin'
 E_DIR = 'examples'
+R_DIR = 'reports'
+U_DIR = path.sep.join([L_DIR, 'utils'])
+MIGRATIONS_DIR = path.sep.join([L_DIR, 'migrations'])
+MGR_VERSIONS_DIR = path.sep.join([MIGRATIONS_DIR, 'versions'])
+
+# lighter
 __version__ = getattr(import_module(L_DIR), '__version__')
-PKG_NAME = getattr(import_module(L_DIR + '.settings'), 'PKG_NAME')
 PIP_NAME = getattr(import_module(L_DIR + '.settings'), 'PIP_NAME')
+PKG_NAME = getattr(import_module(L_DIR + '.settings'), 'PKG_NAME')
 L_PROTO = 'lighter.proto'
 
+# cliter
 CLI_NAME = 'cliter'
 CLI_ENTRY = '{0} = {1}.{0}:entrypoint'.format(CLI_NAME, L_DIR)
 SHELLS = ['bash', 'zsh']
+COMPLETION_SCRIPTS = {}
+for SHELL in SHELLS:
+    COMPLETION_SCRIPTS[SHELL] = 'complete-{}-{}.sh'.format(CLI_NAME, SHELL)
 
+# c-lightning
 CL_VER = '0.8.1'
 
+# lnd
 LND_REF = 'v0.9.1-beta'
 LND_PROTO = 'rpc.proto'
 GOOGLE = 'google'
@@ -55,30 +69,46 @@ GAPIS = 'googleapis'
 GAPIS_MASTER = GAPIS + '-master'
 GAPIS_ZIP = GAPIS + '.zip'
 
-CLEANUP_SUFFIXES = [
-    '_pb2.py',
-    '_pb2_grpc.py',
-    '.pyc',
-    '.so',
-    '.o',
-]
+# cleanup
+CLEANUP_SUFFIXES = ['_pb2.py', '_pb2_grpc.py', '.pyc', '.so', '.o',]
 
+# documentation
 LONG_DESC = ''
 with open('README.md', encoding='utf-8') as f:
     LONG_DESC = f.read()
 
-COMPLETION_SCRIPTS = {}
-for SHELL in SHELLS:
-    COMPLETION_SCRIPTS[SHELL] = 'complete-{}-{}.sh'.format(CLI_NAME, SHELL)
-
+# data files
 EXAMPLES = [path.as_posix() for path in Path(E_DIR).glob('*')] + \
     [path.sep.join([E_DIR, COMPLETION_SCRIPTS[shell]]) for shell in SHELLS]
 DOC = [path.as_posix() for path in Path('.').glob('*.md')] + \
     [path.as_posix() for path in Path('doc').glob('*.md')]
 
-MIGRATIONS_DIR = path.sep.join([L_DIR, 'migrations'])
-MGR_VERSIONS_DIR = path.sep.join([MIGRATIONS_DIR, 'versions'])
-U_DIR = path.sep.join([L_DIR, 'utils'])
+# dependencies
+LIGHTER_DEPS = [
+    'alembic~=1.4.1',
+    'Click~=7.0',
+    'googleapis-common-protos~=1.6.0',
+    'grpcio~=1.27.2',
+    'macaroonbakery~=1.3.1',
+    'protobuf~=3.11.3',
+    'pylibscrypt~=1.8.0',
+    'pyln-client @ git+https://github.com/ElementsProject/lightning'
+    '@v{}#egg=pyln-client&subdirectory=contrib/pyln-client'.format(CL_VER),
+    'pymacaroons~=0.13.0',
+    'pynacl~=1.3.0',
+    'qrcode~=6.1',
+    'requests~=2.23.0',
+    'SQLAlchemy~=1.3.13',
+]
+SETUP_DEPS = [
+    'Click~=7.0',
+    'grpcio~=1.27.2',
+    'grpcio-tools~=1.27.2',
+]
+TESTS_DEPS = [
+    'pytest',
+    'pytest-cov',
+]
 
 
 def _die(message):
@@ -89,14 +119,9 @@ def _die(message):
 
 def _try_rm(tree):
     """ Tries to remove a directory or file, without failing if missing """
-    try:
+    with suppress(OSError):
         rmtree(tree)
-    except OSError:
-        pass
-    try:
         remove(tree)
-    except OSError:
-        pass
 
 
 def _download_lnd_deps():
@@ -233,7 +258,7 @@ class Clean(clean):
                         remove(filepath)
         for shell in SHELLS:
             _try_rm(path.sep.join([E_DIR, COMPLETION_SCRIPTS[shell]]))
-        for report in Path('reports').glob('*.report'):
+        for report in Path(R_DIR).glob('*.report'):
             _try_rm(report.as_posix())
         _try_rm(path.sep.join([L_DIR, GAPIS_MASTER]))
         _try_rm(path.sep.join([L_DIR, GAPIS_ZIP]))
@@ -336,29 +361,9 @@ setup(
         ('share/doc/{}'.format(PKG_NAME), DOC),
     ],
     python_requires='>=3.5',
-    install_requires=[
-        'alembic~=1.2.1',
-        'Click~=7.0',
-        'googleapis-common-protos~=1.6.0',
-        'grpcio~=1.26.0',
-        'macaroonbakery~=1.2.3',
-        'protobuf~=3.11.2',
-        'pylibscrypt~=1.8.0',
-        'pyln-client @ git+https://github.com/ElementsProject/lightning'
-        '@v{}#egg=pyln-client&subdirectory=contrib/pyln-client'.format(CL_VER),
-        'pymacaroons~=0.13.0',
-        'pynacl~=1.3.0',
-        'qrcode~=6.1',
-        'requests~=2.22.0',
-        'SQLAlchemy~=1.3.10',
-    ],
-    setup_requires=[
-        'Click~=7.0',
-        'grpcio-tools~=1.26.0',
-    ],
-    tests_require=[
-        'pytest', 'pytest-cov',
-    ],
+    install_requires=LIGHTER_DEPS,
+    setup_requires=SETUP_DEPS,
+    tests_require=TESTS_DEPS,
     entry_points={
         'console_scripts': [
             CLI_ENTRY,
