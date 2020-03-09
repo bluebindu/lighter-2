@@ -17,11 +17,13 @@
 
 import sys
 
-from contextlib import suppress
+from contextlib import redirect_stdout, suppress
+from distutils.cmd import Command
 from distutils.command.build_py import build_py
 from distutils.command.clean import clean
 from importlib import import_module
-from os import chdir, chmod, linesep, path, remove, stat, walk
+from io import StringIO
+from os import chdir, chmod, linesep, makedirs, path, remove, stat, walk
 from pathlib import Path
 from shutil import move, rmtree, which
 from stat import S_IXGRP, S_IXOTH, S_IXUSR
@@ -69,6 +71,14 @@ GAPIS = 'googleapis'
 GAPIS_MASTER = GAPIS + '-master'
 GAPIS_ZIP = GAPIS + '.zip'
 
+# linting
+PYCODESTYLE_EXCLUDE = [
+    '*_pb2*.py', 'cliter.py', 'secure.py', 'env.py',
+    '*_add_secret_type_column.py']
+PYLINT_ARGS = [
+    '--ignore-patterns=.*_pb2.*\\.py', '--persistent=y',
+    '-f', 'parseable', L_DIR]
+
 # cleanup
 CLEANUP_SUFFIXES = ['_pb2.py', '_pb2_grpc.py', '.pyc', '.so', '.o',]
 
@@ -104,11 +114,13 @@ SETUP_DEPS = [
     'Click~=7.0',
     'grpcio~=1.27.2',
     'grpcio-tools~=1.27.2',
+    'pycodestyle',
+    'pylint',
 ]
 TESTS_DEPS = [
     'pytest',
     'pytest-cov',
-]
+] + LIGHTER_DEPS
 
 
 def _die(message):
@@ -293,6 +305,63 @@ class Develop(develop):
         _gen_cli_completion()
 
 
+class Lint(Command):
+    """ Lints code """
+
+    description='lint code with pycodestyle and pylint after in-place build'
+
+    user_options = [
+        ('pylint-rcfile=', None, 'path to pylint RC file'),
+    ]
+
+    def initialize_options(self):
+        """ Overrides default behavior """
+        self.pylint_rcfile = ''
+
+    def finalize_options(self):
+        """ Overrides default behavior """
+        if self.pylint_rcfile:
+            assert path.exists(self.pylint_rcfile), (
+                'Pylint RC file {} does not exist'.format(self.pylint_rcfile))
+        else:
+            self.pylint_rcfile = '.pylintrc'
+
+    def run(self):
+        """ Overrides default behavior """
+        from pycodestyle import StyleGuide
+        from pylint.lint import Run as PylintRun
+        _build_lighter()
+        installed_dists = TestCommand.install_dists(self.distribution)
+        makedirs(R_DIR, exist_ok=True)
+        print('Running pycodestyle')
+        report = ''
+        style = StyleGuide(
+            paths=[PKG_NAME], quiet=False, exclude=PYCODESTYLE_EXCLUDE)
+        try:
+            with StringIO() as buf:
+                with redirect_stdout(buf):
+                    style.check_files()
+                report = buf.getvalue()
+            dest = path.join(R_DIR, 'pycodestyle.report')
+            with open(dest, 'w') as f:
+                f.write(report)
+        except OSError:
+            print('Failed')
+        print('Running pylint')
+        report = ''
+        PYLINT_ARGS.insert(0, '--rcfile=' + self.pylint_rcfile)
+        try:
+            with StringIO() as buf:
+                with redirect_stdout(buf):
+                    PylintRun(PYLINT_ARGS, do_exit=False)
+                report = buf.getvalue()
+            dest = path.join(R_DIR, 'pylint.report')
+            with open(dest, 'w') as f:
+                f.write(report)
+        except OSError:
+            print('Failed')
+
+
 class PyTest(TestCommand):
     """ Runs unit tests (deprecated) """
 
@@ -376,6 +445,7 @@ setup(
         'build_py': BuildPy,
         'clean': Clean,
         'develop': Develop,
+        'lint': Lint,
         'sdist': Sdist,
         'test': PyTest,
     }

@@ -1,5 +1,4 @@
 FROM inbitcoin/lighter
 
 COPY .coveragerc .pylintrc $APP_DIR/
-COPY reports/ $APP_DIR/reports/
 COPY tests/ $APP_DIR/tests/

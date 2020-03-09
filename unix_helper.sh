@@ -101,13 +101,7 @@ docker_build() {
 }
 
 lint() {
-    if ! which pycodestyle > /dev/null ; then
-        _die "Python package 'pycodestyle' must be installed"
-    fi
-    if ! which pylint > /dev/null ; then
-        _die "Python package 'pylint' must be installed"
-    fi
-    reports/lint.sh $PKG_NAME
+    python3 setup.py lint
 }
 
 test() {
