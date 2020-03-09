@@ -64,6 +64,28 @@ SCRYPT_PARAMS = {
     'key_len': 32
 }
 
+# lighter-secure settings
+COLLECTING_INPUT = True
+DONE = False
+NEW_DB = False
+SEARCHING_ENTROPY = True
+FIRST_WORK_TIME = None
+IDLE_COUNTER = 1
+IDLE_MESSAGES = {
+    1: {
+        'msg': 'please keep generating entropy',
+        'delay': 5
+    },
+    2: {
+        'msg': 'more entropy, please',
+        'delay': 15
+    },
+    3: {
+        'msg': '...good things come to those who wait...',
+        'delay': 30
+    }
+}
+
 # DB settings
 DB_DIR = './db'
 DB_NAME = 'lighter.db'

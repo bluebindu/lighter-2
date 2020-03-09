@@ -204,6 +204,15 @@ class UtilsMiscTests(TestCase):
         res = MOD.get_path(ipath)
         self.assertEqual(res, MOD.path.join(settings.L_DATA, ipath))
 
+    @patch(MOD.__name__ + '.die', autospec=True)
+    @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    def test_handle_importerrror(self, mocked_logger, mocked_die):
+        err = ImportError('import error')
+        MOD.handle_importerror(err)
+        assert mocked_logger.debug.called
+        assert mocked_logger.error.called
+        mocked_die.assert_called_once_with()
+
     def test_handle_sigterm(self):
         with self.assertRaises(MOD.InterruptException):
             MOD.handle_sigterm(15, None)
@@ -212,10 +221,11 @@ class UtilsMiscTests(TestCase):
     @patch(MOD.__name__ + '._get_start_options', autospec=True)
     @patch(MOD.__name__ + '.get_config_parser', autospec=True)
     @patch(MOD.__name__ + '._init_tree', autospec=True)
+    @patch(MOD.__name__ + '.access', autospec=True)
     @patch(MOD.__name__ + '._parse_args', autospec=True)
     @patch(MOD.__name__ + '._update_logger', autospec=True)
     def test_init_common(self, mocked_update_log, mocked_parse_args,
-                         mocked_init_tree, mocked_get_config,
+                         mocked_acc, mocked_init_tree, mocked_get_config,
                          mocked_get_start_opt, mocked_migrate):
         # core=True
         msg = 'help message'
@@ -228,12 +238,21 @@ class UtilsMiscTests(TestCase):
         mocked_init_tree.assert_called_once_with()
         mocked_get_start_opt.assert_called_once_with(
             mocked_get_config.return_value)
-        # core=False, write_perms=True
+        # core=False, write_perms=True, with access
         reset_mocks(vars())
+        mocked_acc.return_value = True
         MOD.init_common(msg, core=False, write_perms=True)
         mocked_parse_args.assert_called_once_with(msg, True)
         self.assertEqual(mocked_update_log.call_count, 2)
         mocked_init_tree.assert_called_once_with()
+        assert not mocked_migrate.called
+        # core=False, write_perms=True, without access
+        reset_mocks(vars())
+        mocked_acc.return_value = False
+        with self.assertRaises(RuntimeError):
+            MOD.init_common(msg, core=False, write_perms=True)
+        mocked_parse_args.assert_called_once_with(msg, True)
+        assert not mocked_init_tree.called
         assert not mocked_migrate.called
 
     @patch(MOD.__name__ + '.dictConfig')

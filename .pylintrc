@@ -9,7 +9,7 @@
 
 # Add <file or directory> to the black list. It should be a base name, not a
 # path. You may set this option multiple times.
-ignore=cliter.py, env.py, migrate.py, pairing.py, secure.py, lighter_bitcoin/migrations/versions
+ignore=cliter.py, env.py, migrate.py, pairing.py, lighter_bitcoin/migrations/versions
 
 # Pickle collected data for later comparisons.
 persistent=no

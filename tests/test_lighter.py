@@ -437,10 +437,12 @@ class LighterTests(TestCase):
     @patch(MOD.__name__ + '._interrupt_threads', autospec=True)
     @patch(MOD.__name__ + '.die', autospec=True)
     @patch(MOD.__name__ + '.LOGGER', autospec=True)
+    @patch(MOD.__name__ + '.handle_importerror', autospec=True)
     @patch(MOD.__name__ + '._start_lighter', autospec=True)
-    def test_start(self, mocked_start, mocked_log, mockedd_die,
-                   mocked_int_threads, mocked_logoutro):
-        mockedd_die.side_effect = SystemExit(1)
+    def test_start(self, mocked_start, mocked_handl_ie, mocked_log,
+                   mocked_die, mocked_int_threads, mocked_logoutro):
+        mocked_die.side_effect = SystemExit(1)
+        mocked_handl_ie.side_effect = SystemExit(1)
         # Correct case
         MOD.start()
         mocked_start.assert_called_once_with()
@@ -454,7 +456,6 @@ class LighterTests(TestCase):
             with self.assertRaises(SystemExit) as err:
                 MOD.start()
             self.assertEqual(err.exception.code, 1)
-            assert mocked_log.error.called
         # InterruptException case
         reset_mocks(vars())
         mocked_start.side_effect = MOD.InterruptException()

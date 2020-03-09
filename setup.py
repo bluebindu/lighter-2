@@ -73,8 +73,7 @@ GAPIS_ZIP = GAPIS + '.zip'
 
 # linting
 PYCODESTYLE_EXCLUDE = [
-    '*_pb2*.py', 'cliter.py', 'secure.py', 'env.py',
-    '*_add_secret_type_column.py']
+    '*_pb2*.py', 'cliter.py', 'env.py', '*_add_secret_type_column.py']
 PYLINT_ARGS = [
     '--ignore-patterns=.*_pb2.*\\.py', '--persistent=y',
     '-f', 'parseable', L_DIR]

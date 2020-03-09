@@ -40,8 +40,8 @@ from .macaroons import check_macaroons, get_baker
 from .utils.db import detect_impl_secret, get_mac_params_from_db, init_db, \
     is_db_ok, session_scope
 from .utils.exceptions import InterruptException
-from .utils.misc import die, handle_keyboardinterrupt, handle_sigterm, \
-    init_common
+from .utils.misc import die, handle_importerror, handle_keyboardinterrupt, \
+    handle_sigterm, init_common
 from .utils.network import check_connection, check_req_params, FakeContext
 from .utils.security import check_password, Crypter, get_secret, ScryptParams
 
@@ -413,10 +413,7 @@ def start():
     try:
         _start_lighter()
     except ImportError as err:
-        LOGGER.debug('Import error: %s', str(err))
-        LOGGER.error(
-            "Implementation '%s' is not supported", sett.IMPLEMENTATION)
-        die()
+        handle_importerror(err)
     except KeyError as err:
         LOGGER.error("The environment variable '%s' needs to be set", err)
         die()

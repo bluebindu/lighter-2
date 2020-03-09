@@ -33,43 +33,17 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from . import settings as sett
 from .macaroons import get_baker, MACAROONS, MAC_VERSION
-from .utils.db import init_db, is_db_ok, save_mac_params_to_db, save_secret_to_db, \
-    save_token_to_db, session_scope
+from .utils.db import init_db, is_db_ok, save_mac_params_to_db, \
+    save_secret_to_db, save_token_to_db, session_scope
 from .utils.exceptions import InterruptException
-from .utils.misc import check_password, Crypter, die, FakeContext, get_secret, \
-    handle_keyboardinterrupt, handle_sigterm, init_common, str2bool
-from .utils.security import ScryptParams
+from .utils.misc import die, handle_importerror, handle_keyboardinterrupt, \
+    handle_sigterm, init_common, str2bool
+from .utils.network import FakeContext
+from .utils.security import check_password, Crypter, get_secret, ScryptParams
 
 signal(SIGTERM, handle_sigterm)
 
 LOGGER = getLogger(__name__)
-
-DONE = False
-NEW_DB = False
-
-SEARCHING_ENTROPY = True
-COLLECTING_INPUT = True
-
-READ_LIST = [sys.stdin]
-
-IDLE_MESSAGES = {
-    1: {
-        'msg': 'please keep generating entropy',
-        'delay': 5
-    },
-    2: {
-        'msg': 'more entropy, please',
-        'delay': 15
-    },
-    3: {
-        'msg': '...good things come to those who wait...',
-        'delay': 30
-    }
-}
-
-FIRST_WORK_TIME = None
-IDLE_COUNTER = 1
-IDLE_LAST_DELAY = 15
 
 
 def _consume_bytes(consumable, num):
@@ -227,6 +201,7 @@ def _save_token(session, password, scrypt_params):
 def _save_secret(session, password, scrypt_params, sec_type, secret,
                  activate_secret, implementation=None):
     """ Encrypts implementation secret and saves it into DB """
+    # pylint: disable=too-many-arguments
     encrypted_secret = None
     if not implementation:
         implementation = sett.IMPLEMENTATION
@@ -282,49 +257,43 @@ def _get_entropy():
 
 def _input():
     """ Gets input asynchronously """
-    global COLLECTING_INPUT
-    global READ_LIST
-    global FIRST_WORK_TIME
-    FIRST_WORK_TIME = time()
-    while READ_LIST and COLLECTING_INPUT:
-        ready = select(READ_LIST, [], [], 0.2)[0]
-        if not ready and COLLECTING_INPUT:
+    read_list = [sys.stdin]
+    sett.FIRST_WORK_TIME = time()
+    while read_list and sett.COLLECTING_INPUT:
+        ready = select(read_list, [], [], 0.2)[0]
+        if not ready and sett.COLLECTING_INPUT:
             _idle()
         else:
             for file in ready:
                 line = file.readline()
-                if not line: # EOF, remove file from input list
-                    READ_LIST.remove(file)
+                if not line:  # EOF, remove file from input list
+                    read_list.remove(file)
                 elif line.rstrip():
                     return line.rstrip()
 
 
 def _idle():
     """ During input idling prints periodic messages """
-    global FIRST_WORK_TIME
-    global IDLE_COUNTER
-    global IDLE_MESSAGES
-    if time() - FIRST_WORK_TIME > IDLE_MESSAGES[IDLE_COUNTER]['delay']:
-        print(IDLE_MESSAGES[IDLE_COUNTER]['msg'])
-        if IDLE_COUNTER == 3:
-            IDLE_MESSAGES[IDLE_COUNTER]['delay'] = \
-                IDLE_MESSAGES[IDLE_COUNTER]['delay'] + 15
+    idle_msg = sett.IDLE_MESSAGES[sett.IDLE_COUNTER]
+    if time() - sett.FIRST_WORK_TIME > idle_msg['delay']:
+        print(idle_msg['msg'])
+        if sett.IDLE_COUNTER == 3:
+            idle_msg['delay'] = idle_msg['delay'] + 15
         else:
-            IDLE_COUNTER = IDLE_COUNTER + 1
+            sett.IDLE_COUNTER += 1
 
 
-def _read(source, num_bytes):
+def _read(source, num_bytes):  # pylint: disable=inconsistent-return-statements
     """ Gets entropy from /dev/random asynchronously """
-    global SEARCHING_ENTROPY
     try:
         while _get_entropy() < num_bytes * 8 * 1.2:
-            if not SEARCHING_ENTROPY:
+            if not sett.SEARCHING_ENTROPY:
                 return
             sleep(1)
         random_bytes = source.read(num_bytes)
         return random_bytes
     except IOError:
-        if not SEARCHING_ENTROPY:
+        if not sett.SEARCHING_ENTROPY:
             return
         use_urand = input("Cannot retrieve available entropy, do you want to "
                           "use whatever your os provides\nto python's "
@@ -334,10 +303,8 @@ def _read(source, num_bytes):
         die("No way to retrieve the amount of available entropy")
 
 
-def _gen_random_data(num_bytes):
+def _gen_random_data(num_bytes):  # pylint: disable=too-many-branches
     """ Generates random data of key_len length """
-    global COLLECTING_INPUT
-    global SEARCHING_ENTROPY
     if sett.ENTROPY_BLOCKING:
         print('Trying to collect entropy...')
         try:
@@ -370,12 +337,13 @@ def _gen_random_data(num_bytes):
                     future_input = executor.submit(_input)
                 if future_input.done():
                     if future_input.result() == 'unsafe':
-                        SEARCHING_ENTROPY = False
-                        COLLECTING_INPUT = False
+                        sett.SEARCHING_ENTROPY = False
+                        sett.COLLECTING_INPUT = False
+                        print('Unsafe mode selected')
                         return urandom(num_bytes)
                     future_input = None
                 sleep(1)
-            COLLECTING_INPUT = False
+            sett.COLLECTING_INPUT = False
             print("\nEnough entropy was collected, thanks for waiting")
             result = future_read.result()
             if result:
@@ -392,7 +360,7 @@ def _gen_password(seed):
     """ Generates a safe random password from a 64-char alphabet """
     # base58 charset plus some symbols up to 64
     alpha = r'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz+/\&-_'
-    assert 256 % len(alpha) is 0
+    assert 256 % len(alpha) == 0
     return ''.join(alpha[i % len(alpha)] for i in seed)
 
 
@@ -423,11 +391,10 @@ def _rm_db():
             _remove_files()
             return False
         return True
-    else:
-        return False
+    return False
 
 
-def db_config_interactive(session, new):
+def db_config_interactive(session, new):  # pylint: disable=too-many-branches
     """ Configures a new or existing database interactively """
     ecl_pass = ele_pass = lnd_mac = lnd_pass = None
     if new:
@@ -533,10 +500,7 @@ def secure():
     try:
         _secure()
     except ImportError as err:
-        LOGGER.debug('Import error: %s', str(err))
-        LOGGER.error(
-            "Implementation '%s' is not supported", sett.IMPLEMENTATION)
-        die()
+        handle_importerror(err)
     except RuntimeError as err:
         die(str(err))
     except ConfigError as err:
@@ -550,9 +514,9 @@ def secure():
             err_msg = str(err)
         die('DB error: ' + err_msg)
     except InterruptException:
-        COLLECTING_INPUT = False
-        SEARCHING_ENTROPY = False
-        if not DONE and NEW_DB:
+        sett.COLLECTING_INPUT = False
+        sett.SEARCHING_ENTROPY = False
+        if not sett.DONE and sett.NEW_DB:
             _remove_files()
         die()
 
@@ -560,25 +524,22 @@ def secure():
 @handle_keyboardinterrupt
 def _secure():
     """ Handles Lighter and implementation secrets """
-    global COLLECTING_INPUT
-    global DONE
-    global NEW_DB
-    global SEARCHING_ENTROPY
-    getLogger('lighter.errors').setLevel(CRITICAL)
-    init_common("Start Lighter's secure procedure", write_perms=True)
-    if not _rm_db():
-        NEW_DB = True
-    init_db(new_db=NEW_DB)
+    getLogger(sett.PKG_NAME + '.errors').setLevel(CRITICAL)
     lighter_password = environ.get('lighter_password')
     try:
         if lighter_password:
             sys.stdout = open(devnull, 'w')
+        init_common("Start Lighter's secure procedure", write_perms=True)
+        if not lighter_password and not _rm_db():
+            sett.NEW_DB = True
+        init_db(new_db=sett.NEW_DB)
         with session_scope(FakeContext()) as session:
             if lighter_password:
-                db_config_non_interactive(session, NEW_DB, lighter_password)
+                db_config_non_interactive(
+                    session, sett.NEW_DB, lighter_password)
             else:
-                db_config_interactive(session, NEW_DB)
-        DONE = True
+                db_config_interactive(session, sett.NEW_DB)
+        sett.DONE = True
         print('All done!')
     finally:
         if lighter_password:

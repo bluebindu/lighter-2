@@ -164,6 +164,14 @@ def get_path(ipath, base_path=None):
     return Path(base_path, ipath).as_posix()
 
 
+def handle_importerror(err):
+    """ Handles an ImportError """
+    LOGGER.debug('Import error: %s', str(err))
+    LOGGER.error(
+        "Implementation '%s' is not supported", sett.IMPLEMENTATION)
+    die()
+
+
 def handle_sigterm(_signo, _stack_frame):
     """ Handles a SIGTERM, raising an InterruptException """
     raise InterruptException
@@ -173,6 +181,9 @@ def init_common(help_msg, core=True, write_perms=False):
     """ Initializes common entrypoints calls """
     _update_logger()
     _parse_args(help_msg, write_perms)
+    if write_perms:
+        if not access(sett.L_DATA, W_OK):
+            raise RuntimeError('Permission denied on ' + sett.L_DATA)
     _init_tree()
     config = get_config_parser()
     _update_logger(config)
