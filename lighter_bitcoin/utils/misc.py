@@ -20,6 +20,7 @@ import sys
 from argparse import ArgumentParser
 from configparser import ConfigParser
 from contextlib import contextmanager
+from distutils.util import strtobool
 from functools import wraps
 from glob import glob
 from importlib import import_module
@@ -273,12 +274,7 @@ def set_defaults(config, values):
 
 def str2bool(string, force_true=False):
     """ Casts a string to boolean, forcing to a default value """
-    if isinstance(string, int):
-        string = str(string)
-    if not string and not force_true:
-        return False
-    if not string and force_true:
-        return True
-    if force_true:
-        return string.lower() not in ('no', 'false', 'n', '0')
-    return string.lower() in ('yes', 'true', 'y', '1')
+    try:
+        return strtobool(str(string).lower())
+    except ValueError:
+        return force_true
