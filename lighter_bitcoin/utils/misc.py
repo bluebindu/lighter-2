@@ -212,6 +212,7 @@ def _update_logger(config=None):
         dictConfig(sett.LOGGING)
     except (AttributeError, ImportError, TypeError, ValueError) as err:
         raise RuntimeError('Logging configuration error: ' + str(err))
+    getLogger('urllib3').propagate = False
 
 
 def _parse_args(help_msg, write_perms):
