@@ -68,12 +68,15 @@ PAYMENTS = [PAYMENT1, PAYMENT2, PAYMENT3]
 
 EXPIRY = 3600
 # paid invoice
-INVOICE0 = ln.Invoice(creation_date=NOW - 100000, expiry=EXPIRY, state=1)
+INVOICE_PAID = ln.Invoice(creation_date=NOW - 100000, expiry=EXPIRY, state=1)
 # pending invoice
-INVOICE1 = ln.Invoice(creation_date=NOW - 1, expiry=EXPIRY, state=0)
+INVOICE_PENDING = ln.Invoice(creation_date=NOW - 1, expiry=EXPIRY, state=0)
 # expired invoice
-INVOICE2 = ln.Invoice(creation_date=NOW - 100000, expiry=EXPIRY, state=0)
-INVOICES = [INVOICE0, INVOICE1, INVOICE2]
+INVOICE_EXPIRED = ln.Invoice(creation_date=NOW - 100000, expiry=EXPIRY, state=0)
+# unkown invoice
+INVOICE_UNKNOWN = ln.Invoice(state=7)
+
+INVOICES = [INVOICE_PAID, INVOICE_PENDING, INVOICE_EXPIRED, INVOICE_UNKNOWN]
 
 def get_listpayments_response():
     response = ln.ListPaymentsResponse()

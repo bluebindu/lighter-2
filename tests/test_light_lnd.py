@@ -394,7 +394,7 @@ class LightLndTests(TestCase):
         self.assertEqual(request.max_items, settings.MAX_INVOICES)
         req = ln.ListInvoiceRequest(
             num_max_invoices=settings.MAX_INVOICES * settings.INVOICES_TIMES,
-            index_offset=3)
+            index_offset=len(fix.INVOICES))
         stub.ListInvoices.assert_called_with(req, timeout=time)
         self.assertEqual(stub.ListInvoices.call_count, 2)
         assert not mocked_handle.called
@@ -1081,26 +1081,29 @@ class LightLndTests(TestCase):
     @patch(MOD.__name__ + '._check_timestamp', autospec=True)
     def test_parse_invoices(self, mocked_check, mocked_inv_st, mocked_add):
         # Correct case: every state is requested
-        mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED]
+        mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED, \
+            pb.UNKNOWN_INVOICE_STATE]
         response = pb.ListInvoicesResponse()
         invoices = fix.INVOICES
         mocked_check.side_effect = [False] * len(invoices)
         request = pb.ListInvoicesRequest(
-            paid=True, pending=True, expired=True, max_items=10)
+            paid=True, pending=True, expired=True, unknown=True, max_items=10)
         res = MOD._parse_invoices(CTX, response, invoices, request)
         self.assertEqual(res, False)
         self.assertEqual(mocked_add.call_count, len(invoices))
-        # Correct case: no state is requested, should return an empty response
+        # Correct case: no state is requested, should return all invoices
         reset_mocks(vars())
-        mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED]
+        mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED, \
+            pb.UNKNOWN_INVOICE_STATE]
         response = pb.ListInvoicesResponse()
-        request = pb.ListInvoicesRequest(paid=True, pending=True, expired=True)
+        request = pb.ListInvoicesRequest()
         mocked_check.side_effect = [False] * len(invoices)
         res = MOD._parse_invoices(CTX, response, invoices, request)
         self.assertEqual(res, True)
         # _check_timestamp true
         reset_mocks(vars())
-        mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED]
+        mocked_inv_st.side_effect = [pb.PAID, pb.PENDING, pb.EXPIRED, \
+            pb.UNKNOWN_INVOICE_STATE]
         mocked_check.side_effect = [True] * len(invoices)
         res = MOD._parse_invoices(CTX, response, invoices, request)
         self.assertEqual(mocked_check.call_count, len(invoices))
@@ -1201,9 +1204,9 @@ class LightLndTests(TestCase):
         self.assertEqual(res, pb.EXPIRED)
         # Invoice with no status case
         reset_mocks(vars())
-        lnd_invoice = ln.Invoice(state=7)
+        lnd_invoice = fix.INVOICE_UNKNOWN
         res = MOD._get_invoice_state(lnd_invoice)
-        self.assertEqual(res, pb.PENDING)
+        self.assertEqual(res, pb.UNKNOWN_INVOICE_STATE)
 
     @patch(MOD.__name__ + '.Err')
     def test_handle_error(self, mocked_err):

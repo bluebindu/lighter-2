@@ -409,11 +409,15 @@ def listchannels(active_only):
 @option('--paid', is_flag=True, help='Whether to include paid invoices')
 @option('--pending', is_flag=True, help='Whether to include pending invoices')
 @option('--expired', is_flag=True, help='Whether to include expired invoices')
+@option('--unknown', is_flag=True, help='Whether to include unknown state ' + \
+                                        'invoices')
 @handle_call
 def listinvoices(max_items, search_timestamp, search_order, list_order, paid,
-                 pending, expired):
+                 pending, expired, unknown):
     """
     ListInvoices returns a list of invoices created by the connected LN node.
+    If called without filtering parameters (paid, pending, expired, unknown)
+    it returns an unfiltered list.
     """
     req = pb.ListInvoicesRequest(
         max_items=max_items,
@@ -422,7 +426,8 @@ def listinvoices(max_items, search_timestamp, search_order, list_order, paid,
         list_order=list_order,
         paid=paid,
         pending=pending,
-        expired=expired)
+        expired=expired,
+        unknown=unknown)
     return 'ListInvoices', req
 
 

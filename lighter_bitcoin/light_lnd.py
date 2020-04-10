@@ -756,22 +756,26 @@ def _close_channel(lnd_req, close_timeout):
     return lnd_res
 
 
-def _parse_invoices(context, response, invoices, request):
+def _parse_invoices(context, response, invoices, req):
     """
     Decides, according to the request, if invoice has to be added and which
-    with state (paid, pending, expired)
+    with state (paid, pending, expired, unknown)
     """
+    if not any([req.paid, req.pending, req.expired, req.unknown]):
+        req.paid = req.pending = req.expired = req.unknown = True
     for lnd_invoice in invoices:
-        if _check_timestamp(request, lnd_invoice):
+        if _check_timestamp(req, lnd_invoice):
             continue
         invoice_state = _get_invoice_state(lnd_invoice)
-        if request.paid and invoice_state == pb.PAID:
+        if req.paid and invoice_state == pb.PAID:
             _add_invoice(context, response, lnd_invoice, invoice_state)
-        if request.pending and invoice_state == pb.PENDING:
+        if req.pending and invoice_state == pb.PENDING:
             _add_invoice(context, response, lnd_invoice, invoice_state)
-        if request.expired and invoice_state == pb.EXPIRED:
+        if req.expired and invoice_state == pb.EXPIRED:
             _add_invoice(context, response, lnd_invoice, invoice_state)
-        if len(response.invoices) == request.max_items:
+        if req.unknown and invoice_state == pb.UNKNOWN_INVOICE_STATE:
+            _add_invoice(context, response, lnd_invoice, invoice_state)
+        if len(response.invoices) == req.max_items:
             return True
     return False
 
@@ -849,7 +853,7 @@ def _get_invoice_state(lnd_invoice):
         return pb.PENDING
     if lnd_invoice.state == ln.Invoice.CANCELED:
         return pb.EXPIRED
-    return pb.PENDING
+    return pb.UNKNOWN_INVOICE_STATE
 
 
 def _handle_error(context, error):

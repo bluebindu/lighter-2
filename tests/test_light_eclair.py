@@ -691,7 +691,7 @@ class LightEclairTests(TestCase):
         reset_mocks(vars())
         invoice = fix.GETRECEIVEDINFO_UNKNOWN
         res = MOD._get_invoice_state(invoice)
-        self.assertEqual(res, pb.PENDING)
+        self.assertEqual(res, pb.UNKNOWN_INVOICE_STATE)
 
     @patch(MOD.__name__ + '.Err')
     def test_handle_error(self, mocked_err):

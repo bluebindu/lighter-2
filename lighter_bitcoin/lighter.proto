@@ -90,6 +90,8 @@ service Lightning {
 
     /**
     ListInvoices returns a list of invoices created by the connected LN node.
+    If called without filtering parameters (paid, pending, expired, unknown) it
+    returns an unfiltered list.
     */
     rpc ListInvoices (ListInvoicesRequest) returns (ListInvoicesResponse);
 
@@ -531,6 +533,10 @@ message ListInvoicesRequest {
     Whether to include expired invoices
     */
     bool expired = 7;
+    /**
+    Whether to include unknown state invoices
+    */
+    bool unknown = 8;
 }
 
 message ListInvoicesResponse {
@@ -617,6 +623,10 @@ enum InvoiceState {
     Invoice has expired and has not been paid
     */
     EXPIRED = 2;
+    /**
+    Invoice has unknown state
+    */
+    UNKNOWN_INVOICE_STATE = 3;
 }
 
 message ListPaymentsRequest {

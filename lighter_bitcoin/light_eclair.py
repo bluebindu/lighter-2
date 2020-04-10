@@ -528,7 +528,7 @@ def _get_invoice_state(ecl_invoice):
                 return pb.PENDING
             if ecl_status['type'] == 'expired':
                 return pb.EXPIRED
-    return pb.PENDING
+    return pb.UNKNOWN_INVOICE_STATE
 
 
 def _handle_error(context, ecl_res):

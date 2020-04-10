@@ -476,7 +476,7 @@ def CloseChannel(request, context):
             Err().report_error(context, str(cl_err))
     except TimeoutFutError:
         executor.shutdown(wait=False)
-    return pb.CloseChannelResponse()
+    return response
 
 
 # pylint: disable=too-many-arguments,too-many-branches
@@ -624,7 +624,7 @@ def _get_invoice_state(cl_invoice):
             return pb.PENDING
         if cl_invoice['status'] == 'expired':
             return pb.EXPIRED
-    return pb.PENDING
+    return pb.UNKNOWN_INVOICE_STATE
 
 
 def _handle_error(context, cl_res):
