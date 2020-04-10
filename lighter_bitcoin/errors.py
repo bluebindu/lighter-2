@@ -129,6 +129,11 @@ ERRORS = {
         'code': 'OUT_OF_RANGE',
         'msg': 'Value exceeds maximum treshold'
     },
+    'wrong_node_password': {
+        'code': 'INVALID_ARGUMENT',
+        'msg': ('Stored node password is incorrect, update it by running '
+                'lighter-secure')
+    },
     'wrong_password': {
         'code': 'INVALID_ARGUMENT',
         'msg': 'Wrong password'

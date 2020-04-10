@@ -103,6 +103,9 @@ ERRORS = {
     'invalid funding_satoshis': {
         'fun': 'openchannel_failed'
     },
+    'invalid passphrase for master public key': {
+        'fun': 'wrong_node_password'
+    },
     'invoice is already paid': {
         'fun': 'invalid',
         'params': 'payment_request'
@@ -254,13 +257,10 @@ def unlock_node(ctx, password, session=None):
                 lnd_res = stub.UnlockWallet(
                     lnd_req, timeout=get_node_timeout(ctx))
         except RpcError as err:
-            if 'invalid passphrase for master public key' in str(err):
-                Err().node_error(ctx, 'Stored node password is incorrect, '
-                                      'update it by running lighter-secure')
-            elif 'unknown service lnrpc.WalletUnlocker' in str(err):
+            if 'unknown service lnrpc.WalletUnlocker' in str(err):
                 LOGGER.info('Node is already unlocked')
             else:
-                _handle_error(ctx, err)
+                _handle_error(ctx, str(err))
 
 
 @_handle_rpc_errors

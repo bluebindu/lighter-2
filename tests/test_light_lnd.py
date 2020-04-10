@@ -173,11 +173,11 @@ class LightLndTests(TestCase):
             force_no_macaroon=True)
         # with no session, incorrect password
         reset_mocks(vars())
-        stub.UnlockWallet.side_effect = RpcError(
-            'invalid passphrase for master public key')
+        err = 'invalid passphrase for master public key'
+        stub.UnlockWallet.side_effect = RpcError(err)
         with self.assertRaises(Exception):
             MOD.unlock_node(CTX, pwd)
-        assert mocked_err().node_error.called
+        mocked_handle_err.assert_called_once_with(CTX, err)
         # with no session, already unlocked
         reset_mocks(vars())
         stub.UnlockWallet.side_effect = RpcError(
@@ -187,8 +187,8 @@ class LightLndTests(TestCase):
         assert mocked_log.info.called
         # with no session, other errors
         reset_mocks(vars())
-        err = RpcError('error')
-        stub.UnlockWallet.side_effect = err
+        err = 'error'
+        stub.UnlockWallet.side_effect = RpcError(err)
         with self.assertRaises(Exception):
             MOD.unlock_node(CTX, pwd)
         assert not mocked_err().node_error.called
