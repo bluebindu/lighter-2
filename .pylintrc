@@ -145,6 +145,12 @@ ignore-mixin-members=yes
 # (useful for classes with attributes dynamically set).
 ignored-classes=OneToOneField,ManyToManyField,ForeignKey,GenericRelation,WSGIRequest
 
+# List of module names for which member attributes should not be checked
+# (useful for modules/projects where namespaces are manipulated during runtime
+# and thus existing member attributes cannot be deduced by static analysis. It
+# supports qualified module names, as well as Unix pattern matching.
+ignored-modules=sqlalchemy
+
 # List of members which are set dynamically and missed by pylint inference
 # system, and so shouldn't trigger E0201 when accessed.
 generated-members=objects,DoesNotExist,delay,filter,pk,fields

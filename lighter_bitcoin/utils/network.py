@@ -149,6 +149,7 @@ class RPCSession():  # pylint: disable=too-few-public-methods
                 response = self._session.post(
                     url, data=data, auth=self._auth, headers=self._headers,
                     timeout=(sett.RPC_CONN_TIMEOUT, timeout))
+                break
             except ReqConnectionErr:
                 tries -= 1
                 if tries == 0:
@@ -160,8 +161,6 @@ class RPCSession():  # pylint: disable=too-few-public-methods
                 sleep(sett.RPC_SLEEP)
             except Timeout:
                 Err().node_error(context, 'RPC call timed out')
-            else:
-                break
         if response.status_code not in (200, 500):
             err_msg = 'RPC call failed: {} {}'.format(
                 response.status_code, response.reason)

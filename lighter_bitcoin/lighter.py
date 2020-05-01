@@ -232,7 +232,7 @@ class RuntimeInterceptor(ServerInterceptor):
 
     # pylint: disable=too-few-public-methods
 
-    def __init__(self):
+    def __init__(self):  # pylint: disable=super-init-not-called
         self._terminator = _access_denied_terminator()
 
     def intercept_service(self, continuation, handler_call_details):
@@ -249,7 +249,7 @@ class UnlockerInterceptor(ServerInterceptor):
 
     # pylint: disable=too-few-public-methods
 
-    def __init__(self):
+    def __init__(self):  # pylint: disable=super-init-not-called
         self._terminator = _service_locked_terminator()
 
     def intercept_service(self, continuation, handler_call_details):
