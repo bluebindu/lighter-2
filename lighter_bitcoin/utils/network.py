@@ -161,6 +161,9 @@ class RPCSession():  # pylint: disable=too-few-public-methods
                 sleep(sett.RPC_SLEEP)
             except Timeout:
                 Err().node_error(context, 'RPC call timed out')
+        if response.status_code == 403:
+            # return Forbidden when password is wrong
+            return response.reason, True
         if response.status_code not in (200, 500):
             err_msg = 'RPC call failed: {} {}'.format(
                 response.status_code, response.reason)

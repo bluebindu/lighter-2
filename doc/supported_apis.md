@@ -5,21 +5,21 @@ Here's a table of Lighter APIs availability for each implementation:
 | API              | c-lightning | eclair | electrum | lnd |
 | ---------------- | :---------: | :----: | :------: | :-: |
 | ChannelBalance   |      ☇      |    ☇   |     ☇    |  ☇  |
-| CheckInvoice     |      ☇      |    ☇   |          |  ☇  |
-| CloseChannel     |      ☇      |    ☇   |          |  ☇  |
+| CheckInvoice     |      ☇      |    ☇   |     ☇    |  ☇  |
+| CloseChannel     |      ☇      |    ☇   |     ☇    |  ☇  |
 | CreateInvoice    |      ☇      |    ☇   |     ☇    |  ☇  |
-| DecodeInvoice    |      ☇      |    ☇   |          |  ☇  |
+| DecodeInvoice    |      ☇      |    ☇   |     ☇    |  ☇  |
 | GetInfo          |      ☇      |    ☇   |     ☇    |  ☇  |
 | ListChannels     |      ☇      |    ☇   |     ☇    |  ☇  |
-| ListInvoices     |             |        |          |  ☇  |
-| ListPayments     |      ☇      |        |          |  ☇  |
-| ListPeers        |      ☇      |    ☇   |          |  ☇  |
-| ListTransactions |             |        |          |  ☇  |
+| ListInvoices     |             |        |     ☇    |  ☇  |
+| ListPayments     |      ☇      |        |     ☇    |  ☇  |
+| ListPeers        |      ☇      |    ☇   |     ☇    |  ☇  |
+| ListTransactions |             |        |     ☇    |  ☇  |
 | NewAddress       |      ☇      |        |     ☇    |  ☇  |
 | OpenChannel      |      ☇      |    ☇   |     ☇    |  ☇  |
 | PayInvoice       |      ☇      |    ☇   |     ☇    |  ☇  |
 | PayOnChain       |      ☇      |        |     ☇    |  ☇  |
-| UnlockNode       |             |        |          |  ☇  |
+| UnlockNode       |             |        |     ☇    |  ☇  |
 | WalletBalance    |      ☇      |        |     ☇    |  ☇  |
 
 

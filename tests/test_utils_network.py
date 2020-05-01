@@ -198,6 +198,12 @@ class UtilsNetworkTests(TestCase):
         res, is_err = rpc_ses.call(ctx)
         self.assertEqual(res, 'invalid')
         self.assertEqual(is_err, False)
+        # Status code 403 (Forbidden)
+        reset_mocks(vars())
+        mocked_post.return_value.status_code = 403
+        res, is_err = rpc_ses.call(ctx)
+        self.assertEqual(res, mocked_post.return_value.reason)
+        self.assertEqual(is_err, True)
         # Status code not 200 nor 500 error case
         reset_mocks(vars())
         mocked_post.return_value.status_code = 666
