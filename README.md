@@ -58,8 +58,8 @@ secured.
 #### Notes
 1. _at the moment Lighter supports only the specified versions of the LN nodes
   (not provided within this software)_
-2. _`fundchannel` and `pay` plugins are required_
-3. _Might be unstable, you should not use it on mainnet_
+2. _`c-lightning`'s `fundchannel` and `pay` plugins are required_
+3. _`electrum` might be unstable, you should not use it on mainnet_
 
 
 ## Requirements
