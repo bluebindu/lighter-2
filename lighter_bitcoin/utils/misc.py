@@ -177,7 +177,7 @@ def handle_sigterm(_signo, _stack_frame):
     raise InterruptException
 
 
-def init_common(help_msg, core=True, write_perms=False):
+def init_common(help_msg, core=True, write_perms=False, runtime=False):
     """ Initializes common entrypoints calls """
     _update_logger()
     _parse_args(help_msg, write_perms)
@@ -187,7 +187,7 @@ def init_common(help_msg, core=True, write_perms=False):
     _init_tree()
     config = get_config_parser()
     _update_logger(config)
-    _get_start_options(config)
+    _get_start_options(config, runtime)
     if core:
         migrate()
         # reupdating logger as migrate overrides configuration
@@ -253,7 +253,7 @@ def _try_mkdir(dir_path):
         mkdir(dir_path)
 
 
-def _get_start_options(config):
+def _get_start_options(config, runtime):
     """ Sets Lighter and implementation start options """
     sec = 'lighter'
     sett.IMPLEMENTATION = config.get(sec, 'IMPLEMENTATION').lower()
@@ -273,7 +273,8 @@ def _get_start_options(config):
     sett.DB_PATH = path.join(sett.DB_DIR, sett.DB_NAME)
     # Checks if implementation is supported, could throw an ImportError
     module = import_module('...light_{}'.format(sett.IMPLEMENTATION), __name__)
-    getattr(module, 'get_settings')(config, sett.IMPLEMENTATION)
+    if runtime:
+        getattr(module, 'get_settings')(config, sett.IMPLEMENTATION)
 
 
 def set_defaults(config, values):

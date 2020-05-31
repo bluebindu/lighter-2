@@ -414,7 +414,7 @@ class LighterTests(TestCase):
         with self.assertRaises(Exception):
             MOD._start_lighter()
         msg = "Start Lighter's gRPC server"
-        mocked_init_common.assert_called_once_with(msg)
+        mocked_init_common.assert_called_once_with(msg, runtime=True)
         mocked_logintro.assert_called_once_with()
         mocked_init_db.assert_called_once_with()
         mocked_fake_ctx.assert_called_once_with()

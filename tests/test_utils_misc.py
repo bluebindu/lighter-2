@@ -237,14 +237,16 @@ class UtilsMiscTests(TestCase):
         self.assertEqual(mocked_update_log.call_count, 3)
         mocked_init_tree.assert_called_once_with()
         mocked_get_start_opt.assert_called_once_with(
-            mocked_get_config.return_value)
-        # core=False, write_perms=True, with access
+            mocked_get_config.return_value, False)
+        # core=False, write_perms=True, runtime=True with access
         reset_mocks(vars())
         mocked_acc.return_value = True
-        MOD.init_common(msg, core=False, write_perms=True)
+        MOD.init_common(msg, core=False, write_perms=True, runtime=True)
         mocked_parse_args.assert_called_once_with(msg, True)
         self.assertEqual(mocked_update_log.call_count, 2)
         mocked_init_tree.assert_called_once_with()
+        mocked_get_start_opt.assert_called_once_with(
+            mocked_get_config.return_value, True)
         assert not mocked_migrate.called
         # core=False, write_perms=True, without access
         reset_mocks(vars())
@@ -379,7 +381,7 @@ class UtilsMiscTests(TestCase):
         config.get.side_effect = [impl, ins_conn, dis_mac, port, server_key,
                                   server_crt, mac_dir, db_dir]
         mocked_get_path.side_effect = [server_key, server_crt, mac_dir, db_dir]
-        MOD._get_start_options(config)
+        MOD._get_start_options(config, True)
         self.assertEqual(settings.INSECURE_CONNECTION, False)
         mocked_import.assert_called_once_with('...light_' + impl, MOD.__name__)
         mocked_getattr.assert_called_with(
@@ -393,7 +395,8 @@ class UtilsMiscTests(TestCase):
                                   server_crt, mac_dir, db_dir]
         mocked_get_path.side_effect = [server_key, server_crt, mac_dir, db_dir]
         mocked_str2bool.return_value = True
-        MOD._get_start_options(config)
+        MOD._get_start_options(config, False)
+        assert not mocked_getattr.called
         self.assertEqual(settings.INSECURE_CONNECTION, True)
         self.assertEqual(settings.DISABLE_MACAROONS, True)
         # No secrets case (with warning)
@@ -402,7 +405,7 @@ class UtilsMiscTests(TestCase):
         config.get.side_effect = [impl, ins_conn, dis_mac, port, server_key,
                                   server_crt, mac_dir, db_dir]
         mocked_get_path.side_effect = [server_key, server_crt, mac_dir, db_dir]
-        MOD._get_start_options(config)
+        MOD._get_start_options(config, True)
 
     def test_set_defaults(self):
         config = Mock()

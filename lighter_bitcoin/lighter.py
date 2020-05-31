@@ -390,7 +390,7 @@ def _start_lighter():
     Checks if a module for the requested implementation exists and imports it.
     Initializes Lighter and starts the Unlocker gRPC service.
     """
-    init_common("Start Lighter's gRPC server")
+    init_common("Start Lighter's gRPC server", runtime=True)
     _log_intro()
     init_db()
     with session_scope(FakeContext()) as session:
