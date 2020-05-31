@@ -379,19 +379,24 @@ def _get_req_salt_len(new, interactive=True):
     return sett.SALT_LEN * secrets + for_password
 
 
-def _rm_db():
+def _db_exists():
+    """ Checks if DB exists. """
+    return path.exists(sett.DB_PATH)
+
+
+def _keep_db(interactive):
     """
-    Checks if DB exists and eventually deletes it. Returns False if DB
-    was missing or has been requested deletion.
+    In interactive mode, it asks the user if he wants to delete the DB.
+    Returns True if DB has been kept.
     """
-    if path.exists(sett.DB_PATH):
-        delete = input('Db already exists, do you want to override it? (note '
-                       'this will also delete\nmacaroon files) [y/N] ')
-        if str2bool(delete):
-            _remove_files()
-            return False
+    if not interactive:
         return True
-    return False
+    delete = input('Db already exists, do you want to override it? (note '
+                   'this will also delete\nmacaroon files) [y/N] ')
+    if str2bool(delete):
+        _remove_files()
+        return False
+    return True
 
 
 def db_config_interactive(session, new):  # pylint: disable=too-many-branches
@@ -530,7 +535,9 @@ def _secure():
         if lighter_password:
             sys.stdout = open(devnull, 'w')
         init_common("Start Lighter's secure procedure", write_perms=True)
-        if not lighter_password and not _rm_db():
+        if not _db_exists():
+            sett.NEW_DB = True
+        elif not _keep_db(not lighter_password):
             sett.NEW_DB = True
         init_db(new_db=sett.NEW_DB)
         with session_scope(FakeContext()) as session:
