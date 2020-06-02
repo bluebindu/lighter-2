@@ -131,7 +131,7 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
     response = pb.GetInfoResponse()
     if 'id' in cl_res:
         response.identity_pubkey = cl_res['id']
-        if 'address' in cl_res:
+        if 'address' in cl_res and cl_res['address']:
             address = cl_res['address'][0]
             if 'address' in address and 'port' in address:
                 response.node_uri = '{}@{}:{}'.format(

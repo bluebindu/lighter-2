@@ -66,12 +66,21 @@ class LightClightningTests(TestCase):
         ses.getinfo.return_value = (fix.GETINFO, False)
         res = MOD.GetInfo('request', CTX)
         ses.getinfo.assert_called_once_with(CTX)
-        self.assertEqual(res.identity_pubkey, '022d558f74f2ab2a78d29ebf')
+        self.assertEqual(res.identity_pubkey, fix.GETINFO['id'])
+        self.assertEqual(res.node_uri, '{}@{}:{}'.format(
+            fix.GETINFO['id'], fix.GETINFO['address'][0]['address'],
+            fix.GETINFO['address'][0]['port']))
         self.assertEqual(res.alias, fix.GETINFO['alias'])
         self.assertEqual(res.color, '#{}'.format(fix.GETINFO['color']))
         self.assertEqual(res.version, fix.GETINFO['version'])
         self.assertEqual(res.blockheight, fix.GETINFO['blockheight'])
         self.assertEqual(res.network, 'mainnet')
+        # Correct case: with empty address list
+        reset_mocks(vars())
+        ses.getinfo.return_value = (fix.GETINFO_EMPTY, False)
+        res = MOD.GetInfo('request', CTX)
+        ses.getinfo.assert_called_once_with(CTX)
+        self.assertEqual(res.node_uri, '')
         # Error case
         reset_mocks(vars())
         ses.getinfo.return_value = (fix.BADRESPONSE, True)

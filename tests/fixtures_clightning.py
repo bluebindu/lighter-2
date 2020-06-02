@@ -254,6 +254,7 @@ DECODEPAY_HASH = {
     "signature": "3045022100b6c42b8a61e0dc5823ea63e76ff148ab5f6c86f45f9722af0069c7934daff70d02205e315893300774c897995e3a7476c8193693d144a36e2645a0851e6ebafc9d0a"
 }
 
+
 FUNDCHANNEL = {
     "tx": "02000000010101fe262d44dd800ac48ae705cfb9bd1fe530b65a943cmc3a485b45n45d9c78897a0100000000ffffffff028813000000000000220020a7e840446feec8abbd6fd46ab00f6bb9e4d31e3ef9a4a838baa49f2dc285be32455f1b0000000000160014d94011695c18dc960f623e1a3d4d5d9addee736a02473044022036dcbac2e037d008b43817a4c0042483d9b5d8c0b69f5994b5ab7aa4a227684702201c315db296ae3477f5e0d0a55b06fc003bd9ffbb1cadc0ab00a9d9e70125a26e0121038f216727e40648c1b1fcc740d8b98883ae120d66ea607abdd75f9f05d5058cb000000000",
     "txid": "87b91526fea6ca52fe3cb8b569d4406a2d62alyd5cb9ceb63d2a96p11573040f",
@@ -288,6 +289,24 @@ GETINFO = {
    "network" : "bitcoin",
    "msatoshi_fees_collected" : 4,
    "fees_collected_msat" : "4msat"
+}
+
+
+GETINFO_EMPTY = {
+   "id" : "022d558f74f2ab2a78d29ebf",
+   "alias" : "pie",
+   "color" : "dcdcdc",
+   "num_peers" : 0,
+   "num_pending_channels" : 0,
+   "num_active_channels" : 0,
+   "num_inactive_channels" : 0,
+   "address" : [],
+   "binding" : [],
+   "version" : "v0.8.2",
+   "blockheight" : 1519674,
+   "network" : "bitcoin",
+   "msatoshi_fees_collected" : 0,
+   "fees_collected_msat" : "0msat"
 }
 
 
