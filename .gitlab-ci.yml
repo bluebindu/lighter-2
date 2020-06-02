@@ -23,7 +23,8 @@ source_dist:
   only:
     - master
     - develop
-    - /^merge\/.*$/
+    - staging
+    - merge_requests
   artifacts:
     paths:
       - dist/
@@ -37,7 +38,8 @@ test:
   only:
     - master
     - develop
-    - /^merge\/.*$/
+    - staging
+    - merge_requests
   before_script: []
   script:
     - docker build -f docker/Dockerfile -t $DOCK_NS/$NAME:$VERSION .
