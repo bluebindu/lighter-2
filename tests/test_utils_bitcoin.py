@@ -33,53 +33,59 @@ MOD = import_module(proj_root + '.utils.bitcoin')
 class UtilsBitcoinTests(TestCase):
     """ Tests for utils.bitcoin module """
 
-    @patch(MOD.__name__ + '.Enforcer.check_value')
     @patch(MOD.__name__ + '._convert_value', autospec=True)
-    def test_convert(self, mocked_conv_val, mocked_check_val):
+    def test_convert(self, mocked_conv_val):
         # Correct case: bits to msats
         mocked_conv_val.return_value = 77700000
         res = MOD.convert(CTX, Enf.MSATS, 777, enforce=Enf.LN_TX)
-        calls = [
-            call(CTX, Enf.BITS, Enf.MSATS, 777, Enf.MSATS),
-            call(CTX, Enf.BITS, Enf.MSATS, 777, Enf.MSATS)]
-        mocked_conv_val.assert_has_calls(calls)
+        mocked_conv_val.assert_called_once_with(CTX, Enf.BITS, Enf.MSATS,
+                                                777, Enf.MSATS, Enf.LN_TX)
         self.assertEqual(res, 77700000)
         # Correct case: msats to bits
         reset_mocks(vars())
         mocked_conv_val.return_value = 777
         res = MOD.convert(CTX, Enf.MSATS, 777000000)
         mocked_conv_val.assert_called_once_with(CTX, Enf.MSATS, Enf.BITS,
-                                                777000000, Enf.MSATS)
-        assert not mocked_check_val.called
+                                                777000000, Enf.MSATS, None)
         self.assertEqual(res, 777)
         # Correct case: bits to btc
         reset_mocks(vars())
-        mocked_conv_val.side_effect = [77700000, 0.777]
+        mocked_conv_val.return_value = 0.777
         res = MOD.convert(CTX, Enf.BTC, 777000, enforce=Enf.OC_TX)
-        calls = [
-            call(CTX, Enf.BITS, Enf.OC_TX['unit'], 777000, Enf.SATS),
-            call(CTX, Enf.BITS, Enf.BTC, 777000, Enf.SATS)]
-        mocked_conv_val.assert_has_calls(calls)
-        self.assertEqual(res, 0.777000)
+        mocked_conv_val.assert_called_once_with(CTX, Enf.BITS, Enf.BTC,
+                                                777000, Enf.SATS, Enf.OC_TX)
+        self.assertEqual(res, 0.777)
 
+    @patch(MOD.__name__ + '.Enforcer.check_value')
     @patch(MOD.__name__ + '.Err')
-    def test_convert_value(self, mocked_err):
+    def test_convert_value(self, mocked_err, mocked_check_val):
         mocked_err().value_error.side_effect = Exception()
-        # Correct case: Decimal output
-        res = MOD._convert_value(CTX, Enf.BITS, Enf.SATS, 777, Enf.MSATS)
-        self.assertEqual(res, 77700)
+        # Correct case: float output
+        res = MOD._convert_value(CTX, Enf.SATS, Enf.BITS, 777, Enf.MSATS)
+        self.assertEqual(res, 7.77)
+        self.assertEqual(type(res), float)
+        assert not mocked_check_val.called
         assert not mocked_err().value_error.called
-        # Correct case: int output
+        # Correct case: int output with enforce
         reset_mocks(vars())
         res = MOD._convert_value(
-            CTX, Enf.BITS, Enf.SATS, 777, max_precision=Enf.SATS)
+            CTX, Enf.BITS, Enf.SATS, 777, Enf.SATS, Enf.OC_TX)
+        mocked_check_val.asset_called_once()
+        self.assertEqual(res, 77700)
         self.assertEqual(type(res), int)
+        # Correct case: float output with enforce
+        reset_mocks(vars())
+        res = MOD._convert_value(
+            CTX, Enf.BITS, Enf.BTC, 777, Enf.SATS, Enf.OC_TX)
+        mocked_check_val.asset_called_once()
+        self.assertEqual(res, 0.000777)
+        self.assertEqual(type(res), float)
         # Error case: string input
         reset_mocks(vars())
         with self.assertRaises(Exception):
             res = MOD._convert_value(CTX, Enf.BITS, Enf.SATS, 'err',
                                      Enf.MSATS)
-        mocked_err().value_error.assert_called_once_with(CTX)
+        mocked_err().internal_value_error.assert_called_once_with(CTX)
         # Error case: too big number input
         reset_mocks(vars())
         with self.assertRaises(Exception):
@@ -96,23 +102,32 @@ class UtilsBitcoinTests(TestCase):
     def test_conversion(self, mocked_err):
         mocked_err().value_error.side_effect = Exception()
         # Correct case: bits to msats
+        res = MOD.convert(CTX, Enf.MSATS, 7.00777, enforce=Enf.LN_PAYREQ)
+        self.assertEqual(res, 700777)
+        # Correct case: bits to msats
         res = MOD.convert(CTX, Enf.MSATS, 777, enforce=Enf.LN_TX)
         self.assertEqual(res, 77700000)
         # Correct case: msats to bits
         res = MOD.convert(CTX, Enf.MSATS, 77700000)
         self.assertEqual(res, 777)
-        # Correct case: bits to btc
+        # Correct case: bits to btc (with max_precision)
         res = MOD.convert(
             CTX, Enf.BTC, 777000, enforce=Enf.OC_TX,
             max_precision=Enf.SATS)
         self.assertEqual(res, 0.777000)
-        # Correct case: btc to bits
+        # Correct case: btc to bits (with max_precision)
         res = MOD.convert(CTX, Enf.BTC, 0.777, max_precision=Enf.BITS)
         self.assertEqual(res, 777000)
-        # Error case: bits to sats, losing precision
+        # Error case: bits to sats (with max_precision), losing precision
         with self.assertRaises(Exception):
             res = MOD.convert(CTX, Enf.SATS, 0.009, enforce=LND_PAYREQ,
                               max_precision=Enf.SATS)
+        # Error case: value is not a number
+        with self.assertRaises(Exception):
+            res = MOD.convert(CTX, Enf.SATS, 'notanumber')
+        # Error case: value exceeds maximum precision
+        with self.assertRaises(Exception):
+            res = MOD.convert(CTX, Enf.MSATS, 7.007771, enforce=Enf.LN_PAYREQ)
 
     def test_get_address_type(self):
         # Bech32 address case

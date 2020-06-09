@@ -15,52 +15,73 @@
 
 """ Bitcoin and Lightning Network utils module """
 
-from decimal import Decimal, InvalidOperation
+from decimal import Context, Decimal, Inexact, InvalidOperation
+from logging import getLogger
 
 from .. import lighter_pb2 as pb, settings as sett
 from ..errors import Err
 
+LOGGER = getLogger(__name__)
+
 
 def convert(context, unit, amount, enforce=None, max_precision=None):
     """
-    Converts amount from or to unit, according to enforce presence
+    Handles the conversion of btc measure units to and from bits.
+
+    If enforce is set, check the value in bits against the given boundaries
+    and then convert it to the unit required by the node.
+    If enforce is not set, output the value in bits (assuming correctness
+    of the value coming from the node).
+
+    If the output unit matches the max precision, the value is returned as
+    an integer to comply with node requirements.
     """
     if enforce:
         # input: converting from lighter to ln node (converts and enforces)
         if not max_precision:
             max_precision = enforce['unit']
         source = Enforcer.BITS
-        target = enforce['unit']
+        target = unit
     else:
         # output: converting from ln node to lighter (converts only)
         if not max_precision:
             max_precision = Enforcer.MSATS
         source = unit
         target = Enforcer.BITS
-    result = _convert_value(context, source, target, amount, max_precision)
-    if enforce:
-        Enforcer.check_value(context, result, enforce)
-        result = _convert_value(context, source, unit, amount, max_precision)
-    return result
+    return _convert_value(context, source, target, amount, max_precision,
+                          enforce)
 
 
-def _convert_value(context, source, target, amount, max_precision):
+# pylint: disable=too-many-arguments
+def _convert_value(context, source, target, amount, max_precision,
+                   enforce=None):
     """
     Converts amount from source to target unit, rounding the result to the
     specified maximum precision
     """
     try:
-        ratio = 1 / 10 ** (source['decimal'] - target['decimal'])
-        decimals = 1 / 10 ** (max_precision['decimal'] - target['decimal'])
-        converted = Decimal(amount) * Decimal(ratio)
-        result = converted.quantize(Decimal(str(decimals)))
-        if max_precision['decimal'] - target['decimal'] == 0:
+        amount = Decimal(str(amount))
+    except InvalidOperation:
+        # An invalid number would be blocked by the interface,
+        # so this case has to come from the node
+        Err().internal_value_error(context)
+    if enforce:
+        ratio = enforce['unit']['decimal'] - source['decimal']
+        Enforcer.check_value(context, amount.scaleb(ratio), enforce)
+    ratio = target['decimal'] - source['decimal']
+    decimals = target['decimal'] - max_precision['decimal']
+    try:
+        converted = amount.scaleb(ratio)
+        # cuts the amount to the required precision,
+        # raising exceptions in case of inexact conversion
+        result = converted.quantize(Decimal(1).scaleb(decimals),
+                                    context=Context(traps=[Inexact,
+                                                           InvalidOperation]))
+        if max_precision['decimal'] == target['decimal']:
             int_result = int(result)
-            if int_result != result:
-                raise InvalidOperation
             return int_result
         return float(result)
-    except InvalidOperation:
+    except (Inexact, InvalidOperation):
         Err().value_error(context)
 
 

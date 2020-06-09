@@ -119,7 +119,7 @@ ERRORS = {
     },
     'value_error': {
         'code': 'INVALID_ARGUMENT',
-        'msg': 'Value is not a number or exceeds maximum precision'
+        'msg': 'Value exceeds maximum precision'
     },
     'value_too_low': {
         'code': 'OUT_OF_RANGE',
@@ -137,6 +137,10 @@ ERRORS = {
     'wrong_password': {
         'code': 'INVALID_ARGUMENT',
         'msg': 'Wrong password'
+    },
+    'internal_value_error': {
+        'code': 'INTERNAL',
+        'msg': 'Value received from node is not a number'
     },
     # Fallback
     'unexpected_error': {
