@@ -78,6 +78,58 @@ INVOICE_UNKNOWN = ln.Invoice(state=7)
 
 INVOICES = [INVOICE_PAID, INVOICE_PENDING, INVOICE_EXPIRED, INVOICE_UNKNOWN]
 
+CHAN_ID = 881808325541888
+REMOTE_NODE_PUB = '0392708c1e6fc4a98c9184c6bcb7cb5ffe4d88c756e36f47a97520a6d0df9fefcf'
+CHAN_POINT = '063758d210cf244cf71ced5864a0a9a13f58c6e71735945fa6521e686cbbc5e6:0'
+LOC_TXID = '1128dcde5432bec2a705929dd05a3470fa82026aa8ed1da6004fb3f57f3377ff'
+REM_TXID = '19acd65ae4e3bdb598eea8989efdae276858815558147747aea258b95cf5db0a'
+CAPACITY_BITS = 77854.54
+LOC_BAL_BITS = 66666.66
+REM_BAL_BITS = 11111.11
+COMMIT_FEE_BITS = 76.77
+CAPACITY_SAT = int(CAPACITY_BITS * 100)
+LOC_BAL_SAT = int(LOC_BAL_BITS * 100)
+REM_BAL_SAT = int(REM_BAL_BITS * 100)
+COMMIT_FEE_SAT = int(COMMIT_FEE_BITS * 100)
+CHAN_RESERVE = 1000
+
+COMMITMENTS = ln.PendingChannelsResponse.Commitments(
+    local_txid=LOC_TXID, remote_txid=REM_TXID,
+    local_commit_fee_sat=COMMIT_FEE_SAT, remote_commit_fee_sat=COMMIT_FEE_SAT)
+
+OPEN_CHAN = ln.Channel(
+    chan_id=CHAN_ID, capacity=CAPACITY_SAT, local_balance=LOC_BAL_SAT,
+    remote_balance=REM_BAL_SAT, commit_fee=COMMIT_FEE_SAT, initiator=False)
+
+OPEN_CHAN_INACTIVE = ln.Channel(
+    chan_id=CHAN_ID, capacity=CAPACITY_SAT, local_balance=LOC_BAL_SAT,
+    remote_balance=REM_BAL_SAT, active=False)
+
+OPEN_CHAN_INITIATOR = lnd_chan = ln.Channel(
+    chan_id=CHAN_ID, capacity=CAPACITY_SAT, local_balance=LOC_BAL_SAT,
+    remote_balance=REM_BAL_SAT, commit_fee=COMMIT_FEE_SAT, initiator=True)
+
+PENDING_CHAN = ln.PendingChannelsResponse.PendingChannel(
+    remote_node_pub=REMOTE_NODE_PUB, capacity=CAPACITY_SAT,
+    local_balance=LOC_BAL_SAT, remote_balance=REM_BAL_SAT,
+    channel_point=CHAN_POINT, local_chan_reserve_sat=CHAN_RESERVE,
+    remote_chan_reserve_sat=CHAN_RESERVE, initiator=ln.INITIATOR_REMOTE,
+    commitment_type=ln.STATIC_REMOTE_KEY)
+
+PENDING_CHAN_INITIATOR = ln.PendingChannelsResponse.PendingChannel(
+    remote_node_pub=REMOTE_NODE_PUB, capacity=CAPACITY_SAT,
+    local_balance=LOC_BAL_SAT, remote_balance=REM_BAL_SAT,
+    channel_point=CHAN_POINT, local_chan_reserve_sat=CHAN_RESERVE,
+    remote_chan_reserve_sat=CHAN_RESERVE, initiator=ln.INITIATOR_LOCAL,
+    commitment_type=ln.STATIC_REMOTE_KEY)
+
+PENDING_OPEN_CHAN = ln.PendingChannelsResponse.PendingOpenChannel(
+    channel=PENDING_CHAN_INITIATOR, commit_fee=COMMIT_FEE_SAT,
+    commit_weight=552, fee_per_kw=253)
+
+WAITING_CLOSE_CHAN = ln.PendingChannelsResponse.WaitingCloseChannel(
+    channel=PENDING_CHAN, limbo_balance=1000, commitments=COMMITMENTS)
+
 def get_listpayments_response():
     response = ln.ListPaymentsResponse()
     # for payment in payments_list:
