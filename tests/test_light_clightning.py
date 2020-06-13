@@ -234,7 +234,7 @@ class LightClightningTests(TestCase):
         res = MOD.ListPeers('request', CTX)
         ses.listpeers.assert_called_once_with(CTX)
         peer_id = fix.LISTPEERS['peers'][1]['id']
-        ses.listnodes.assert_called_once_with(CTX, {'id': peer_id})
+        ses.listnodes.assert_called_once_with(CTX, {'node_id': peer_id})
         self.assertEqual(res.peers[0].pubkey, peer_id)
         self.assertEqual(res.peers[0].alias, 'lighter')
         self.assertEqual(res.peers[0].address, '54.236.55.50:9735')

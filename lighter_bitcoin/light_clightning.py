@@ -248,7 +248,7 @@ def ListPeers(request, context):  # pylint: disable=unused-argument
             grpc_peer = response.peers.add()  # pylint: disable=no-member
             if 'id' in peer:
                 grpc_peer.pubkey = peer['id']
-                cl_req = {'id': peer['id']}
+                cl_req = {'node_id': peer['id']}
                 cl_res, is_err = rpc_cl.listnodes(context, cl_req)
                 if 'nodes' in cl_res and cl_res['nodes']:
                     node = cl_res['nodes'][0]
