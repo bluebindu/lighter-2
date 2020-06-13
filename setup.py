@@ -64,7 +64,7 @@ for SHELL in SHELLS:
 CL_VER = '0.8.1'
 
 # lnd
-LND_REF = 'v0.10.0-beta'
+LND_REF = 'v0.10.1-beta'
 LND_PROTO = 'rpc.proto'
 GOOGLE = 'google'
 GAPIS = 'googleapis'
