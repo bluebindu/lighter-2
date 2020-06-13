@@ -31,7 +31,7 @@ This is an open project under the GNU AGPLv3 license.
 Currently, it supports the main LN implementations <sup>1</sup>:
 
 - [c-lightning](https://github.com/ElementsProject/lightning)
-  (v0.8.1 <sup>2</sup>) by Blockstream
+  (v0.8.2 <sup>2</sup>) by Blockstream
 - [eclair](https://github.com/ACINQ/eclair) (v0.3.3) by Acinq
 - [electrum](https://github.com/spesmilo/electrum) (unreleased <sup>3</sup>)
   by Thomas Voegtlin
