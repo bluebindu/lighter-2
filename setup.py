@@ -61,7 +61,7 @@ for SHELL in SHELLS:
     COMPLETION_SCRIPTS[SHELL] = 'complete-{}-{}.sh'.format(CLI_NAME, SHELL)
 
 # c-lightning
-CL_VER = '0.8.2'
+CL_VER = '0.8.2.1'
 
 # lnd
 LND_REF = 'v0.10.1-beta'
