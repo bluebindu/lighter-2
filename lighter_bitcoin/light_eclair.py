@@ -115,6 +115,8 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
                 ecl_res['nodeId'], ecl_res['publicAddresses'][0])
     if _def(ecl_res, 'alias'):
         response.alias = ecl_res['alias']
+    if _def(ecl_res, 'color'):
+        response.color = ecl_res['color']
     if _def(ecl_res, 'blockHeight'):
         response.blockheight = ecl_res['blockHeight']
     if _def(ecl_res, 'chainHash'):
@@ -125,6 +127,8 @@ def GetInfo(request, context):  # pylint: disable=unused-argument
         else:
             network = 'regtest'
         response.network = network
+    if _def(ecl_res, 'version'):
+        response.version = ecl_res['version']
     return response
 
 

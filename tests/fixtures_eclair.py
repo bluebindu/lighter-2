@@ -480,8 +480,11 @@ FORCECLOSE = 'ok'
 
 
 GETINFO_TESTNET = {
+  "version": "0.3.4-24aa710",
   "nodeId": "0399454946097e6d6a8bfb9f4483ed752a8dcfac71925b91b7120126b898efc502",
   "alias": "pie",
+  "color": "#0066ff",
+  "features": "0a8a",
   "chainHash": "43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000",
   "blockHeight": 1515554,
   "publicAddresses": [
@@ -492,8 +495,11 @@ GETINFO_TESTNET = {
 
 
 GETINFO_MAINNET = {
+  "version": "0.3.4-24aa710",
   "nodeId": "0399454946097e6d6a8bfb9f4483ed752a8dcfac71925b91b7120126b898efc502",
   "alias": "pie",
+  "color": "#0066ff",
+  "features": "0a8a",
   "chainHash": "6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000",
   "blockHeight": 1515554,
   "publicAddresses": [
@@ -503,8 +509,11 @@ GETINFO_MAINNET = {
 
 
 GETINFO_UNKNOWN = {
+  "version": "0.3.4-24aa710",
   "nodeId": "0399454946097e6d6a8bfb9f4483ed752a8dcfac71925b91b7120126b898efc502",
   "alias": "pie",
+  "color": "#0066ff",
+  "features": "0a8a",
   "chainHash": "hdiahdsihdncsjnc",
   "blockHeight": 1515554,
   "publicAddresses": [

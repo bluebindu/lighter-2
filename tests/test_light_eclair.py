@@ -79,6 +79,8 @@ class LightEclairTests(TestCase):
         self.assertEqual(res.identity_pubkey, fix.GETINFO_TESTNET['nodeId'])
         self.assertEqual(res.alias, fix.GETINFO_TESTNET['alias'])
         self.assertEqual(res.blockheight, fix.GETINFO_TESTNET['blockHeight'])
+        self.assertEqual(res.version, fix.GETINFO_TESTNET['version'])
+        self.assertEqual(res.color, fix.GETINFO_TESTNET['color'])
         # Error case
         reset_mocks(vars())
         ses.getinfo.return_value = (fix.ERR, True)
